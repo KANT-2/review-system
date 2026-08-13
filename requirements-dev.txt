@@ -1,0 +1,3 @@
+ruff
+djlint
+pre-commit
