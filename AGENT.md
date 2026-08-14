@@ -7,7 +7,7 @@
 - [기술적 결정](docs/TECHNICAL_DECISIONS.md)
 - [코딩 컨벤션](docs/CODING_CONVENTIONS.md)
 - [디자인 시스템](docs/DESIGN.md)
-
+- [기본 레이아웃](docs/LAYOUT.md)
 ---
 
 ## 1. 작업 전에 사용자에게 변경 범위를 설명한다
