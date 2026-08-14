@@ -1,0 +1,18 @@
+:root {
+  --ax-primary: #1769e0;
+  --ax-background: #f6f8fc;
+  --ax-text: #182230;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--ax-background);
+  color: var(--ax-text);
+  font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.app-welcome {
+  max-width: 720px;
+  border-radius: 14px;
+}
