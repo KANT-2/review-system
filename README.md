@@ -175,6 +175,9 @@ pre-commit run --all-files
 
 Detailed rules and implementation decisions are intentionally kept outside this README.
 
+- [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — MVP requirements and detailed user scenarios
+  for each screen.
+
 - [`AGENT.md`](AGENT.md)  
   Repository working rules for developers and coding agents.
 
