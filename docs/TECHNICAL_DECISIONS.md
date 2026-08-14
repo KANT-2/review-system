@@ -211,7 +211,7 @@ DB Constraint로 막을 수 있는 핵심 데이터 무결성 문제는 가능�
 
 ## 10. UI 구현 기준
 
-UI 디자인 원칙은 저장소 루트의 [DESIGN.md](../DESIGN.md)를 따른다.
+UI 디자인 원칙은 [DESIGN.md](DESIGN.md)를 따른다.
 
 Bootstrap 5.3을 구조적 기반으로 사용한다.
 

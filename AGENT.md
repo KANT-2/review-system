@@ -112,7 +112,7 @@ templates/base.html
 2. 저장소에 이미 합의된 구조
 3. `docs/TECHNICAL_DECISIONS.md`
 4. `docs/CODING_CONVENTIONS.md`
-5. `DESIGN.md`
+5. `docs/DESIGN.md`
 6. 기존 코드 패턴
 
 이미 사용 중인 패턴이 있다면 특별한 이유 없이 새로운 패턴을 추가하지 않는다.
@@ -190,7 +190,7 @@ python manage.py test
 
 ## 10. UI 변경은 DESIGN.md를 따른다
 
-UI 관련 변경은 [DESIGN.md](DESIGN.md)를 기준으로 한다.
+UI 관련 변경은 [DESIGN.md](docs/DESIGN.md)를 기준으로 한다.
 
 페이지마다 별도의 디자인 언어를 만들지 않는다.
 
@@ -321,7 +321,7 @@ chore: Ruff 설정 추가
 - 가능한 린트 / 포맷 / Django 검사 / 테스트를 수행했다.
 - 실행하지 못하거나 실패한 검사를 명시했다.
 - 민감정보가 포함되지 않았다.
-- UI 변경은 `DESIGN.md`와 일관된다.
+- UI 변경은 `docs/DESIGN.md`와 일관된다.
 - 기술적 결정은 `docs/TECHNICAL_DECISIONS.md`와 충돌하지 않는다.
 - 학습 포인트와 남은 사항을 정리했다.
 - 권장 커밋 메시지를 제공했다.
