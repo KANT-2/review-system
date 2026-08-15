@@ -23,6 +23,24 @@ class SeedBalancedAssignment:
     optimization_count: int
 
 
+@dataclass(frozen=True)
+class AssignmentValidation:
+    """저장 전 팀 구성 검증 결과를 전달한다."""
+
+    team_count: int
+    participant_count: int
+    team_sizes: list[int]
+    has_size_imbalance: bool
+
+
+class AssignmentValidationError(ValueError):
+    """팀 구성이 저장할 수 없는 상태일 때 발생한다."""
+
+
+class ImbalanceConfirmationRequired(AssignmentValidationError):
+    """인원 차이가 큰 수동 편성을 저장하기 전에 재확인이 필요하다."""
+
+
 def distribute_participants(
     participant_ids: Sequence[int],
     team_count: int,
@@ -161,6 +179,54 @@ def create_seed_balanced_assignment(
     )
 
 
+def validate_assignment(
+    teams: Sequence[Sequence[int]],
+    expected_participant_ids: Sequence[int],
+    *,
+    imbalance_confirmed: bool = False,
+) -> AssignmentValidation:
+    """저장 요청의 누락·중복·빈 팀·인원 불균형을 검증한다."""
+    expected_participants = list(expected_participant_ids)
+    if len(expected_participants) != len(set(expected_participants)):
+        raise ValueError("expected_participant_ids must not contain duplicates")
+    if len(teams) < 2:
+        raise AssignmentValidationError("at least two teams are required")
+
+    team_sizes = [len(team) for team in teams]
+    if any(team_size == 0 for team_size in team_sizes):
+        raise AssignmentValidationError("empty teams are not allowed")
+
+    assigned_participants = [participant_id for team in teams for participant_id in team]
+    duplicate_participants = _find_duplicate_participants(assigned_participants)
+    if duplicate_participants:
+        raise AssignmentValidationError(
+            f"duplicate participants are not allowed: {duplicate_participants}"
+        )
+
+    expected_participant_set = set(expected_participants)
+    assigned_participant_set = set(assigned_participants)
+    missing_participants = sorted(expected_participant_set - assigned_participant_set)
+    unexpected_participants = sorted(assigned_participant_set - expected_participant_set)
+    if missing_participants:
+        raise AssignmentValidationError(f"participants are missing: {missing_participants}")
+    if unexpected_participants:
+        raise AssignmentValidationError(
+            f"unexpected participants were assigned: {unexpected_participants}"
+        )
+
+    has_size_imbalance = max(team_sizes) - min(team_sizes) > 1
+    # 수동 조정은 허용하되, 큰 인원 차이는 사용자가 경고를 확인한 요청에서만 저장한다.
+    if has_size_imbalance and not imbalance_confirmed:
+        raise ImbalanceConfirmationRequired("team size imbalance requires explicit confirmation")
+
+    return AssignmentValidation(
+        team_count=len(teams),
+        participant_count=len(assigned_participants),
+        team_sizes=team_sizes,
+        has_size_imbalance=has_size_imbalance,
+    )
+
+
 def _validate_assignment_input(participant_ids: Sequence[int], team_count: int) -> None:
     if team_count < 2:
         raise ValueError("team_count must be at least 2")
@@ -168,6 +234,16 @@ def _validate_assignment_input(participant_ids: Sequence[int], team_count: int) 
         raise ValueError("team_count cannot exceed the participant count")
     if len(participant_ids) != len(set(participant_ids)):
         raise ValueError("participant_ids must not contain duplicates")
+
+
+def _find_duplicate_participants(participant_ids: Sequence[int]) -> list[int]:
+    seen: set[int] = set()
+    duplicates: set[int] = set()
+    for participant_id in participant_ids:
+        if participant_id in seen:
+            duplicates.add(participant_id)
+        seen.add(participant_id)
+    return sorted(duplicates)
 
 
 def _calculate_target_sizes(participant_count: int, team_count: int) -> list[int]:
