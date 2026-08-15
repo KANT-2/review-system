@@ -1,5 +1,6 @@
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
+
 from accounts.models import User, WhitelistEmail
 
 
@@ -12,7 +13,7 @@ class AccountsAuthTests(TestCase):
             email="whitelisted@ax.com",
             name="화이트학생",
             role=User.Role.STUDENT,
-            session_info="4기 풀스택"
+            session_info="4기 풀스택",
         )
 
         # 2. 튜터 계정
@@ -24,7 +25,7 @@ class AccountsAuthTests(TestCase):
             role=User.Role.TUTOR,
             approval_status=User.ApprovalStatus.APPROVED,
             is_onboarded=True,
-            is_staff=True
+            is_staff=True,
         )
 
         # 3. 일반 승인 완료 학생 계정
@@ -35,16 +36,15 @@ class AccountsAuthTests(TestCase):
             first_name="김학생",
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
-            is_onboarded=True
+            is_onboarded=True,
         )
 
     def test_signup_whitelist_auto_approved(self):
         """화이트리스트에 등록된 이메일로 가입 시 즉시 APPROVED 승인 처리 검증"""
-        response = self.client.post(reverse("accounts:signup"), {
-            "name": "화이트학생",
-            "email": "whitelisted@ax.com",
-            "password": "SecurePassword123!"
-        })
+        response = self.client.post(
+            reverse("accounts:signup"),
+            {"name": "화이트학생", "email": "whitelisted@ax.com", "password": "SecurePassword123!"},
+        )
         self.assertEqual(response.status_code, 302)
 
         user = User.objects.get(email="whitelisted@ax.com")
@@ -54,11 +54,10 @@ class AccountsAuthTests(TestCase):
 
     def test_signup_non_whitelist_pending(self):
         """화이트리스트 미등록 이메일로 가입 시 PENDING 대기 상태 처리 검증"""
-        response = self.client.post(reverse("accounts:signup"), {
-            "name": "일반신청자",
-            "email": "outsider@ax.com",
-            "password": "SecurePassword123!"
-        })
+        response = self.client.post(
+            reverse("accounts:signup"),
+            {"name": "일반신청자", "email": "outsider@ax.com", "password": "SecurePassword123!"},
+        )
         self.assertEqual(response.status_code, 302)
 
         user = User.objects.get(email="outsider@ax.com")
@@ -70,12 +69,11 @@ class AccountsAuthTests(TestCase):
             username="pending@ax.com",
             email="pending@ax.com",
             password="password123",
-            approval_status=User.ApprovalStatus.PENDING
+            approval_status=User.ApprovalStatus.PENDING,
         )
-        response = self.client.post(reverse("accounts:login"), {
-            "email": "pending@ax.com",
-            "password": "password123"
-        })
+        response = self.client.post(
+            reverse("accounts:login"), {"email": "pending@ax.com", "password": "password123"}
+        )
         # 세션에 로그인되지 않고 로그인 페이지가 다시 렌더링되어야 함
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["user"].is_authenticated)
@@ -87,7 +85,7 @@ class AccountsAuthTests(TestCase):
             email="newbie@ax.com",
             password="password123",
             approval_status=User.ApprovalStatus.APPROVED,
-            is_onboarded=False
+            is_onboarded=False,
         )
         self.client.force_login(unonboarded_user)
         response = self.client.get(reverse("accounts:dashboard"))
@@ -99,10 +97,12 @@ class AccountsAuthTests(TestCase):
             username="target@ax.com",
             email="target@ax.com",
             password="password123",
-            approval_status=User.ApprovalStatus.PENDING
+            approval_status=User.ApprovalStatus.PENDING,
         )
         self.client.force_login(self.approved_student)
-        response = self.client.post(reverse("accounts:api_approve_user", kwargs={"user_id": target_user.id}))
+        response = self.client.post(
+            reverse("accounts:api_approve_user", kwargs={"user_id": target_user.id})
+        )
         self.assertEqual(response.status_code, 403)
 
     def test_tutor_api_success_for_tutor(self):
@@ -111,10 +111,12 @@ class AccountsAuthTests(TestCase):
             username="target2@ax.com",
             email="target2@ax.com",
             password="password123",
-            approval_status=User.ApprovalStatus.PENDING
+            approval_status=User.ApprovalStatus.PENDING,
         )
         self.client.force_login(self.tutor)
-        response = self.client.post(reverse("accounts:api_approve_user", kwargs={"user_id": target_user.id}))
+        response = self.client.post(
+            reverse("accounts:api_approve_user", kwargs={"user_id": target_user.id})
+        )
         self.assertEqual(response.status_code, 200)
 
         target_user.refresh_from_db()
@@ -123,10 +125,9 @@ class AccountsAuthTests(TestCase):
     def test_profile_update_api(self):
         """프로필 비동기 수정 API 호출 시 사용자 정보 변경 검증"""
         self.client.force_login(self.approved_student)
-        response = self.client.post(reverse("accounts:api_update_profile"), {
-            "name": "김수정",
-            "phone": "010-8888-7777"
-        })
+        response = self.client.post(
+            reverse("accounts:api_update_profile"), {"name": "김수정", "phone": "010-8888-7777"}
+        )
         self.assertEqual(response.status_code, 200)
 
         self.approved_student.refresh_from_db()

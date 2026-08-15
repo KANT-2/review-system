@@ -4,75 +4,92 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0001_initial'),
+        ("accounts", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='whitelistemail',
-            options={'ordering': ['-created_at'], 'verbose_name': '화이트리스트 이메일', 'verbose_name_plural': '화이트리스트 이메일 목록'},
+            name="whitelistemail",
+            options={
+                "ordering": ["-created_at"],
+                "verbose_name": "화이트리스트 이메일",
+                "verbose_name_plural": "화이트리스트 이메일 목록",
+            },
         ),
         migrations.AlterModelManagers(
-            name='user',
-            managers=[
-            ],
+            name="user",
+            managers=[],
         ),
         migrations.RemoveField(
-            model_name='user',
-            name='phone',
+            model_name="user",
+            name="phone",
         ),
         migrations.RemoveField(
-            model_name='user',
-            name='profile_image',
+            model_name="user",
+            name="profile_image",
         ),
         migrations.RemoveField(
-            model_name='user',
-            name='username',
+            model_name="user",
+            name="username",
         ),
         migrations.RemoveField(
-            model_name='whitelistemail',
-            name='name',
+            model_name="whitelistemail",
+            name="name",
         ),
         migrations.AddField(
-            model_name='user',
-            name='phone_number',
-            field=models.CharField(blank=True, max_length=20, null=True, verbose_name='연락처'),
+            model_name="user",
+            name="phone_number",
+            field=models.CharField(blank=True, max_length=20, null=True, verbose_name="연락처"),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='approval_status',
-            field=models.CharField(choices=[('pending', '대기'), ('approved', '승인'), ('rejected', '반려')], default='pending', max_length=20, verbose_name='승인 상태'),
+            model_name="user",
+            name="approval_status",
+            field=models.CharField(
+                choices=[("pending", "대기"), ("approved", "승인"), ("rejected", "반려")],
+                default="pending",
+                max_length=20,
+                verbose_name="승인 상태",
+            ),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='is_social_account',
-            field=models.BooleanField(default=False, verbose_name='소셜 계정 여부'),
+            model_name="user",
+            name="is_social_account",
+            field=models.BooleanField(default=False, verbose_name="소셜 계정 여부"),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='role',
-            field=models.CharField(choices=[('student', '수강생'), ('tutor', '튜터'), ('admin', '관리자')], default='student', max_length=20, verbose_name='역할'),
+            model_name="user",
+            name="role",
+            field=models.CharField(
+                choices=[("student", "수강생"), ("tutor", "튜터"), ("admin", "관리자")],
+                default="student",
+                max_length=20,
+                verbose_name="역할",
+            ),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='session_info',
-            field=models.CharField(blank=True, max_length=50, null=True, verbose_name='기수 정보'),
+            model_name="user",
+            name="session_info",
+            field=models.CharField(blank=True, max_length=50, null=True, verbose_name="기수 정보"),
         ),
         migrations.AlterField(
-            model_name='whitelistemail',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, verbose_name='등록 일시'),
+            model_name="whitelistemail",
+            name="created_at",
+            field=models.DateTimeField(auto_now_add=True, verbose_name="등록 일시"),
         ),
         migrations.AlterField(
-            model_name='whitelistemail',
-            name='role',
-            field=models.CharField(choices=[('student', '수강생'), ('tutor', '튜터'), ('admin', '관리자')], default='student', max_length=20, verbose_name='부여 역할'),
+            model_name="whitelistemail",
+            name="role",
+            field=models.CharField(
+                choices=[("student", "수강생"), ("tutor", "튜터"), ("admin", "관리자")],
+                default="student",
+                max_length=20,
+                verbose_name="부여 역할",
+            ),
         ),
         migrations.AlterField(
-            model_name='whitelistemail',
-            name='session_info',
-            field=models.CharField(blank=True, max_length=50, null=True, verbose_name='배정 기수'),
+            model_name="whitelistemail",
+            name="session_info",
+            field=models.CharField(blank=True, max_length=50, null=True, verbose_name="배정 기수"),
         ),
     ]

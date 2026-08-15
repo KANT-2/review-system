@@ -1,7 +1,8 @@
-from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.core.exceptions import ImmediateHttpResponse
-from django.shortcuts import redirect
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib import messages
+from django.shortcuts import redirect
+
 from accounts.models import User, WhitelistEmail
 
 
@@ -13,16 +14,18 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         user.is_social_account = True
         extra_data = sociallogin.account.extra_data
 
-        kakao_nickname = (
-            extra_data.get('properties', {}).get('nickname') 
-            or extra_data.get('kakao_account', {}).get('profile', {}).get('nickname')
+        kakao_nickname = extra_data.get("properties", {}).get("nickname") or extra_data.get(
+            "kakao_account", {}
+        ).get("profile", {}).get("nickname")
+        google_name = (
+            f"{data.get('last_name', '')}{data.get('first_name', '')}".strip()
+            or data.get("name", "")
         )
-        google_name = f"{data.get('last_name', '')}{data.get('first_name', '')}".strip() or data.get('name', '')
         full_name = kakao_nickname or google_name
         if full_name:
             user.first_name = full_name
 
-        kakao_email = extra_data.get('kakao_account', {}).get('email')
+        kakao_email = extra_data.get("kakao_account", {}).get("email")
         if kakao_email and not user.email:
             user.email = kakao_email
 
@@ -31,9 +34,9 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         extra_data = sociallogin.account.extra_data
         email = (
-            sociallogin.user.email 
-            or extra_data.get('email') 
-            or extra_data.get('kakao_account', {}).get('email')
+            sociallogin.user.email
+            or extra_data.get("email")
+            or extra_data.get("kakao_account", {}).get("email")
         )
 
         if not email:
@@ -46,11 +49,13 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         if user:
             if user.approval_status == User.ApprovalStatus.PENDING:
-                messages.warning(request, '아직 가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요.')
-                raise ImmediateHttpResponse(redirect('accounts:login'))
+                messages.warning(
+                    request, "아직 가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요."
+                )
+                raise ImmediateHttpResponse(redirect("accounts:login"))
             elif user.approval_status == User.ApprovalStatus.REJECTED:
-                messages.error(request, '승인이 거절된 계정입니다. 관리자에게 문의하세요.')
-                raise ImmediateHttpResponse(redirect('accounts:login'))
+                messages.error(request, "승인이 거절된 계정입니다. 관리자에게 문의하세요.")
+                raise ImmediateHttpResponse(redirect("accounts:login"))
 
             if not sociallogin.is_existing:
                 sociallogin.connect(request, user)
@@ -67,8 +72,10 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 sociallogin.user.save()
                 sociallogin.save(request)
 
-                messages.warning(request, '신규 계정으로 가입 신청되었습니다. 튜터 승인 후 이용 가능합니다.')
-                raise ImmediateHttpResponse(redirect('accounts:login'))
+                messages.warning(
+                    request, "신규 계정으로 가입 신청되었습니다. 튜터 승인 후 이용 가능합니다."
+                )
+                raise ImmediateHttpResponse(redirect("accounts:login"))
 
     def save_user(self, request, sociallogin, form=None):
         user = super().save_user(request, sociallogin, form)
@@ -79,5 +86,5 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def get_login_redirect_url(self, request):
         user = request.user
         if user.role in [User.Role.TUTOR, User.Role.ADMIN]:
-            return '/accounts/tutor/dashboard/'
-        return '/accounts/dashboard/'
+            return "/accounts/tutor/dashboard/"
+        return "/accounts/dashboard/"

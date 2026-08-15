@@ -1,25 +1,47 @@
 import os
+
 import django
 
 # Django 환경 설정
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 from accounts.models import User, WhitelistEmail
 
+
 def seed():
     print("🌱 [1/3] 화이트리스트 사전 등록 데이터 생성 중...")
     whitelists = [
-        {"email": "student1@ax.com", "name": "김민준", "session_info": "4기 풀스택 트랙", "role": User.Role.STUDENT},
-        {"email": "student2@ax.com", "name": "이수진", "session_info": "4기 프론트엔드 트랙", "role": User.Role.STUDENT},
-        {"email": "student3@ax.com", "name": "박도현", "session_info": "4기 백엔드 트랙", "role": User.Role.STUDENT},
-        {"email": "tutor.park@ax.com", "name": "박교수", "session_info": "전담 튜터진", "role": User.Role.TUTOR},
+        {
+            "email": "student1@ax.com",
+            "name": "김민준",
+            "session_info": "4기 풀스택 트랙",
+            "role": User.Role.STUDENT,
+        },
+        {
+            "email": "student2@ax.com",
+            "name": "이수진",
+            "session_info": "4기 프론트엔드 트랙",
+            "role": User.Role.STUDENT,
+        },
+        {
+            "email": "student3@ax.com",
+            "name": "박도현",
+            "session_info": "4기 백엔드 트랙",
+            "role": User.Role.STUDENT,
+        },
+        {
+            "email": "tutor.park@ax.com",
+            "name": "박교수",
+            "session_info": "전담 튜터진",
+            "role": User.Role.TUTOR,
+        },
     ]
     for w in whitelists:
         WhitelistEmail.objects.update_or_create(email=w["email"], defaults=w)
 
     print("👥 [2/3] 테스트 계정(튜터, 정회원 학생, 승인대기자) 생성 중...")
-    
+
     # 1. 튜터 계정 (ID: tutor@ax.com / PW: password123)
     tutor, _ = User.objects.update_or_create(
         email="tutor@ax.com",
@@ -31,8 +53,8 @@ def seed():
             "is_onboarded": True,
             "is_staff": True,
             "session_info": "메인 튜터",
-            "phone": "010-9999-8888"
-        }
+            "phone": "010-9999-8888",
+        },
     )
     tutor.set_password("password123")
     tutor.save()
@@ -47,8 +69,8 @@ def seed():
             "approval_status": User.ApprovalStatus.APPROVED,
             "is_onboarded": True,
             "session_info": "4기 풀스택 트랙",
-            "phone": "010-1234-5678"
-        }
+            "phone": "010-1234-5678",
+        },
     )
     main_student.set_password("password123")
     main_student.save()
@@ -74,8 +96,8 @@ def seed():
                 "approval_status": User.ApprovalStatus.APPROVED,
                 "is_onboarded": True,
                 "session_info": "4기 풀스택 트랙",
-                "phone": phone
-            }
+                "phone": phone,
+            },
         )
         st.set_password("password123")
         st.save()
@@ -97,8 +119,8 @@ def seed():
                 "approval_status": User.ApprovalStatus.PENDING,
                 "is_onboarded": False,
                 "session_info": "4기 신청자",
-                "phone": phone
-            }
+                "phone": phone,
+            },
         )
         pu.set_password("password123")
         pu.save()
@@ -111,5 +133,6 @@ def seed():
     print(" • 승인 대기 계정: woosung.jung@gmail.com (비밀번호: password123)")
     print("━" * 50)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     seed()
