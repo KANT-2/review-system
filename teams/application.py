@@ -54,7 +54,7 @@ class TeamSaveUnitOfWork(Protocol):
 
     def increase_lock_version(self, round_id: int) -> None: ...
 
-    def record_team_configuration_saved(self, round_id: int) -> None: ...
+    def record_team_configuration_saved(self, round_id: int, actor_id: int) -> None: ...
 
     def commit(self) -> None: ...
 
@@ -107,6 +107,7 @@ def save_team_configuration(
     board: TeamBoard,
     unit_of_work: TeamSaveUnitOfWork,
     *,
+    actor_id: int,
     imbalance_confirmed: bool = False,
 ) -> TeamBoard:
     """팀 구성 전체를 검증하고 하나의 원자적 작업으로 교체한다."""
@@ -126,7 +127,7 @@ def save_team_configuration(
         )
         unit_of_work.replace_team_configuration(board)
         unit_of_work.increase_lock_version(board.round_id)
-        unit_of_work.record_team_configuration_saved(board.round_id)
+        unit_of_work.record_team_configuration_saved(board.round_id, actor_id)
         unit_of_work.commit()
 
     # DB 버전 증가와 같은 값을 반환해 다음 편집 요청이 최신 버전을 사용하게 한다.

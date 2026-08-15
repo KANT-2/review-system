@@ -43,6 +43,7 @@ class TeamsHttpBackend(Protocol):
     def save_team_configuration(
         self,
         round_id: int,
+        actor_id: int,
         request_data: TeamSaveRequest,
     ) -> TeamBoard: ...
 
@@ -87,6 +88,8 @@ def auto_assignment_view(request: HttpRequest, round_id: int) -> JsonResponse:
         return JsonResponse(auto_team_board_response(result))
     except (TeamContractError, AssignmentValidationError) as error:
         return _error_response("invalid_request", str(error), 400)
+    except TeamVersionConflictError as error:
+        return _error_response("version_conflict", str(error), 409)
     except RoundNotEditableError as error:
         return _error_response("round_not_editable", str(error), 409)
     except LookupError as error:
@@ -100,7 +103,11 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
         return permission_error
     try:
         request_data = TeamSaveRequest.from_payload(round_id, _json_payload(request))
-        board = get_teams_backend().save_team_configuration(round_id, request_data)
+        board = get_teams_backend().save_team_configuration(
+            round_id,
+            request.user.id,
+            request_data,
+        )
         return JsonResponse(saved_team_board_response(board))
     except ImbalanceConfirmationRequired as error:
         return _error_response("imbalance_confirmation_required", str(error), 409)

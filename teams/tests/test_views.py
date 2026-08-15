@@ -40,6 +40,7 @@ class FakeTeamsBackend:
     def __init__(self):
         self.saved_request = None
         self.auto_request = None
+        self.auto_error = None
         self.save_error = None
 
     def get_student_team(self, user_id):
@@ -61,6 +62,8 @@ class FakeTeamsBackend:
         )
 
     def create_auto_assignment(self, round_id, request_data):
+        if self.auto_error is not None:
+            raise self.auto_error
         self.auto_request = request_data
         board = TeamBoard(
             round_id,
@@ -77,10 +80,11 @@ class FakeTeamsBackend:
             1,
         )
 
-    def save_team_configuration(self, round_id, request_data):
+    def save_team_configuration(self, round_id, actor_id, request_data):
         if self.save_error is not None:
             raise self.save_error
         self.saved_request = request_data
+        self.saved_actor_id = actor_id
         return TeamBoard(round_id, request_data.board.lock_version + 1, request_data.board.teams)
 
 
@@ -145,6 +149,20 @@ class TeamsHttpViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(json.loads(response.content)["error"]["code"], "invalid_request")
 
+    def test_stale_auto_assignment_version_receives_409(self):
+        self.backend.auto_error = TeamVersionConflictError("reload")
+        request = self.factory.post(
+            "/manage/rounds/10/teams/auto/",
+            data=json.dumps({"team_count": 2, "lock_version": 3}),
+            content_type="application/json",
+        )
+        request.user = FakeUser(2, "TUTOR")
+
+        response = auto_assignment_view(request, 10)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "version_conflict")
+
     def test_tutor_can_save_team_configuration(self):
         request = self._save_request()
 
@@ -152,6 +170,7 @@ class TeamsHttpViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(self.backend.saved_request, TeamSaveRequest)
+        self.assertEqual(self.backend.saved_actor_id, 2)
         self.assertEqual(json.loads(response.content)["lock_version"], 5)
 
     def test_imbalance_confirmation_receives_409(self):
