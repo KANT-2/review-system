@@ -1,0 +1,207 @@
+import json
+from dataclasses import dataclass
+from decimal import Decimal
+from unittest import TestCase
+from unittest.mock import patch
+
+from django.test import RequestFactory
+
+from teams.application import (
+    AutoTeamBoardResult,
+    RoundNotEditableError,
+    TeamVersionConflictError,
+)
+from teams.contracts import AutoAssignmentRequest, TeamSaveRequest
+from teams.domain import TeamBoard, TeamDraft
+from teams.queries import (
+    ManagementTeamView,
+    StudentTeamView,
+    TeamMemberView,
+    TeamView,
+)
+from teams.services import ImbalanceConfirmationRequired
+from teams.views import (
+    auto_assignment_view,
+    management_team_view,
+    save_team_view,
+    student_team_view,
+)
+
+
+@dataclass
+class FakeUser:
+    id: int | None
+    role: str | None
+    is_authenticated: bool = True
+    is_staff: bool = False
+
+
+class FakeTeamsBackend:
+    def __init__(self):
+        self.saved_request = None
+        self.auto_request = None
+        self.save_error = None
+
+    def get_student_team(self, user_id):
+        return StudentTeamView(
+            10,
+            True,
+            TeamView(1, "1팀", (TeamMemberView(101, "A001", "김민수"),)),
+        )
+
+    def get_management_team(self, round_id):
+        return ManagementTeamView(
+            round_id,
+            "DRAFT",
+            4,
+            True,
+            False,
+            (TeamView(1, "1팀", (TeamMemberView(101, "A001", "김민수"),)),),
+            (),
+        )
+
+    def create_auto_assignment(self, round_id, request_data):
+        self.auto_request = request_data
+        board = TeamBoard(
+            round_id,
+            request_data.lock_version,
+            (TeamDraft(1, "1팀", (101,)), TeamDraft(2, "2팀", (102,))),
+        )
+        return AutoTeamBoardResult(
+            board,
+            Decimal("2"),
+            Decimal("1"),
+            2,
+            1,
+            0,
+            1,
+        )
+
+    def save_team_configuration(self, round_id, request_data):
+        if self.save_error is not None:
+            raise self.save_error
+        self.saved_request = request_data
+        return TeamBoard(round_id, request_data.board.lock_version + 1, request_data.board.teams)
+
+
+class TeamsHttpViewTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.backend = FakeTeamsBackend()
+        self.backend_patch = patch("teams.views.get_teams_backend", return_value=self.backend)
+        self.backend_patch.start()
+        self.addCleanup(self.backend_patch.stop)
+
+    def test_student_can_get_own_team(self):
+        request = self.factory.get("/student/team/")
+        request.user = FakeUser(1, "STUDENT")
+
+        response = student_team_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.content)["team"]["name"], "1팀")
+
+    def test_student_cannot_open_management_team_view(self):
+        request = self.factory.get("/manage/rounds/10/teams/")
+        request.user = FakeUser(1, "STUDENT")
+
+        response = management_team_view(request, 10)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "permission_denied")
+
+    def test_unauthenticated_user_receives_401(self):
+        request = self.factory.get("/student/team/")
+        request.user = FakeUser(None, None, is_authenticated=False)
+
+        response = student_team_view(request)
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_tutor_can_request_auto_assignment(self):
+        request = self.factory.post(
+            "/manage/rounds/10/teams/auto/",
+            data=json.dumps({"team_count": 2, "lock_version": 4}),
+            content_type="application/json",
+        )
+        request.user = FakeUser(2, "TUTOR")
+
+        response = auto_assignment_view(request, 10)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.backend.auto_request, AutoAssignmentRequest(2, 4))
+        self.assertEqual(len(json.loads(response.content)["teams"]), 2)
+
+    def test_invalid_json_receives_400(self):
+        request = self.factory.post(
+            "/manage/rounds/10/teams/auto/",
+            data="{invalid",
+            content_type="application/json",
+        )
+        request.user = FakeUser(2, "TUTOR")
+
+        response = auto_assignment_view(request, 10)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "invalid_request")
+
+    def test_tutor_can_save_team_configuration(self):
+        request = self._save_request()
+
+        response = save_team_view(request, 10)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(self.backend.saved_request, TeamSaveRequest)
+        self.assertEqual(json.loads(response.content)["lock_version"], 5)
+
+    def test_imbalance_confirmation_receives_409(self):
+        self.backend.save_error = ImbalanceConfirmationRequired("confirm imbalance")
+
+        response = save_team_view(self._save_request(), 10)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            json.loads(response.content)["error"]["code"],
+            "imbalance_confirmation_required",
+        )
+
+    def test_version_conflict_receives_409(self):
+        self.backend.save_error = TeamVersionConflictError("reload")
+
+        response = save_team_view(self._save_request(), 10)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "version_conflict")
+
+    def test_started_round_receives_409(self):
+        self.backend.save_error = RoundNotEditableError("only DRAFT")
+
+        response = save_team_view(self._save_request(), 10)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(json.loads(response.content)["error"]["code"], "round_not_editable")
+
+    def test_staff_can_open_management_view_without_tutor_role(self):
+        request = self.factory.get("/manage/rounds/10/teams/")
+        request.user = FakeUser(3, "STUDENT", is_staff=True)
+
+        response = management_team_view(request, 10)
+
+        self.assertEqual(response.status_code, 200)
+
+    def _save_request(self):
+        request = self.factory.post(
+            "/manage/rounds/10/teams/save/",
+            data=json.dumps(
+                {
+                    "lock_version": 4,
+                    "teams": [
+                        {"team_number": 1, "name": "1팀", "participant_ids": [101]},
+                        {"team_number": 2, "name": "2팀", "participant_ids": [102]},
+                    ],
+                }
+            ),
+            content_type="application/json",
+        )
+        request.user = FakeUser(2, "TUTOR")
+        return request
