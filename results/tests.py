@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.test import SimpleTestCase
 
 from results.services import (
+    calculate_coverage,
     calculate_final_score,
     calculate_peer_score,
     calculate_seed,
@@ -79,6 +80,14 @@ class DetermineDataStatusTests(SimpleTestCase):
 
     def test_complete_when_all_expected_are_valid(self):
         self.assertEqual(determine_data_status(expected_count=3, valid_count=3), "COMPLETE")
+
+
+class CalculateCoverageTests(SimpleTestCase):
+    def test_is_none_when_nothing_expected(self):
+        self.assertIsNone(calculate_coverage(expected_count=0, valid_count=0))
+
+    def test_ratio_of_valid_to_expected(self):
+        self.assertEqual(calculate_coverage(expected_count=10, valid_count=7), Decimal("0.700000"))
 
 
 class CompetitionRankTests(SimpleTestCase):

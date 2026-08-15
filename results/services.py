@@ -94,6 +94,17 @@ def determine_data_status(expected_count: int, valid_count: int) -> str:
     return "COMPLETE"
 
 
+def calculate_coverage(expected_count: int, valid_count: int) -> Decimal | None:
+    """커버리지 = 유효 제출 수 / 기대 제출 수 (raw 정밀도).
+
+    기대 제출 수가 0이면(NOT_APPLICABLE) 정의되지 않으므로 None을 돌려준다
+    (docs/DATABASE-DESIGN.md 5.11: "expected가 0이면 null").
+    """
+    if expected_count == 0:
+        return None
+    return round_to_raw(Decimal(valid_count) / Decimal(expected_count))
+
+
 def competition_rank(values_descending: list[Decimal]) -> list[int]:
     """공개 점수(표시 정밀도) 기준으로 동점자를 공동 순위로 매긴다.
 
