@@ -2,13 +2,12 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from .models import User, WhitelistEmail
 from .forms import SignUpForm, LoginForm, OnboardingForm
 
 def login_view(request):
-    """
-    로그인 및 승인 상태별 분기 처리
-    """
     if request.user.is_authenticated:
         return redirect('accounts:dashboard')
 
@@ -20,20 +19,15 @@ def login_view(request):
             user = authenticate(request, username=email, password=password)
 
             if user is not None:
-                # 1. 승인 대기 상태 검사
                 if user.approval_status == User.ApprovalStatus.PENDING:
                     messages.warning(request, '아직 승인 검토 중입니다. 튜터의 승인을 기다려주세요.')
                     return render(request, 'accounts/login.html', {'form': form})
                 
-                # 2. 승인 거절 상태 검사
                 if user.approval_status == User.ApprovalStatus.REJECTED:
                     messages.error(request, '승인이 거절되었습니다. 관리자에게 문의하세요.')
                     return render(request, 'accounts/login.html', {'form': form})
 
-                # 3. 정상 로그인
                 login(request, user)
-
-                # 4. 온보딩 가드 확인
                 if not user.is_onboarded:
                     return redirect('accounts:onboarding')
 
@@ -47,9 +41,6 @@ def login_view(request):
 
 
 def signup_view(request):
-    """
-    회원가입 뷰
-    """
     if request.method == 'POST':
         form = SignUpForm(request.POST)
         if form.is_valid():
@@ -66,18 +57,12 @@ def signup_view(request):
 
 
 def logout_view(request):
-    """
-    로그아웃 뷰
-    """
     logout(request)
     return redirect('accounts:login')
 
 
 @login_required
 def onboarding_view(request):
-    """
-    온보딩 가드 뷰: 필수 정보 입력 완료 전까지 대시보드 이동 차단
-    """
     if request.user.is_onboarded:
         return redirect('accounts:dashboard')
 
@@ -96,32 +81,130 @@ def onboarding_view(request):
     return render(request, 'accounts/onboarding.html', {'form': form})
 
 
+# 8주차 누적 피드백 11건 (3단 탭 분리 데이터)
+SAMPLE_FEEDBACKS = {
+    'tutor': [
+        {"author": "박교수 튜터", "week": "8주차 파이널", "date": "2026.08.15", "content": "전체 아키텍처 구조가 매우 견고하며, Redis 캐싱 및 비동기 처리 적용이 탁월합니다. 상용 서비스 배포 수준입니다."},
+        {"author": "박교수 튜터", "week": "6주차 스프린트", "date": "2026.08.01", "content": "REST API 규격과 상태 코드(HTTP Status) 처리가 표준에 맞게 깔끔하게 정돈되었습니다."},
+        {"author": "김멘토 튜터", "week": "4주차 중간점검", "date": "2026.07.18", "content": "DB 쿼리 N+1 문제를 select_related로 잘 개선하셨습니다. 데이터베이스 인덱싱 설계도 훌륭합니다."},
+        {"author": "박교수 튜터", "week": "2주차 과제", "date": "2026.07.04", "content": "기본 모델링 구조가 탄탄합니다. 온보딩 가드 로직 설계가 인상적입니다."}
+    ],
+    'team': [
+        {"team_name": "2팀 (Beta)", "week": "8주차 파이널", "date": "2026.08.14", "content": "대시보드의 우선순위 정렬 UX와 반응형 사이드바가 아주 매끄럽게 동작하여 사용성이 최고였습니다."},
+        {"team_name": "4팀 (Delta)", "week": "7주차 크로스리뷰", "date": "2026.08.07", "content": "마이페이지 5각 레이더 차트의 시각화 완성도가 높고 강점/약점 분석 태그가 직관적입니다."},
+        {"team_name": "1팀 (Alpha)", "week": "5주차 크로스리뷰", "date": "2026.07.24", "content": "가입 승인 대기 큐에서 비동기 처리로 새로고침 없이 승인/거절되는 인터랙션이 인상 깊었습니다."},
+        {"team_name": "3팀 (Gamma)", "week": "3주차 크로스리뷰", "date": "2026.07.11", "content": "API 예외 처리가 꼼꼼하고 토스트 알림 디자인이 깔끔합니다."}
+    ],
+    'peer': [
+        {"author": "익명의 팀원 A", "week": "8주차 파이널", "content": "8주 동안 팀장으로서 모든 일정 조율과 병목 이슈를 완벽히 해결해 주셨습니다. 함께해서 든든했습니다!"},
+        {"author": "익명의 팀원 B", "week": "7주차 스프린트", "content": "프론트엔드 모달과 차트 연동 작업을 밤샘 작업 없이 완벽한 일정 안에 끝낼 수 있게 리드해 주셨습니다."},
+        {"author": "익명의 팀원 C", "week": "5주차 스프린트", "content": "의견 충돌이 있을 때마다 중재를 잘해주시고 명확한 근거를 바탕으로 의사결정을 이끌어주셨습니다."},
+        {"author": "익명의 팀원 D", "week": "2주차 스프린트", "content": "Git 브랜치 전략과 컨벤션을 명확히 잡아주셔서 협업 충돌 없이 편하게 개발했습니다."}
+    ]
+}
+
+# 1주차 ~ 7주차 과거 이력 데이터
+WEEKS_HISTORY = [
+    {"week": 7, "team": "3팀 (Alpha)", "members": "이수진, 박도현, 김민준", "grade": "A+ (97점)", "peer_score": "4.85 / 5.0", "repo": "github.com/team3/final-prep"},
+    {"week": 6, "team": "3팀 (Alpha)", "members": "이수진, 박도현, 김민준", "grade": "A (93점)", "peer_score": "4.70 / 5.0", "repo": "github.com/team3/api-perf"},
+    {"week": 5, "team": "2팀 (Beta)", "members": "최민아, 강태호, 김민준", "grade": "A+ (98점)", "peer_score": "4.90 / 5.0", "repo": "github.com/team2/async-queue"},
+    {"week": 4, "team": "2팀 (Beta)", "members": "최민아, 강태호, 김민준", "grade": "A (95점)", "peer_score": "4.75 / 5.0", "repo": "github.com/team2/midterm-proto"},
+    {"week": 3, "team": "1팀 (Alpha)", "members": "윤아름, 정유진, 김민준", "grade": "A (92점)", "peer_score": "4.60 / 5.0", "repo": "github.com/team1/eval-core"},
+    {"week": 2, "team": "1팀 (Alpha)", "members": "윤아름, 정유진, 김민준", "grade": "B+ (88점)", "peer_score": "4.45 / 5.0", "repo": "github.com/team1/auth-skeleton"},
+    {"week": 1, "team": "5팀 (Epsilon)", "members": "오세훈, 배수지, 김민준", "grade": "A (91점)", "peer_score": "4.50 / 5.0", "repo": "github.com/team5/onboarding-ux"},
+]
+
+
 @login_required
 def dashboard_view(request):
-    """
-    학생 메인 대시보드 뷰
-    """
     if not request.user.is_onboarded:
         return redirect('accounts:onboarding')
-    return render(request, 'accounts/dashboard.html')
+
+    context = {
+        'current_week': 8,
+        'feedbacks': SAMPLE_FEEDBACKS,
+    }
+    return render(request, 'accounts/dashboard.html', context)
 
 
 @login_required
 def mypage_view(request):
-    """
-    마이페이지 뷰
-    """
-    return render(request, 'accounts/mypage.html')
+    context = {
+        'current_week': 8,
+        'feedbacks': SAMPLE_FEEDBACKS,
+        'recent_feedbacks': [
+            {"badge": "튜터 피드백", "badge_class": "bg-primary", "week": "8주차 파이널", "text": "전체 아키텍처 구조가 매우 견고하며, Redis 캐싱 및 비동기 처리 적용이 탁월합니다."},
+            {"badge": "팀 과제 피드백", "badge_class": "bg-warning text-dark", "week": "8주차 리뷰", "text": "대시보드의 우선순위 정렬 UX와 반응형 사이드바가 아주 매끄럽게 동작합니다."},
+            {"badge": "동료 피드백", "badge_class": "bg-secondary", "week": "8주차 파이널", "text": "8주 동안 팀장으로서 모든 일정 조율과 병목 이슈를 완벽히 해결해 주셨습니다."}
+        ],
+        'weeks_history': WEEKS_HISTORY,
+        'competencies': {
+            'teamwork': 4.8,
+            'problem_solving': 4.5,
+            'responsibility': 4.7,
+            'dev_knowledge': 4.2,
+            'communication': 4.9,
+            'total_avg': 4.62,
+            'feedback_count': 12
+        }
+    }
+    return render(request, 'accounts/mypage.html', context)
 
 
 @login_required
 def tutor_admin_view(request):
-    """
-    튜터 학생 관리 콘솔 뷰
-    """
-    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING)
-    students = User.objects.filter(role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED)
-    return render(request, 'accounts/tutor_admin.html', {
+    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by('-date_joined')
+    students = User.objects.filter(role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED).order_by('first_name')
+    context = {
+        'current_week': 8,
         'pending_users': pending_users,
-        'students': students
+        'students': students,
+        'feedbacks': SAMPLE_FEEDBACKS,
+    }
+    return render(request, 'accounts/tutor_admin.html', context)
+
+
+@login_required
+@require_POST
+def approve_user_api(request, user_id):
+    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN] and not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+    try:
+        target_user = User.objects.get(id=user_id)
+        target_user.approval_status = User.ApprovalStatus.APPROVED
+        target_user.save()
+        return JsonResponse({'success': True, 'message': f'{target_user.first_name or target_user.username} 학생이 승인되었습니다.'})
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'message': '사용자를 찾을 수 없습니다.'}, status=404)
+
+
+@login_required
+@require_POST
+def reject_user_api(request, user_id):
+    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN] and not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': '권한이 없습니다.'}, status=403)
+    try:
+        target_user = User.objects.get(id=user_id)
+        target_user.approval_status = User.ApprovalStatus.REJECTED
+        target_user.save()
+        return JsonResponse({'success': True, 'message': f'{target_user.first_name or target_user.username} 학생 가입이 거절되었습니다.'})
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'message': '사용자를 찾을 수 없습니다.'}, status=404)
+
+
+@login_required
+@require_POST
+def update_profile_api(request):
+    name = request.POST.get('name', '').strip()
+    phone = request.POST.get('phone', '').strip()
+    if not name:
+        return JsonResponse({'success': False, 'message': '이름을 입력해주세요.'}, status=400)
+    user = request.user
+    user.first_name = name
+    user.phone = phone
+    user.save()
+    return JsonResponse({
+        'success': True, 
+        'message': '프로필이 성공적으로 수정되었습니다.',
+        'data': {'name': user.first_name, 'phone': user.phone}
     })

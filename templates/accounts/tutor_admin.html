@@ -9,7 +9,7 @@
     <h1 class="page-title">튜터 학생 관리 콘솔</h1>
     <p class="page-desc">신규 가입 대기자를 심사하고 학생들의 과거 이력 조회 및 피드백을 작성합니다.</p>
   </div>
-  <span class="badge bg-dark fs-6">Tutor Mode</span>
+  <span class="badge bg-dark fs-6 rounded-pill px-3 py-2">Tutor Mode</span>
 </div>
 
 <!-- 1. Approval Queue -->
@@ -18,7 +18,7 @@
     <div class="card-title-custom">
       <i class="bi bi-person-check-fill text-warning"></i> 가입 승인 대기 큐 (화이트리스트 미등록자)
     </div>
-    <span class="badge badge-ax badge-ax-danger">{{ pending_users.count }}명 대기중</span>
+    <span class="badge badge-ax badge-ax-danger" id="queueBadge">{{ pending_users.count }}명 대기중</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
@@ -30,20 +30,24 @@
           <th class="text-end">심사 처리</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="approvalQueueTbody">
         {% for u in pending_users %}
-        <tr>
+        <tr id="user-row-{{ u.id }}">
           <td><strong>{{ u.first_name|default:u.username }}</strong></td>
           <td>{{ u.email }}</td>
           <td>{{ u.date_joined|date:"Y.m.d H:i" }}</td>
           <td class="text-end">
-            <button class="btn btn-sm btn-success py-1 px-2 me-1" onclick="alert('{{ u.first_name }} 학생이 승인되었습니다.')"><i class="bi bi-check-lg"></i> 승인</button>
-            <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="alert('{{ u.first_name }} 학생 가입이 거절되었습니다.')"><i class="bi bi-x-lg"></i> 거절</button>
+            <button class="btn btn-sm btn-success py-1 px-3 me-1 rounded-2" onclick="handleUserApproval({{ u.id }}, 'approve')">
+              <i class="bi bi-check-lg"></i> 승인
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-1 px-2 rounded-2" onclick="handleUserApproval({{ u.id }}, 'reject')">
+              <i class="bi bi-x-lg"></i> 거절
+            </button>
           </td>
         </tr>
         {% empty %}
-        <tr>
-          <td colspan="4" class="text-center py-3 text-muted">현재 승인 대기 중인 신청자가 없습니다.</td>
+        <tr id="emptyRow">
+          <td colspan="4" class="text-center py-4 text-muted">현재 승인 대기 중인 신청자가 없습니다.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -81,12 +85,12 @@
           <td><span class="fw-bold text-primary">4.65</span> / 5.0</td>
           <td class="text-end">
             <a href="{% url 'accounts:mypage' %}" class="btn btn-sm btn-ax-secondary py-1">이력 조회</a>
-            <button class="btn btn-sm btn-ax-primary py-1" data-bs-toggle="modal" data-bs-target="#tutorWriteModal">피드백 작성</button>
+            <button class="btn btn-sm btn-ax-primary py-1" onclick="openFeedbackModal('{{ s.first_name|default:s.username }}')">피드백 작성</button>
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="5" class="text-center py-3 text-muted">등록된 학생이 없습니다.</td>
+          <td colspan="5" class="text-center py-4 text-muted">등록된 학생이 없습니다.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -97,12 +101,12 @@
 <!-- Tutor Feedback Modal -->
 <div class="modal fade" id="tutorWriteModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold">튜터 피드백 작성</h6>
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-bottom px-4 py-3">
+        <h6 class="modal-title fw-bold" id="tutorModalTitle">튜터 피드백 작성</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body p-4">
         <div class="mb-3">
           <label class="form-label small fw-bold">피드백 구분</label>
           <select class="form-select form-select-sm">
@@ -113,14 +117,65 @@
         <div class="mb-3">
           <label class="form-label small fw-bold">피드백 코멘트</label>
           <textarea class="form-control" rows="4" placeholder="학생의 강점과 보완점을 작성해주세요..."></textarea>
-          <small class="text-muted" style="font-size: 11px;">* 저장 즉시 학생 마이페이지에 실시간 반영되며 알림이 발송됩니다.</small>
+          <small class="text-muted" style="font-size: 11.5px;">* 발행 즉시 학생 마이페이지에 실시간 반영되며 알림이 발송됩니다.</small>
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer border-top-0 px-4 pb-3">
         <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
-        <button type="button" class="btn btn-ax-primary" data-bs-dismiss="modal" onclick="alert('피드백이 학생에게 실시간 발행되었습니다.')">발행하기</button>
+        <button type="button" class="btn btn-ax-primary" data-bs-dismiss="modal" onclick="showToast('피드백이 학생에게 실시간 발행되었습니다!')">발행하기</button>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function handleUserApproval(userId, action) {
+    const url = action === 'approve' 
+      ? `/accounts/api/users/${userId}/approve/` 
+      : `/accounts/api/users/${userId}/reject/`;
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}',
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        // UI에서 해당 행 제거
+        const row = document.getElementById(`user-row-${userId}`);
+        if (row) {
+          row.style.transition = 'all 0.3s ease';
+          row.style.opacity = '0';
+          setTimeout(() => {
+            row.remove();
+            // 남은 행 개수 업데이트
+            const tbody = document.getElementById('approvalQueueTbody');
+            const remainingRows = tbody.querySelectorAll('tr[id^="user-row-"]').length;
+            document.getElementById('queueBadge').innerText = `${remainingRows}명 대기중`;
+            if (remainingRows === 0) {
+              tbody.innerHTML = '<tr id="emptyRow"><td colspan="4" class="text-center py-4 text-muted">현재 승인 대기 중인 신청자가 없습니다.</td></tr>';
+            }
+          }, 300);
+        }
+        showToast(data.message);
+      } else {
+        showModernAlert('오류', data.message, 'bi-exclamation-triangle-fill text-danger');
+      }
+    })
+    .catch(err => {
+      showModernAlert('오류', '서버 통신 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
+    });
+  }
+
+  function openFeedbackModal(studentName) {
+    document.getElementById('tutorModalTitle').innerText = `튜터 피드백 작성 (${studentName} 학생)`;
+    const modal = new bootstrap.Modal(document.getElementById('tutorWriteModal'));
+    modal.show();
+  }
+</script>
 {% endblock %}
