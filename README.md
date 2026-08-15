@@ -6,8 +6,8 @@ The system supports the overall evaluation cycle:
 
 ```text
 Student Registration
-→ Team Assignment
-→ Assignment / Presentation
+→ Round / Question Setup
+→ Team Arrangement and Adjustment
 → Team Evaluation
 → Peer Evaluation
 → Score Calculation
@@ -173,25 +173,17 @@ pre-commit run --all-files
 
 ## Documentation
 
-Detailed rules and implementation decisions are intentionally kept outside this README.
+Start with [`docs/README.md`](docs/README.md), which lists the documents in their intended reading
+order and identifies the authoritative baseline.
 
-- [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — MVP requirements and detailed user scenarios
-  for each screen.
-
-- [`AGENT.md`](AGENT.md)  
-  Repository working rules for developers and coding agents.
-
-- [`docs/DESIGN.md`](docs/DESIGN.md)  
-  Shared visual design language and design tokens.
-
-- [`docs/LAYOUT.md`](docs/LAYOUT.md)  
-  Global application shell, Sidebar / Top Bar / Main Content layout, grid, and responsive behavior.
-
-- [`docs/TECHNICAL_DECISIONS.md`](docs/TECHNICAL_DECISIONS.md)  
-  Technology choices, application boundaries, architecture decisions, scoring rules, and implementation decisions.
-
-- [`docs/CODING_CONVENTIONS.md`](docs/CODING_CONVENTIONS.md)  
-  Python, Django, template, testing, linting, formatting, and commit conventions.
+- [`docs/REFINED-REQUIREMENTS.md`](docs/REFINED-REQUIREMENTS.md) — Authoritative requirements
+  and acceptance criteria after two-stage review.
+- [`docs/FLOWS.md`](docs/FLOWS.md) — Feature and page flows.
+- [`docs/DATABASE-DESIGN.md`](docs/DATABASE-DESIGN.md) — 12-table schema, constraints, and
+  transactions.
+- [`docs/TECHNICAL_DECISIONS.md`](docs/TECHNICAL_DECISIONS.md) — Architecture and implementation
+  decisions.
+- [`AGENT.md`](AGENT.md) — Repository working rules.
 
 ---
 
