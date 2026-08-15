@@ -11,6 +11,13 @@ or student that received zero valid evaluations is N/A (represented here as ``No
 real 0.00 score. N/A propagates through FinalScore, is excluded from ranking, and is excluded
 from Seed history - it is never averaged in as 0. This supersedes this project's earlier
 ADR-0001 ("missing evaluation data scores as 0"), which predates this refined spec.
+
+Precision (RES-005, docs/DATABASE-DESIGN.md 5.11 ``results_evaluation_result``): calculations
+stay at raw precision (matching the ``*_raw numeric(9,6)`` columns) all the way through the
+chain - submission score -> team/peer score -> final score -> seed. Only ``round_to_display``
+rounds to 2 decimal places (``ROUND_HALF_UP``), and only when a value is actually about to be
+shown to a user (matching the ``display_score numeric(4,2)`` column). Rounding to 2dp at every
+intermediate step (this app's earlier approach) would compound rounding error across the chain.
 """
 
 from decimal import ROUND_HALF_UP, Decimal
@@ -18,36 +25,30 @@ from decimal import ROUND_HALF_UP, Decimal
 TEAM_WEIGHT = Decimal("0.4")
 PEER_WEIGHT = Decimal("0.6")
 
-# 오래된 순 20% / 30% / 50%. 3개 미만일 때 어느 쪽에서 잘라 재정규화할지는 아직 문서 간
-# 결론이 다르다:
-#   - 이 프로젝트 초기 스펙의 예시(1회차=80, 2회차=90 -> 86)는 앞(과거)부터 자르는 걸
-#     전제한다: 80*(20/50) + 90*(30/50) = 86.
-#   - docs/REFINED-REQUIREMENTS.md AC-10(과거 4.0, 최신 5.0 -> 4.625)은 뒤(최근)부터
-#     자르는 걸 전제한다: (4.0*30 + 5.0*50) / 80 = 4.625.
-# 둘 다 각자 문서 안에서는 예시로 검증되는 자기 일관적인 규칙이라 코드만으로는 어느 쪽이
-# 맞는지 판단할 수 없다. 현재 구현은 이전부터 검증해온 앞쪽 자르기를 유지하고 있으며, 팀
-# 논의 후 확정되면 이 상수와 calculate_seed()를 함께 갱신해야 한다.
+# 오래된 순 20% / 30% / 50%. 3개 미만이면 뒤(최근)부터 잘라 재정규화한다: 2개면 30%+50%,
+# 1개면 50%를 100%로. docs/REFINED-REQUIREMENTS.md AC-10(과거 4.0, 최신 5.0 ->
+# (4.0*30 + 5.0*50) / 80 = 4.625)로 확정됨.
 SEED_WEIGHTS = [Decimal("0.2"), Decimal("0.3"), Decimal("0.5")]
 
 
-def round_to_2dp(value) -> Decimal:
-    """점수 계산 결과를 저장/비교할 때 쓰는 내부 정밀도."""
+def round_to_raw(value) -> Decimal:
+    """계산 체인 내내 유지하는 정밀도 (``*_raw numeric(9,6)`` 컬럼과 동일한 소수 6자리)."""
+    return Decimal(str(value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+
+def round_to_display(value) -> Decimal:
+    """사용자에게 점수를 보여줄 때만 쓰는 표시 정밀도 (소수 둘째 자리, RES-005)."""
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def round_to_1dp(value: Decimal) -> Decimal:
-    """화면에 점수를 보여줄 때 쓰는 표시 정밀도."""
-    return Decimal(str(value)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-
-
 def score_from_answers(answers: list[int]) -> Decimal:
-    """한 건의 평가 응답(1~5점 문항 목록)을 0~100점으로 환산한다."""
+    """한 건의 평가 응답(1~5점 문항 목록)을 0~100점 raw 정밀도로 환산한다."""
     average = sum(answers) / len(answers)
-    return round_to_2dp(average / 5 * 100)
+    return round_to_raw(average / 5 * 100)
 
 
 def calculate_team_score(received_answer_sets: list[list[int]]) -> Decimal | None:
-    """팀이 이번 회차에 받은 모든 유효 팀 평가 제출의 평균 점수.
+    """팀이 이번 회차에 받은 모든 유효 팀 평가 제출의 평균 점수 (raw 정밀도).
 
     한 건도 받지 못했으면 N/A(``None``)를 반환한다 - 0점으로 대체하지 않는다
     (RES-002, SUB-006).
@@ -55,26 +56,26 @@ def calculate_team_score(received_answer_sets: list[list[int]]) -> Decimal | Non
     if not received_answer_sets:
         return None
     percentages = [score_from_answers(answers) for answers in received_answer_sets]
-    return round_to_2dp(sum(percentages) / len(percentages))
+    return round_to_raw(sum(percentages) / len(percentages))
 
 
 def calculate_peer_score(received_answer_sets: list[list[int]]) -> Decimal | None:
-    """학생이 이번 회차에 받은 모든 유효 개인 평가 제출의 평균 점수. N/A 처리는 팀 점수와 동일하다
-    (RES-003, SUB-006)."""
+    """학생이 이번 회차에 받은 모든 유효 개인 평가 제출의 평균 점수 (raw 정밀도). N/A 처리는
+    팀 점수와 동일하다 (RES-003, SUB-006)."""
     if not received_answer_sets:
         return None
     percentages = [score_from_answers(answers) for answers in received_answer_sets]
-    return round_to_2dp(sum(percentages) / len(percentages))
+    return round_to_raw(sum(percentages) / len(percentages))
 
 
 def calculate_final_score(team_score: Decimal | None, peer_score: Decimal | None) -> Decimal | None:
-    """개인 최종점수 = 팀 점수 40% + 개인 점수 60%.
+    """개인 최종점수 = 팀 점수 40% + 개인 점수 60% (raw 정밀도).
 
     두 구성 점수 중 하나라도 N/A(``None``)면 최종점수도 N/A다 (RES-004).
     """
     if team_score is None or peer_score is None:
         return None
-    return round_to_2dp(team_score * TEAM_WEIGHT + peer_score * PEER_WEIGHT)
+    return round_to_raw(team_score * TEAM_WEIGHT + peer_score * PEER_WEIGHT)
 
 
 def determine_data_status(expected_count: int, valid_count: int) -> str:
@@ -94,11 +95,11 @@ def determine_data_status(expected_count: int, valid_count: int) -> str:
 
 
 def competition_rank(values_descending: list[Decimal]) -> list[int]:
-    """동점자를 공동 순위로 매긴다.
+    """공개 점수(표시 정밀도) 기준으로 동점자를 공동 순위로 매긴다.
 
     values_descending은 N/A(``None``)가 이미 제외되고 내림차순 정렬되어 있어야 한다 -
     N/A는 순위 자체에서 빠진다(RES-006). 동점이면 같은 순위를 받고, 다음 순위는 인원수만큼
-    건너뛴다 (예: [90, 90, 80] -> [1, 1, 3]).
+    건너뛴다 (예: [90, 90, 80, 70] -> [1, 1, 3, 4], [100, 90, 90, 80] -> [1, 2, 2, 4]).
     """
     ranks: list[int] = []
     for index, value in enumerate(values_descending):
@@ -110,37 +111,43 @@ def competition_rank(values_descending: list[Decimal]) -> list[int]:
 
 
 def calculate_seed(recent_final_scores_oldest_first: list[Decimal]) -> Decimal | None:
-    """다음 회차 자동 팀 편성에 쓰일 Seed.
+    """다음 회차 자동 팀 편성에 쓰일 Seed (raw 정밀도).
 
-    인자로 받는 리스트는 이미 'N/A가 아닌 최종점수가 존재하는 회차 중 가장 최근 것부터
-    최대 3개'를 골라 오래된 순으로 정렬해둔 상태여야 한다. 어느 회차를 포함할지 고르는 건
-    호출하는 쪽(rounds/results 조회 로직)의 몫이고, 이 함수는 주어진 값들을 어떤 가중치로
-    섞을지만 담당한다.
+    인자로 받는 리스트는 이미 'N/A가 아닌 최종점수(raw)가 존재하는 회차 중 가장 최근 것부터
+    최대 3개'를 골라 오래된 순으로 정렬해둔 상태여야 한다 (docs/DATABASE-DESIGN.md 9번:
+    ``EvaluationResult(result_type=INDIVIDUAL).final_score_raw``를 조회). 어느 회차를
+    포함할지 고르는 건 호출하는 쪽(rounds/results 조회 로직)의 몫이고, 이 함수는 주어진
+    값들을 어떤 가중치로 섞을지만 담당한다.
 
     유효 이력이 하나도 없으면 '무시드' 상태로 N/A(``None``)를 반환한다 - 0점으로 대체하지
-    않는다(TEAM-005, RES-016). N/A인 회차(참여하지 않았거나 평가를 받지 못한 회차)는애초에
+    않는다(TEAM-005, RES-016). N/A인 회차(참여하지 않았거나 평가를 받지 못한 회차)는 애초에
     이 리스트에 들어오지 않아야 한다.
 
-    3개 미만일 때의 가중치 재정규화 방향은 아직 확정되지 않았다 - 모듈 상단 SEED_WEIGHTS
-    주석 참고.
+    3개 미만이면 SEED_WEIGHTS를 뒤(최근)에서부터 잘라 재정규화한다 (AC-10).
 
     회차 결과 공개 여부와 무관하게 항상 실제 값을 계산한다 (RES-017).
     """
     if not recent_final_scores_oldest_first:
         return None
-    weights = SEED_WEIGHTS[: len(recent_final_scores_oldest_first)]
+    weights = SEED_WEIGHTS[-len(recent_final_scores_oldest_first) :]
     weight_sum = sum(weights)
     weighted_total = sum(
         score * weight
         for score, weight in zip(recent_final_scores_oldest_first, weights, strict=True)
     )
-    return round_to_2dp(weighted_total / weight_sum)
+    return round_to_raw(weighted_total / weight_sum)
 
 
-def reveal_if_published(value, round_is_published: bool):
-    """결과 공개 여부 게이트. 회차가 비공개면 None을 돌려줘 노출을 막는다.
+def reveal_if_published(value, published_at):
+    """항목별 결과 공개 게이트.
+
+    회차 전체가 아니라 항목 하나하나가 독립적으로 공개된다 (RES-010, docs/DATABASE-DESIGN.md
+    5.10의 ``winner_published_at`` / ``team_ranking_published_at`` / ``my_score_published_at``
+    / ``peer_ranking_published_at`` 4개 컬럼). 그래서 이 함수는 회차 단위 boolean이 아니라
+    "그 항목이 공개된 시각"(``published_at``, 공개 전이면 ``None``)을 받는다 - 호출하는 쪽이
+    4개 항목 각각에 대해 이 함수를 한 번씩 부른다.
 
     calculate_seed의 결과에는 적용하지 않는다 - Seed는 공개 설정과 무관하게 항상 내부용으로
     취급한다 (RES-017).
     """
-    return value if round_is_published else None
+    return value if published_at is not None else None
