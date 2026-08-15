@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path
 
 from teams import views
@@ -28,3 +29,6 @@ urlpatterns = [
         name="save-team",
     ),
 ]
+
+if settings.TEAMS_UI_PREVIEW_ENABLED:
+    urlpatterns.insert(0, path("preview/", views.team_ui_preview, name="ui-preview"))

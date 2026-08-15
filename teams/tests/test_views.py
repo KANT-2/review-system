@@ -27,6 +27,7 @@ from teams.views import (
     save_team_view,
     student_team_page,
     student_team_view,
+    team_ui_preview,
 )
 
 
@@ -135,6 +136,16 @@ class TeamsHttpViewTests(TestCase):
             "/teams/manage/rounds/10/teams/auto/",
             response.content.decode(),
         )
+
+    def test_preview_renders_without_database_backend(self):
+        request = self.factory.get("/teams/preview/?role=tutor&state=unassigned")
+
+        response = team_ui_preview(request)
+
+        content = response.content.decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("teams-initial-data", content)
+        self.assertIn("previewMode:true", content)
 
     def test_student_cannot_open_management_team_view(self):
         request = self.factory.get("/manage/rounds/10/teams/")

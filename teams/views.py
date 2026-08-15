@@ -55,6 +55,88 @@ def get_teams_backend() -> TeamsHttpBackend:
 
 
 @require_GET
+def team_ui_preview(request: HttpRequest) -> HttpResponse:
+    """ORM 병합 전 로컬 UI 검토에만 사용하는 화면이다."""
+    names = (
+        "김민수",
+        "이영희",
+        "박지훈",
+        "최서연",
+        "정현우",
+        "한지민",
+        "윤서준",
+        "임수아",
+        "강도윤",
+        "송하윤",
+        "조현준",
+        "배지우",
+        "문시우",
+        "오서윤",
+        "신지호",
+        "권나연",
+        "안유진",
+        "홍준서",
+        "김서현",
+        "이도윤",
+        "박서아",
+        "최준혁",
+        "정다은",
+        "한예준",
+        "윤하린",
+        "임도현",
+        "강서진",
+        "송민재",
+        "조유나",
+        "배현우",
+        "문지아",
+        "오준영",
+        "신예린",
+        "권도하",
+        "안수빈",
+    )
+    teams = []
+    for team_index in range(7):
+        members = [
+            {
+                "participant_id": index + 101,
+                "student_number": f"A{index + 1:03d}",
+                "display_name": name,
+            }
+            for index, name in enumerate(names)
+            if index % 7 == team_index
+        ]
+        teams.append(
+            {"team_number": team_index + 1, "name": f"{team_index + 1}팀", "members": members}
+        )
+    role = request.GET.get("role", "tutor")
+    state = request.GET.get("state", "configured")
+    configured = state != "empty"
+    unassigned_members = []
+    if role == "tutor" and state == "unassigned":
+        unassigned_members = teams[-1]["members"][-3:]
+        teams[-1]["members"] = teams[-1]["members"][:-3]
+    return render(
+        request,
+        "teams/workspace.html",
+        {
+            "role": role,
+            "my_participant_id": 101 if role == "student" else None,
+            "team_data": {
+                "round_id": 10,
+                "round_status": "DRAFT" if configured else "COMPLETED",
+                "lock_version": 1,
+                "is_configured": configured,
+                "is_read_only": False,
+                "teams": teams if configured else [],
+                "unassigned_members": unassigned_members,
+                "my_participant_id": 101,
+            },
+            "preview_mode": True,
+        },
+    )
+
+
+@require_GET
 def student_team_page(request: HttpRequest) -> HttpResponse:
     permission_error = _permission_error(request, allowed_roles={"STUDENT"})
     if permission_error is not None:

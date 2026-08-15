@@ -26,6 +26,6 @@
   </div>
 </div>
 {{ team_data|json_script:"teams-initial-data" }}
-<script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}"};</script>
+<script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }}};</script>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'teams/js/workspace.js' %}"></script>{% endblock %}
