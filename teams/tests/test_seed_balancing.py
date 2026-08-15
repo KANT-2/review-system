@@ -2,7 +2,11 @@ import random
 from decimal import Decimal
 from unittest import TestCase
 
-from teams.services import calculate_seed_metrics, create_seed_balanced_assignment
+from teams.services import (
+    calculate_seed_metrics,
+    count_repeated_pairs,
+    create_seed_balanced_assignment,
+)
 
 
 class CalculateSeedMetricsTests(TestCase):
@@ -169,3 +173,42 @@ class CreateSeedBalancedAssignmentTests(TestCase):
                 3,
                 max_optimizations=101,
             )
+
+    def test_reduces_previous_teammate_pairs_without_worsening_seed_balance(self):
+        previous_pairs = {(1, 2), (3, 4), (5, 6), (7, 8)}
+
+        assignment = create_seed_balanced_assignment(
+            self.participant_ids,
+            self.seed_scores,
+            3,
+            rng=random.Random(3),
+            previous_teammate_pairs=previous_pairs,
+        )
+
+        self.assertLessEqual(
+            assignment.final_repeated_pair_count,
+            assignment.initial_repeated_pair_count,
+        )
+        self.assertLessEqual(
+            assignment.final_metrics.population_standard_deviation,
+            assignment.initial_metrics.population_standard_deviation,
+        )
+        self.assertLessEqual(assignment.optimization_count, 100)
+
+
+class CountRepeatedPairsTests(TestCase):
+    def test_counts_previous_pairs_regardless_of_pair_order(self):
+        teams = [[1, 2, 3], [4, 5]]
+        previous_pairs = {(2, 1), (1, 3), (4, 5), (2, 4)}
+
+        repeated_pair_count = count_repeated_pairs(teams, previous_pairs)
+
+        self.assertEqual(repeated_pair_count, 3)
+
+    def test_does_not_count_self_pair_or_pairs_in_different_teams(self):
+        teams = [[1, 2], [3, 4]]
+        previous_pairs = {(1, 1), (1, 3), (2, 4)}
+
+        repeated_pair_count = count_repeated_pairs(teams, previous_pairs)
+
+        self.assertEqual(repeated_pair_count, 0)

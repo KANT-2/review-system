@@ -1,5 +1,5 @@
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -21,6 +21,8 @@ class SeedBalancedAssignment:
     initial_metrics: SeedMetrics
     final_metrics: SeedMetrics
     optimization_count: int
+    initial_repeated_pair_count: int
+    final_repeated_pair_count: int
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,7 @@ def create_seed_balanced_assignment(
     *,
     rng: random.Random | None = None,
     max_optimizations: int = 100,
+    previous_teammate_pairs: Collection[tuple[int, int]] = (),
 ) -> SeedBalancedAssignment:
     """인원 균형을 유지하며 시드 표준편차가 나빠지지 않는 후보를 만든다."""
     participants = list(participant_ids)
@@ -159,24 +162,65 @@ def create_seed_balanced_assignment(
         team_index = available_team_slots.pop()
         teams[team_index].append(participant_id)
 
-    initial_metrics = calculate_seed_metrics(teams, seed_scores)
-    optimization_count = _optimize_seed_swaps(
-        teams,
-        seed_scores,
-        max_optimizations=max_optimizations,
-    )
-
     for participant_id in seedless_participants:
         team_index = available_team_slots.pop()
         teams[team_index].append(participant_id)
 
+    initial_metrics = calculate_seed_metrics(teams, seed_scores)
+    initial_repeated_pair_count = count_repeated_pairs(teams, previous_teammate_pairs)
+    initial_teams = [team.copy() for team in teams]
+    seed_optimization_count = _optimize_seed_swaps(
+        teams,
+        seed_scores,
+        max_optimizations=max_optimizations,
+    )
+    repeat_pair_optimization_count = _optimize_repeated_pairs(
+        teams,
+        seed_scores,
+        previous_teammate_pairs,
+        max_optimizations=max_optimizations - seed_optimization_count,
+        max_allowed_standard_deviation=initial_metrics.population_standard_deviation,
+    )
+
     final_metrics = calculate_seed_metrics(teams, seed_scores)
+    final_repeated_pair_count = count_repeated_pairs(teams, previous_teammate_pairs)
+    # 권장 최적화가 최초 후보보다 과거 조합을 늘리면 설명 가능한 최초 후보를 유지한다.
+    if final_repeated_pair_count > initial_repeated_pair_count:
+        teams = initial_teams
+        final_metrics = initial_metrics
+        final_repeated_pair_count = initial_repeated_pair_count
+        seed_optimization_count = 0
+        repeat_pair_optimization_count = 0
     return SeedBalancedAssignment(
         teams=teams,
         initial_metrics=initial_metrics,
         final_metrics=final_metrics,
-        optimization_count=optimization_count,
+        optimization_count=seed_optimization_count + repeat_pair_optimization_count,
+        initial_repeated_pair_count=initial_repeated_pair_count,
+        final_repeated_pair_count=final_repeated_pair_count,
     )
+
+
+def count_repeated_pairs(
+    teams: Sequence[Sequence[int]],
+    previous_teammate_pairs: Collection[tuple[int, int]],
+) -> int:
+    """현재 팀 안에서 직전 회차에 함께했던 참가자 쌍의 수를 계산한다."""
+    normalized_previous_pairs = {
+        frozenset((first_participant_id, second_participant_id))
+        for first_participant_id, second_participant_id in previous_teammate_pairs
+        if first_participant_id != second_participant_id
+    }
+    repeated_pair_count = 0
+    for team in teams:
+        for first_index, first_participant_id in enumerate(team):
+            for second_participant_id in team[first_index + 1 :]:
+                if (
+                    frozenset((first_participant_id, second_participant_id))
+                    in normalized_previous_pairs
+                ):
+                    repeated_pair_count += 1
+    return repeated_pair_count
 
 
 def validate_assignment(
@@ -291,7 +335,11 @@ def _optimize_seed_swaps(
             for second_team_index in range(first_team_index + 1, len(teams)):
                 second_team = teams[second_team_index]
                 for first_member_index, first_participant_id in enumerate(first_team):
+                    if seed_scores.get(first_participant_id) is None:
+                        continue
                     for second_member_index, second_participant_id in enumerate(second_team):
+                        if seed_scores.get(second_participant_id) is None:
+                            continue
                         first_team[first_member_index] = second_participant_id
                         second_team[second_member_index] = first_participant_id
                         candidate_metrics = calculate_seed_metrics(teams, seed_scores)
@@ -330,6 +378,82 @@ def _optimize_seed_swaps(
             teams[first_team_index][first_member_index],
         )
         current_metrics = calculate_seed_metrics(teams, seed_scores)
+        optimization_count += 1
+
+    return optimization_count
+
+
+def _optimize_repeated_pairs(
+    teams: list[list[int]],
+    seed_scores: Mapping[int, Decimal | None],
+    previous_teammate_pairs: Collection[tuple[int, int]],
+    *,
+    max_optimizations: int,
+    max_allowed_standard_deviation: Decimal | None,
+) -> int:
+    current_metrics = calculate_seed_metrics(teams, seed_scores)
+    current_standard_deviation = current_metrics.population_standard_deviation
+    current_repeated_pair_count = count_repeated_pairs(teams, previous_teammate_pairs)
+    optimization_count = 0
+
+    while optimization_count < max_optimizations and current_repeated_pair_count > 0:
+        best_swap: tuple[int, int, int, int] | None = None
+        best_repeated_pair_count = current_repeated_pair_count
+        best_standard_deviation = current_standard_deviation
+
+        for first_team_index, first_team in enumerate(teams):
+            for second_team_index in range(first_team_index + 1, len(teams)):
+                second_team = teams[second_team_index]
+                for first_member_index, first_participant_id in enumerate(first_team):
+                    for second_member_index, second_participant_id in enumerate(second_team):
+                        first_team[first_member_index] = second_participant_id
+                        second_team[second_member_index] = first_participant_id
+                        candidate_metrics = calculate_seed_metrics(teams, seed_scores)
+                        candidate_repeated_pair_count = count_repeated_pairs(
+                            teams,
+                            previous_teammate_pairs,
+                        )
+                        first_team[first_member_index] = first_participant_id
+                        second_team[second_member_index] = second_participant_id
+
+                        candidate_standard_deviation = (
+                            candidate_metrics.population_standard_deviation
+                        )
+                        keeps_seed_balance = max_allowed_standard_deviation is None or (
+                            candidate_standard_deviation is not None
+                            and candidate_standard_deviation <= max_allowed_standard_deviation
+                        )
+                        if (
+                            keeps_seed_balance
+                            and candidate_repeated_pair_count < best_repeated_pair_count
+                        ):
+                            best_repeated_pair_count = candidate_repeated_pair_count
+                            best_standard_deviation = candidate_standard_deviation
+                            best_swap = (
+                                first_team_index,
+                                first_member_index,
+                                second_team_index,
+                                second_member_index,
+                            )
+
+        if best_swap is None:
+            break
+
+        (
+            first_team_index,
+            first_member_index,
+            second_team_index,
+            second_member_index,
+        ) = best_swap
+        (
+            teams[first_team_index][first_member_index],
+            teams[second_team_index][second_member_index],
+        ) = (
+            teams[second_team_index][second_member_index],
+            teams[first_team_index][first_member_index],
+        )
+        current_repeated_pair_count = best_repeated_pair_count
+        current_standard_deviation = best_standard_deviation
         optimization_count += 1
 
     return optimization_count
