@@ -1,20 +1,95 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description"
-          content="학생 프로젝트의 반복 평가를 관리하는 AX Evaluation Console">
-    <title>{% block title %}AX Evaluation Console{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-    <link href="{% static 'css/app.css' %}" rel="stylesheet">
-  </head>
-  <body>
-    <main class="container py-5">
-      {% block content %}{% endblock %}
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AX Evaluation Console{% endblock %}</title>
+  <!-- Bootstrap 5.3 & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Custom Design Tokens -->
+  <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div id="app-shell">
+    {% include "includes/sidebar.html" %}
+    
+    <div id="content-area">
+      {% include "includes/topbar.html" %}
+      
+      <main>
+        {% include "includes/messages.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- 통합 피드백 모달 컴포넌트 -->
+  <div class="modal fade" id="feedbackModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill text-primary me-2"></i>통합 피드백 센터</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-0">
+          <ul class="nav nav-tabs nav-fill bg-light border-bottom px-3 pt-2">
+            <li class="nav-item">
+              <button class="nav-link active fw-semibold small" data-bs-toggle="tab" data-bs-target="#tutor-pane">
+                튜터 피드백 <span class="badge bg-primary rounded-pill ms-1">실명</span>
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link fw-semibold small" data-bs-toggle="tab" data-bs-target="#team-pane">
+                팀 과제 피드백 <span class="badge bg-warning text-dark rounded-pill ms-1">팀단위</span>
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link fw-semibold small" data-bs-toggle="tab" data-bs-target="#peer-pane">
+                동료 상호 피드백 <span class="badge bg-secondary rounded-pill ms-1">완전익명</span>
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content p-4">
+            <div class="tab-pane fade show active" id="tutor-pane">
+              <div class="p-3 bg-light rounded border">
+                <span class="fw-bold text-primary">박교수 튜터</span>
+                <p class="small mb-0 mt-1">"RESTful API 연동 및 상태 관리가 안정적입니다. 예외 케이스 처리도 잘 구축되었습니다."</p>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="team-pane">
+              <div class="p-3 bg-light rounded border">
+                <span class="fw-bold text-dark">5팀 (Beta) 리뷰어</span>
+                <p class="small mb-0 mt-1">"대시보드 목록 우선순위 정렬이 직관적이라 사용하기 편리했습니다."</p>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="peer-pane">
+              <div class="p-3 bg-light rounded border">
+                <span class="fw-bold text-muted">익명의 동료</span>
+                <p class="small mb-0 mt-1">"일정을 명확하게 공유하고 적극적으로 협업해 주셔서 프로젝트를 원활히 완료했습니다."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    if (sidebarToggle && sidebar) {
+      sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+      });
+    }
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
 </html>

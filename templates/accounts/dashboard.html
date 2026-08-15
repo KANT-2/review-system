@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}학생 메인 대시보드 - AX Evaluation Console{% endblock %}
+{% block breadcrumb %}메인 대시보드{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">학생 메인 대시보드</h1>
+    <p class="page-desc">현재 주차 팀 협업 상태와 완료해야 할 평가 목록을 확인하세요.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-ax-secondary" onclick="location.reload();"><i class="bi bi-arrow-clockwise me-1"></i>새로고침</button>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Column (8 Col): 핵심 액션 & 평가 목록 -->
+  <div class="col-12 col-lg-8">
+    
+    <!-- Widget 1: 평가 진행률 -->
+    <div class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          <i class="bi bi-pie-chart-fill text-primary"></i> 이번 주 평가 진행률
+        </div>
+        <span class="badge badge-ax badge-ax-pending">3 / 4 완료 (75%)</span>
+      </div>
+      <div class="card-body-custom">
+        <div class="d-flex justify-content-between mb-2 small">
+          <span class="text-muted">마감까지 1건 남았습니다.</span>
+          <span class="fw-bold text-primary">75%</span>
+        </div>
+        <div class="progress" style="height: 10px; border-radius: 6px;">
+          <div class="progress-bar bg-primary" role="progressbar" style="width: 75%;" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <small class="text-muted"><i class="bi bi-info-circle me-1"></i>모든 상호평가를 완료해야 최종 점수에 반영됩니다.</small>
+          <a href="#todo-eval-section" class="btn btn-sm btn-ax-secondary">현황 보기 <i class="bi bi-arrow-down-short"></i></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget 2: 해야 할 평가 (우선순위 자동 정렬) -->
+    <div class="card-custom" id="todo-eval-section">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          <i class="bi bi-check2-square text-primary"></i> 해야 할 평가
+          <span class="badge bg-danger rounded-pill ms-1" style="font-size: 11px;">미완료 2건</span>
+        </div>
+        <small class="text-muted">마감 임박순으로 자동 정렬됩니다</small>
+      </div>
+      <div class="card-body-custom">
+        <!-- 1순위: 미제출 D-1 (Primary 강조 카드) -->
+        <div class="eval-card pending">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge badge-ax badge-ax-danger me-1">🔥 D-1 마감임박</span>
+              <span class="badge badge-ax badge-ax-pending">아직 평가하지 않았어요</span>
+              <h6 class="fw-bold mt-2 mb-1">3주차 동료 상호 역량평가</h6>
+              <p class="text-muted small mb-0">대상: 3팀(Alpha) 팀원 3명 상호평가</p>
+            </div>
+            <a href="#" class="btn btn-ax-primary" onclick="alert('4번/5번 담당자의 상호평가 작성 폼으로 이동합니다.')">
+              평가하기 <i class="bi bi-arrow-right-short"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- 1순위: 미제출 D-3 -->
+        <div class="eval-card pending">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge bg-warning text-dark me-1" style="font-size: 11px;">D-3</span>
+              <span class="badge badge-ax badge-ax-pending">아직 평가하지 않았어요</span>
+              <h6 class="fw-bold mt-2 mb-1">3주차 팀 산출물 크로스 평가</h6>
+              <p class="text-muted small mb-0">대상: 5팀(Beta) 프로젝트 중간 결과물</p>
+            </div>
+            <a href="#" class="btn btn-ax-primary" onclick="alert('4번 팀 평가 폼으로 이동합니다.')">
+              평가하기 <i class="bi bi-arrow-right-short"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- 2순위: 평가 완료 (수정 불가 Read-Only) -->
+        <div class="eval-card completed">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge badge-ax badge-ax-completed me-1">제출 완료</span>
+              <h6 class="fw-bold mt-2 mb-1 text-muted">2주차 동료 상호 역량평가</h6>
+              <p class="text-muted small mb-0">2026.08.10 14:30 제출됨 (수정 불가)</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" disabled>제출완료</button>
+          </div>
+        </div>
+
+        <!-- 3순위: 기한 마감 / 미제출 -->
+        <div class="eval-card expired">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge badge-ax badge-ax-expired me-1">평가 마감/미제출</span>
+              <h6 class="fw-bold mt-2 mb-1 text-muted">1주차 사전 역량 진단평가</h6>
+              <p class="text-muted small mb-0">평가 기한이 종료되어 작성이 불가합니다.</p>
+            </div>
+            <button class="btn btn-sm btn-light border" disabled>기한마감</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget 3: 공지사항 -->
+    <div class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-megaphone-fill text-muted"></i> 공지사항</div>
+        <a href="#" class="small text-decoration-none text-muted">더보기 ></a>
+      </div>
+      <div class="card-body-custom p-0">
+        <div class="list-group list-group-flush small">
+          <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+            <div><span class="badge bg-light text-dark border me-2">공지</span> 3주차 상호평가 마감 시간 안내 (금요일 18:00 엄수)</div>
+            <span class="text-muted">3시간 전</span>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center py-3">
+            <div><span class="badge bg-light text-dark border me-2">안내</span> 성적 기반 휴리스틱 알고리즘 4주차 팀 편성 공지</div>
+            <span class="text-muted">어제</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column (4 Col): 팀 & 일정 보조 정보 -->
+  <div class="col-12 col-lg-4">
+    <!-- Widget 4: 내 팀 (3번 담당 연동) -->
+    <div class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-people-fill text-primary"></i> 내 팀 (3주차)</div>
+        <span class="badge bg-primary text-white">3팀 · Alpha</span>
+      </div>
+      <div class="card-body-custom">
+        <p class="small text-muted mb-3">누적 점수 기반 휴리스틱 배정 결과입니다.</p>
+        <div class="d-flex flex-column gap-3 mb-3">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <div class="member-avatar">{{ user.first_name|default:user.username|slice:":1" }}</div>
+              <div>
+                <div class="fw-bold small">{{ user.first_name|default:user.username }} <span class="badge bg-light text-dark border ms-1">나</span></div>
+                <div class="text-muted" style="font-size: 11px;">풀스택 / 기획</div>
+              </div>
+            </div>
+            <span class="badge badge-ax badge-ax-completed">평가완료</span>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <div class="member-avatar" style="background:#E0F2FE; color:#0369A1;">이</div>
+              <div>
+                <div class="fw-bold small">이수진</div>
+                <div class="text-muted" style="font-size: 11px;">프론트엔드</div>
+              </div>
+            </div>
+            <span class="badge badge-ax badge-ax-pending">평가대기</span>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <div class="member-avatar" style="background:#FEF3C7; color:#92400E;">박</div>
+              <div>
+                <div class="fw-bold small">박도현</div>
+                <div class="text-muted" style="font-size: 11px;">백엔드 / DB</div>
+              </div>
+            </div>
+            <span class="badge badge-ax badge-ax-pending">평가대기</span>
+          </div>
+        </div>
+        <button class="btn btn-ax-secondary w-100" onclick="alert('3번 팀 관리 파트의 [팀 상세 모달]이 연결됩니다.')">
+          <i class="bi bi-search me-1"></i> 팀 상세정보 보기
+        </button>
+      </div>
+    </div>
+
+    <!-- Widget 5: 이번 주 일정 -->
+    <div class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-calendar-event-fill text-muted"></i> 이번 주 일정</div>
+      </div>
+      <div class="card-body-custom">
+        <div class="border-start border-2 border-primary ps-3 mb-3">
+          <div class="fw-bold small text-primary">3주차 프로젝트 스프린트</div>
+          <div class="text-muted small">08.10 (월) ~ 08.14 (금)</div>
+        </div>
+        <div class="border-start border-2 border-danger ps-3">
+          <div class="fw-bold small text-danger">3주차 상호평가 제출 마감</div>
+          <div class="text-muted small">08.14 (금) 18:00 마감 (D-1)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

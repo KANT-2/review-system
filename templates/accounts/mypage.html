@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}마이페이지 - AX Evaluation Console{% endblock %}
+{% block breadcrumb %}마이페이지 (역량 리포트){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">마이페이지 & 역량 분석 리포트</h1>
+    <p class="page-desc">누적된 평가 데이터를 바탕으로 시각화된 역량 현황입니다.</p>
+  </div>
+  <button class="btn btn-ax-primary" data-bs-toggle="modal" data-bs-target="#profileModal">
+    <i class="bi bi-person-gear me-1"></i> 프로필 수정
+  </button>
+</div>
+
+<!-- Profile Banner -->
+<div class="card-custom mb-4">
+  <div class="card-body-custom">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="member-avatar" style="width: 56px; height: 56px; font-size: 20px;">
+          {{ user.first_name|default:user.username|slice:":1" }}
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h5 class="fw-bold mb-0">{{ user.first_name|default:user.username }}</h5>
+            <span class="badge bg-primary">{{ user.session_info|default:"기수 미지정" }}</span>
+            {% if user.is_social_account %}
+              <span class="badge bg-light text-dark border"><i class="bi bi-google me-1"></i>Google 연동</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small mt-1">{{ user.email }} · {{ user.phone|default:"연락처 미등록" }}</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <div class="text-end pe-3 border-end">
+          <div class="text-muted small">누적 종합 점수</div>
+          <div class="fw-bold fs-5 text-primary">4.65 / 5.0</div>
+        </div>
+        <div class="text-end ps-2">
+          <div class="text-muted small">받은 피드백 수</div>
+          <div class="fw-bold fs-5 text-dark">18건</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- 5대 역량 시각화 (7 Col) -->
+  <div class="col-12 col-lg-7">
+    <div class="card-custom h-100">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-diagram-3-fill text-primary"></i> 5대 역량 시각화 (Radar Chart)</div>
+        <small class="text-muted">정량 평가 100% 반영</small>
+      </div>
+      <div class="card-body-custom">
+        <div class="d-flex justify-content-center my-2">
+          <svg width="280" height="240" viewBox="0 0 300 260">
+            <polygon points="150,20 270,105 225,235 75,235 30,105" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
+            <polygon points="150,55 235,115 200,210 100,210 65,115" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
+            <polygon points="150,90 200,125 180,185 120,185 100,125" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+            <polygon points="150,35 250,110 190,215 110,195 50,110" fill="rgba(23, 105, 224, 0.25)" stroke="#1769E0" stroke-width="2.5"/>
+            <circle cx="150" cy="35" r="4" fill="#1769E0"/>
+            <circle cx="250" cy="110" r="4" fill="#1769E0"/>
+            <circle cx="190" cy="215" r="4" fill="#1769E0"/>
+            <circle cx="110" cy="195" r="4" fill="#1769E0"/>
+            <circle cx="50" cy="110" r="4" fill="#1769E0"/>
+            <text x="150" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">팀워크 (4.8)</text>
+            <text x="280" y="110" text-anchor="start" font-size="12" font-weight="bold" fill="#182230">문제해결 (4.5)</text>
+            <text x="210" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">책임감 (4.7)</text>
+            <text x="90" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">개발이해도 (3.8)</text>
+            <text x="15" y="110" text-anchor="end" font-size="12" font-weight="bold" fill="#182230">커뮤니케이션 (4.9)</text>
+          </svg>
+        </div>
+        <div class="row g-2 mt-3">
+          <div class="col-6">
+            <div class="p-3 bg-light rounded border">
+              <div class="badge badge-ax badge-ax-completed mb-1"><i class="bi bi-trophy-fill me-1"></i>가장 뛰어난 역량</div>
+              <div class="fw-bold small">커뮤니케이션 (4.9), 팀워크 (4.8)</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-3 bg-light rounded border">
+              <div class="badge badge-ax badge-ax-warning mb-1"><i class="bi bi-lightbulb-fill me-1"></i>보완 필요 역량</div>
+              <div class="fw-bold small">개발이해도 (3.8)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 피드백 미리보기 & 주차별 이력 (5 Col) -->
+  <div class="col-12 col-lg-5">
+    <div class="card-custom mb-4">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-chat-quote-fill text-primary"></i> 최근 받은 피드백</div>
+        <button class="btn btn-sm btn-ax-secondary" data-bs-toggle="modal" data-bs-target="#feedbackModal">전체보기 ></button>
+      </div>
+      <div class="card-body-custom p-0">
+        <div class="list-group list-group-flush small">
+          <div class="list-group-item p-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-primary text-white">튜터 피드백 (박교수)</span>
+              <span class="text-muted" style="font-size: 11px;">3주차 과제</span>
+            </div>
+            <p class="mb-0 text-dark">"프론트엔드 라우팅 및 상태 설계가 매우 깔끔합니다."</p>
+          </div>
+          <div class="list-group-item p-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge bg-secondary text-white">동료 익명 피드백</span>
+              <span class="text-muted" style="font-size: 11px;">2주차 팀</span>
+            </div>
+            <p class="mb-0 text-dark">"일정 조율을 적극적으로 이끌어주셔서 프로젝트 마감을 잘 마칠 수 있었습니다."</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 주차별 상세 이력 드롭다운 -->
+    <div class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-clock-history text-muted"></i> 주차별 상세 이력</div>
+        <select class="form-select form-select-sm w-auto" style="font-size: 12px;">
+          <option selected>2주차 프로젝트 (2팀)</option>
+          <option>1주차 프로젝트 (1팀)</option>
+        </select>
+      </div>
+      <div class="card-body-custom">
+        <div class="small">
+          <div class="mb-2"><strong>당시 팀원:</strong> 이수진, 박도현, 최민아</div>
+          <div class="mb-2"><strong>산출물 링크:</strong> <a href="#" class="text-decoration-none">github.com/project-team2</a></div>
+          <div class="p-2 bg-light rounded">
+            <div class="d-flex justify-content-between mb-1">
+              <span>팀 과제 평가:</span>
+              <span class="fw-bold text-success">A (94점)</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>개인 상호평가 평균:</span>
+              <span class="fw-bold text-primary">4.7 / 5.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Edit Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>프로필 수정</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center mb-3">
+          <div class="member-avatar mx-auto mb-2" style="width:64px; height:64px; font-size:24px;">{{ user.first_name|default:user.username|slice:":1" }}</div>
+          <button class="btn btn-sm btn-outline-secondary">사진 변경</button>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">이름</label>
+          <input type="text" class="form-control form-control-sm" value="{{ user.first_name|default:user.username }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">이메일</label>
+          <input type="email" class="form-control form-control-sm bg-light" value="{{ user.email }}" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">비밀번호 변경</label>
+          <input type="password" class="form-control form-control-sm bg-light" value="********" {% if user.is_social_account %}disabled{% endif %}>
+          {% if user.is_social_account %}
+            <small class="text-danger" style="font-size: 11px;">* 구글 소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다.</small>
+          {% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">연락처</label>
+          <input type="text" class="form-control form-control-sm" value="{{ user.phone|default:'' }}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-ax-primary" data-bs-dismiss="modal" onclick="alert('프로필이 업데이트되었습니다.')">저장하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
