@@ -1,8 +1,11 @@
+import random
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from typing import Protocol, Self
 
-from teams.domain import TeamBoard
-from teams.services import validate_assignment
+from teams.domain import TeamBoard, TeamDraft
+from teams.services import create_seed_balanced_assignment, validate_assignment
 
 
 class TeamSaveError(ValueError):
@@ -25,6 +28,19 @@ class RoundForTeamEditing:
     participant_ids: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class AutoTeamBoardResult:
+    """화면에 표시할 자동편성 보드와 개선 정보를 전달한다."""
+
+    board: TeamBoard
+    initial_standard_deviation: Decimal | None
+    final_standard_deviation: Decimal | None
+    seeded_participant_count: int
+    initial_repeated_pair_count: int
+    final_repeated_pair_count: int
+    optimization_count: int
+
+
 class TeamSaveUnitOfWork(Protocol):
     """향후 Django transaction.atomic 구현이 따라야 하는 저장 경계다."""
 
@@ -41,6 +57,50 @@ class TeamSaveUnitOfWork(Protocol):
     def record_team_configuration_saved(self, round_id: int) -> None: ...
 
     def commit(self) -> None: ...
+
+
+def create_auto_team_board(
+    *,
+    round_id: int,
+    lock_version: int,
+    participant_ids: Sequence[int],
+    seed_scores: Mapping[int, Decimal | None],
+    team_count: int,
+    previous_teammate_pairs: Collection[tuple[int, int]] = (),
+    rng: random.Random | None = None,
+) -> AutoTeamBoardResult:
+    """자동편성 계산 결과를 같은 화면에서 수정할 수 있는 보드로 변환한다."""
+    assignment = create_seed_balanced_assignment(
+        participant_ids,
+        seed_scores,
+        team_count,
+        previous_teammate_pairs=previous_teammate_pairs,
+        rng=rng,
+    )
+    board = TeamBoard(
+        round_id=round_id,
+        lock_version=lock_version,
+        teams=tuple(
+            TeamDraft(
+                team_number=team_index,
+                name=f"{team_index}팀",
+                participant_ids=tuple(team_participant_ids),
+            )
+            for team_index, team_participant_ids in enumerate(
+                assignment.teams,
+                start=1,
+            )
+        ),
+    )
+    return AutoTeamBoardResult(
+        board=board,
+        initial_standard_deviation=(assignment.initial_metrics.population_standard_deviation),
+        final_standard_deviation=assignment.final_metrics.population_standard_deviation,
+        seeded_participant_count=assignment.final_metrics.seeded_participant_count,
+        initial_repeated_pair_count=assignment.initial_repeated_pair_count,
+        final_repeated_pair_count=assignment.final_repeated_pair_count,
+        optimization_count=assignment.optimization_count,
+    )
 
 
 def save_team_configuration(
