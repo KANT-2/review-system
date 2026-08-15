@@ -18,7 +18,7 @@
 - Django Admin
 - Git / GitHub
 
-소셜 로그인은 필요 시 `django-allauth`를 사용한다.
+MVP 소셜 인증은 Google OIDC 로그인만 지원한다. 범용 소셜 계정·토큰 테이블은 만들지 않는다.
 
 ---
 
@@ -28,58 +28,56 @@
 accounts/
 rounds/
 teams/
-team_reviews/
-peer_reviews/
+reviews/
 results/
+audit/
 ```
 
 ### accounts
 
 - 인증
-- 학생 프로필
-- 학생 기본 정보
+- 학생 식별 정보
 - 학생 대시보드
 
 ### rounds
 
 - 평가 회차
-- 과제
 - 평가 기간
-- 평가 템플릿
-- 평가 문항
+- `QuestionTemplate(category=TEAM|PEER)` 질문지 템플릿
+- `TemplateQuestion` 템플릿 소속 평가 문항
 - 진행 상태
-- 결과 공개 설정
 
 ### teams
 
 - 팀
 - 팀 구성원
-- 수동 팀 편성
-- 자동 팀 편성
-- 팀 구성 수정
+- 자동 초기 배치
+- 같은 편집 화면의 수동 팀 구성 조정
+- 최종 Team·Membership 저장
 
-### team_reviews
+자동·수동 구분, 후보 상태, 편성 실행 이력은 저장하지 않는다.
 
-- 다른 팀 평가
-- 팀 평가 응답
-- 중복 평가 방지
-- 팀 점수 산출
+### reviews
 
-### peer_reviews
-
-- 같은 팀원 개인 평가
-- 개인 평가 응답
-- 자기 평가 방지
-- 중복 평가 방지
-- 개인 평가점수 산출
+- `review_type=TEAM|PEER` 공통 평가 제출
+- 공통 문항 응답
+- 대상 유형·자기 평가·중복 평가 검증
+- 팀·개인 평가 기능별 서비스와 화면
 
 ### results
 
 - 개인 최종점수
 - 팀 / 개인 순위
 - 결과 조회
-- 누적 Seed
-- 다음 평가용 Seed
+- 계산 실행 버전과 공개 시각
+- `result_type=TEAM|INDIVIDUAL` 공통 결과 행
+- 활성 결과에서 조회 시 계산하는 다음 평가용 Seed
+
+### audit
+
+- 회차 시작·강제 마감
+- 팀 구성 저장
+- 채점·재채점·공개 변경 감사
 
 ---
 
@@ -174,6 +172,17 @@ evaluation_round + evaluator + target_student
 주요 기능은 로그인 상태를 전제로 한다.
 
 학생 / 관리자 권한을 서버에서 구분한다.
+
+Google 로그인은 backend authorization code flow를 사용한다. ID Token의 `sub`만 User에
+영속화하고 code·ID/access token은 검증 후 폐기하며 refresh token은 요청하지 않는다.
+`state`·`nonce`는 5분짜리 일회성 Django 세션에 두고 인증 성공 후 세션 키를 회전해 14일짜리
+로그인 세션으로 전환한다. `SESSION_EXPIRE_AT_BROWSER_CLOSE=False`이므로 같은 브라우저를
+닫았다 열어도 만료 전에는 로그인이 유지된다.
+
+평가 템플릿은 여러 회차가 재사용한다. 튜터는 회차에서 등록된 TEAM·PEER 템플릿을 선택하고
+개별 문항은 편집하지 않는다. Django staff 운영 관리자가 템플릿 마스터를 등록하며, 시작된
+회차가 참조한 템플릿과 문항은 불변이다. 변경이 필요하면 원본 대신 복제본을 등록해 다른
+DRAFT 회차에 연결한다.
 
 다음 요청은 화면에서 숨기는 것과 별개로 서버에서 차단해야 한다.
 
