@@ -13,6 +13,16 @@ class SeedMetrics:
     seeded_participant_count: int
 
 
+@dataclass(frozen=True)
+class SeedBalancedAssignment:
+    """자동편성 결과와 개선 전후 품질지표를 전달한다."""
+
+    teams: list[list[int]]
+    initial_metrics: SeedMetrics
+    final_metrics: SeedMetrics
+    optimization_count: int
+
+
 def distribute_participants(
     participant_ids: Sequence[int],
     team_count: int,
@@ -94,3 +104,156 @@ def calculate_seed_metrics(
         population_standard_deviation=population_standard_deviation,
         seeded_participant_count=seeded_participant_count,
     )
+
+
+def create_seed_balanced_assignment(
+    participant_ids: Sequence[int],
+    seed_scores: Mapping[int, Decimal | None],
+    team_count: int,
+    *,
+    rng: random.Random | None = None,
+    max_optimizations: int = 100,
+) -> SeedBalancedAssignment:
+    """인원 균형을 유지하며 시드 표준편차가 나빠지지 않는 후보를 만든다."""
+    participants = list(participant_ids)
+    _validate_assignment_input(participants, team_count)
+    if not 0 <= max_optimizations <= 100:
+        raise ValueError("max_optimizations must be between 0 and 100")
+
+    random_generator = rng or random.Random()
+    seeded_participants = [
+        participant_id
+        for participant_id in participants
+        if seed_scores.get(participant_id) is not None
+    ]
+    seedless_participants = [
+        participant_id for participant_id in participants if seed_scores.get(participant_id) is None
+    ]
+    random_generator.shuffle(seeded_participants)
+    random_generator.shuffle(seedless_participants)
+
+    target_sizes = _calculate_target_sizes(len(participants), team_count)
+    available_team_slots = _create_randomized_team_slots(target_sizes, random_generator)
+    teams = [[] for _ in range(team_count)]
+
+    # 시드 없는 참가자는 0점으로 계산하지 않고, 시드 참가자를 배치한 뒤 남은 자리를 채운다.
+    for participant_id in seeded_participants:
+        team_index = available_team_slots.pop()
+        teams[team_index].append(participant_id)
+
+    initial_metrics = calculate_seed_metrics(teams, seed_scores)
+    optimization_count = _optimize_seed_swaps(
+        teams,
+        seed_scores,
+        max_optimizations=max_optimizations,
+    )
+
+    for participant_id in seedless_participants:
+        team_index = available_team_slots.pop()
+        teams[team_index].append(participant_id)
+
+    final_metrics = calculate_seed_metrics(teams, seed_scores)
+    return SeedBalancedAssignment(
+        teams=teams,
+        initial_metrics=initial_metrics,
+        final_metrics=final_metrics,
+        optimization_count=optimization_count,
+    )
+
+
+def _validate_assignment_input(participant_ids: Sequence[int], team_count: int) -> None:
+    if team_count < 2:
+        raise ValueError("team_count must be at least 2")
+    if team_count > len(participant_ids):
+        raise ValueError("team_count cannot exceed the participant count")
+    if len(participant_ids) != len(set(participant_ids)):
+        raise ValueError("participant_ids must not contain duplicates")
+
+
+def _calculate_target_sizes(participant_count: int, team_count: int) -> list[int]:
+    minimum_size, larger_team_count = divmod(participant_count, team_count)
+    return [
+        minimum_size + (1 if team_index < larger_team_count else 0)
+        for team_index in range(team_count)
+    ]
+
+
+def _create_randomized_team_slots(
+    target_sizes: Sequence[int],
+    random_generator: random.Random,
+) -> list[int]:
+    team_slots: list[int] = []
+    # 각 순환에서 모든 팀을 한 번씩 배치해 시드 참가자가 특정 팀에 몰리지 않게 한다.
+    for position in range(max(target_sizes)):
+        round_team_indices = [
+            team_index
+            for team_index, target_size in enumerate(target_sizes)
+            if position < target_size
+        ]
+        random_generator.shuffle(round_team_indices)
+        team_slots.extend(round_team_indices)
+    team_slots.reverse()
+    return team_slots
+
+
+def _optimize_seed_swaps(
+    teams: list[list[int]],
+    seed_scores: Mapping[int, Decimal | None],
+    *,
+    max_optimizations: int,
+) -> int:
+    current_metrics = calculate_seed_metrics(teams, seed_scores)
+    if current_metrics.population_standard_deviation is None:
+        return 0
+
+    optimization_count = 0
+    while optimization_count < max_optimizations:
+        best_swap: tuple[int, int, int, int] | None = None
+        best_standard_deviation = current_metrics.population_standard_deviation
+
+        for first_team_index, first_team in enumerate(teams):
+            for second_team_index in range(first_team_index + 1, len(teams)):
+                second_team = teams[second_team_index]
+                for first_member_index, first_participant_id in enumerate(first_team):
+                    for second_member_index, second_participant_id in enumerate(second_team):
+                        first_team[first_member_index] = second_participant_id
+                        second_team[second_member_index] = first_participant_id
+                        candidate_metrics = calculate_seed_metrics(teams, seed_scores)
+                        first_team[first_member_index] = first_participant_id
+                        second_team[second_member_index] = second_participant_id
+
+                        candidate_standard_deviation = (
+                            candidate_metrics.population_standard_deviation
+                        )
+                        if (
+                            candidate_standard_deviation is not None
+                            and candidate_standard_deviation < best_standard_deviation
+                        ):
+                            best_standard_deviation = candidate_standard_deviation
+                            best_swap = (
+                                first_team_index,
+                                first_member_index,
+                                second_team_index,
+                                second_member_index,
+                            )
+
+        if best_swap is None:
+            break
+
+        (
+            first_team_index,
+            first_member_index,
+            second_team_index,
+            second_member_index,
+        ) = best_swap
+        (
+            teams[first_team_index][first_member_index],
+            teams[second_team_index][second_member_index],
+        ) = (
+            teams[second_team_index][second_member_index],
+            teams[first_team_index][first_member_index],
+        )
+        current_metrics = calculate_seed_metrics(teams, seed_scores)
+        optimization_count += 1
+
+    return optimization_count
