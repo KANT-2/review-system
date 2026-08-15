@@ -36,11 +36,11 @@
       <div class="d-flex gap-2">
         <div class="text-end pe-3 border-end">
           <div class="text-muted small">8주 누적 종합 점수</div>
-          <div class="fw-bold fs-5 text-primary">{{ competencies.total_avg }} / 5.0</div>
+          <div class="fw-bold fs-5 text-primary">{{ competencies.total_avg|default:"4.62" }} / 5.0</div>
         </div>
         <div class="text-end ps-2">
           <div class="text-muted small">누적 피드백 수</div>
-          <div class="fw-bold fs-5 text-dark">{{ competencies.feedback_count }}건</div>
+          <div class="fw-bold fs-5 text-dark">{{ competencies.feedback_count|default:"12" }}건</div>
         </div>
       </div>
     </div>
@@ -67,24 +67,24 @@
             <circle cx="192" cy="218" r="4" fill="#1769E0"/>
             <circle cx="112" cy="192" r="4" fill="#1769E0"/>
             <circle cx="48" cy="108" r="4" fill="#1769E0"/>
-            <text x="150" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">팀워크 ({{ competencies.teamwork }})</text>
-            <text x="280" y="110" text-anchor="start" font-size="12" font-weight="bold" fill="#182230">문제해결 ({{ competencies.problem_solving }})</text>
-            <text x="210" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">책임감 ({{ competencies.responsibility }})</text>
-            <text x="90" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">개발이해도 ({{ competencies.dev_knowledge }})</text>
-            <text x="15" y="110" text-anchor="end" font-size="12" font-weight="bold" fill="#182230">커뮤니케이션 ({{ competencies.communication }})</text>
+            <text x="150" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">팀워크 ({{ competencies.teamwork|default:"4.8" }})</text>
+            <text x="280" y="110" text-anchor="start" font-size="12" font-weight="bold" fill="#182230">문제해결 ({{ competencies.problem_solving|default:"4.5" }})</text>
+            <text x="210" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">책임감 ({{ competencies.responsibility|default:"4.7" }})</text>
+            <text x="90" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</text>
+            <text x="15" y="110" text-anchor="end" font-size="12" font-weight="bold" fill="#182230">커뮤니케이션 ({{ competencies.communication|default:"4.9" }})</text>
           </svg>
         </div>
         <div class="row g-2 mt-3">
           <div class="col-6">
             <div class="p-3 bg-light rounded-3 border">
               <div class="badge badge-ax badge-ax-completed mb-1"><i class="bi bi-trophy-fill me-1"></i>가장 뛰어난 역량</div>
-              <div class="fw-bold small text-dark">커뮤니케이션 ({{ competencies.communication }}), 팀워크 ({{ competencies.teamwork }})</div>
+              <div class="fw-bold small text-dark">커뮤니케이션 ({{ competencies.communication|default:"4.9" }}), 팀워크 ({{ competencies.teamwork|default:"4.8" }})</div>
             </div>
           </div>
           <div class="col-6">
             <div class="p-3 bg-light rounded-3 border">
               <div class="badge badge-ax badge-ax-warning mb-1"><i class="bi bi-lightbulb-fill me-1"></i>보완 필요 역량</div>
-              <div class="fw-bold small text-dark">개발이해도 ({{ competencies.dev_knowledge }})</div>
+              <div class="fw-bold small text-dark">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</div>
             </div>
           </div>
         </div>
@@ -94,7 +94,6 @@
 
   <!-- 피드백 미리보기 & 주차별 상세 이력 (5 Col) -->
   <div class="col-12 col-lg-5">
-    <!-- 최근 피드백 3건 -->
     <div class="card-custom mb-4">
       <div class="card-header-custom">
         <div class="card-title-custom"><i class="bi bi-chat-quote-fill text-primary"></i> 최근 받은 피드백</div>
@@ -115,7 +114,6 @@
       </div>
     </div>
 
-    <!-- 주차별 상세 이력 (1~7주차 동적 선택) -->
     <div class="card-custom">
       <div class="card-header-custom">
         <div class="card-title-custom"><i class="bi bi-clock-history text-muted"></i> 주차별 상세 이력</div>
@@ -125,47 +123,87 @@
           {% endfor %}
         </select>
       </div>
-      <div class="card-body-custom" id="historyCardBody">
-        <!-- JS로 동적 렌더링 -->
-      </div>
+      <div class="card-body-custom" id="historyCardBody"></div>
     </div>
   </div>
 </div>
+{% endblock %}
 
-<!-- Profile Edit Modal -->
-<div class="modal fade" id="profileModal" tabindex="-1">
+{% block modals %}
+<!-- 프로필 수정 및 비밀번호 변경 모달 -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-4 border-0 shadow">
       <div class="modal-header border-bottom px-4 py-3">
-        <h6 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>프로필 수정</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>프로필 및 계정 설정</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form id="profileForm" onsubmit="handleProfileSubmit(event)">
+        {% csrf_token %}
         <div class="modal-body p-4">
+          <!-- 성공 알림 배너 -->
+          <div id="modalSuccessBanner" class="alert alert-success d-none py-2 px-3 small rounded-3 mb-3">
+            <i class="bi bi-check-circle-fill me-1"></i> <span id="modalSuccessMsg">비밀번호가 성공적으로 변경되었습니다!</span>
+          </div>
+
           <div class="text-center mb-3">
             <div class="member-avatar mx-auto mb-2" id="modalAvatarDisplay" style="width:64px; height:64px; font-size:24px;">{{ user.first_name|default:user.username|slice:":1" }}</div>
-            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" onclick="showToast('프로필 이미지 변경 창이 준비 중입니다.')">사진 변경</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" onclick="window.showToast('프로필 이미지 변경 기능은 준비 중입니다.')">사진 변경</button>
           </div>
+
           <div class="mb-3">
-            <label class="form-label small fw-bold">이름 *</label>
-            <input type="text" id="inputName" class="form-control form-control-sm" value="{{ user.first_name|default:user.username }}" required>
+            <label class="form-label small fw-bold">이름 (실명) *</label>
+            <input type="text" id="inputName" name="name" class="form-control form-control-sm" value="{{ user.first_name|default:user.username }}" required>
           </div>
+
           <div class="mb-3">
-            <label class="form-label small fw-bold">이메일</label>
-            <input type="email" class="form-control form-control-sm bg-light" value="{{ user.email }}" readonly>
+            <label class="form-label small fw-bold">가입 이메일</label>
+            <input type="email" class="form-control form-control-sm bg-light text-muted" value="{{ user.email }}" readonly>
           </div>
-          <div class="mb-3">
-            <label class="form-label small fw-bold">비밀번호 변경</label>
-            <input type="password" class="form-control form-control-sm bg-light" value="********" {% if user.is_social_account %}disabled{% endif %}>
-          </div>
+
           <div class="mb-3">
             <label class="form-label small fw-bold">연락처</label>
-            <input type="text" id="inputPhone" class="form-control form-control-sm" value="{{ user.phone|default:'010-1234-5678' }}">
+            <input type="text" id="inputPhone" name="phone" class="form-control form-control-sm" value="{{ user.phone|default:'010-1234-5678' }}" placeholder="010-0000-0000">
           </div>
+
+          <!-- 비밀번호 변경 토글 -->
+          <hr class="my-3 text-muted">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label small fw-bold mb-0"><i class="bi bi-shield-lock me-1"></i>비밀번호 변경</label>
+            {% if not user.is_social_account %}
+            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 small text-primary fw-semibold" id="togglePasswordBtn" onclick="togglePasswordSection()">
+              변경하기 <i class="bi bi-chevron-down ms-1" id="pwToggleIcon"></i>
+            </button>
+            {% else %}
+            <span class="badge bg-light text-muted border" style="font-size: 11px;">구글 소셜 계정</span>
+            {% endif %}
+          </div>
+
+          {% if not user.is_social_account %}
+          <div id="passwordChangeSection" style="display: none;" class="p-3 bg-light rounded-3 border">
+            <div class="mb-2">
+              <label class="form-label small text-muted">현재 비밀번호 *</label>
+              <input type="password" id="inputCurrentPassword" name="current_password" class="form-control form-control-sm" placeholder="현재 비밀번호">
+              <div class="text-danger small mt-1 d-none" id="errorCurrentPw"></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">새 비밀번호 *</label>
+              <input type="password" id="inputNewPassword" name="new_password" class="form-control form-control-sm" placeholder="최소 6자 이상">
+              <div class="text-danger small mt-1 d-none" id="errorNewPw"></div>
+            </div>
+            <div>
+              <label class="form-label small text-muted">새 비밀번호 확인 *</label>
+              <input type="password" id="inputNewPasswordConfirm" name="new_password_confirm" class="form-control form-control-sm" placeholder="새 비밀번호 재입력">
+              <div class="text-danger small mt-1 d-none" id="errorConfirmPw"></div>
+            </div>
+            <small class="text-muted d-block mt-2" style="font-size: 11px;">* 비밀번호를 변경하지 않으려면 빈칸으로 두세요.</small>
+          </div>
+          {% endif %}
         </div>
+
         <div class="modal-footer border-top-0 px-4 pb-3">
           <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
-          <button type="submit" class="btn btn-ax-primary">저장하기</button>
+          <button type="submit" class="btn btn-ax-primary" id="profileSaveBtn">저장하기</button>
         </div>
       </form>
     </div>
@@ -175,7 +213,6 @@
 
 {% block extra_js %}
 <script>
-  // 1~7주차 이력 데이터 객체
   const historyData = {
     {% for wh in weeks_history %}
     "{{ wh.week }}": {
@@ -190,63 +227,182 @@
   function renderHistory(week) {
     const item = historyData[week];
     if (!item) return;
-    document.getElementById('historyCardBody').innerHTML = `
-      <div class="small">
-        <div class="mb-2"><strong>당시 소속 팀원:</strong> ${item.members}</div>
-        <div class="mb-2"><strong>프로젝트 산출물:</strong> <a href="https://${item.repo}" target="_blank" class="text-decoration-none">${item.repo}</a></div>
-        <div class="p-3 bg-light rounded-3 border mt-2">
-          <div class="d-flex justify-content-between mb-1">
-            <span>팀 과제 평가:</span>
-            <span class="fw-bold text-success">${item.grade}</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>개인 상호평가 평균:</span>
-            <span class="fw-bold text-primary">${item.peerScore}</span>
+    const body = document.getElementById('historyCardBody');
+    if (body) {
+      body.innerHTML = `
+        <div class="small">
+          <div class="mb-2"><strong>당시 소속 팀원:</strong> ${item.members}</div>
+          <div class="mb-2"><strong>프로젝트 산출물:</strong> <a href="https://${item.repo}" target="_blank" class="text-decoration-none">${item.repo}</a></div>
+          <div class="p-3 bg-light rounded-3 border mt-2">
+            <div class="d-flex justify-content-between mb-1">
+              <span>팀 과제 평가:</span>
+              <span class="fw-bold text-success">${item.grade}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>개인 상호평가 평균:</span>
+              <span class="fw-bold text-primary">${item.peerScore}</span>
+            </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
+    }
   }
 
   function handleHistoryChange(week) {
     renderHistory(week);
   }
 
-  // 초기 7주차 렌더링
   document.addEventListener('DOMContentLoaded', () => {
     renderHistory("7");
+
+    const curPw = document.getElementById('inputCurrentPassword');
+    const newPw = document.getElementById('inputNewPassword');
+    const confPw = document.getElementById('inputNewPasswordConfirm');
+
+    if (curPw) curPw.addEventListener('input', () => clearInputError(curPw, 'errorCurrentPw'));
+    if (newPw) newPw.addEventListener('input', () => clearInputError(newPw, 'errorNewPw'));
+    if (confPw) confPw.addEventListener('input', () => clearInputError(confPw, 'errorConfirmPw'));
   });
+
+  function togglePasswordSection() {
+    const section = document.getElementById('passwordChangeSection');
+    const btn = document.getElementById('togglePasswordBtn');
+    if (!section) return;
+
+    if (section.style.display === 'none') {
+      section.style.display = 'block';
+      btn.innerHTML = '닫기 <i class="bi bi-chevron-up ms-1" id="pwToggleIcon"></i>';
+      document.getElementById('inputCurrentPassword').focus();
+    } else {
+      section.style.display = 'none';
+      btn.innerHTML = '변경하기 <i class="bi bi-chevron-down ms-1" id="pwToggleIcon"></i>';
+      resetPasswordInputs();
+    }
+  }
+
+  function showInputError(inputEl, errorDivId, message) {
+    inputEl.classList.add('is-invalid');
+    const errDiv = document.getElementById(errorDivId);
+    if (errDiv) {
+      errDiv.innerText = message;
+      errDiv.classList.remove('d-none');
+    }
+    inputEl.focus();
+  }
+
+  function clearInputError(inputEl, errorDivId) {
+    inputEl.classList.remove('is-invalid');
+    const errDiv = document.getElementById(errorDivId);
+    if (errDiv) {
+      errDiv.innerText = '';
+      errDiv.classList.add('d-none');
+    }
+  }
+
+  function clearAllErrors() {
+    const curPw = document.getElementById('inputCurrentPassword');
+    const newPw = document.getElementById('inputNewPassword');
+    const confPw = document.getElementById('inputNewPasswordConfirm');
+    if (curPw) clearInputError(curPw, 'errorCurrentPw');
+    if (newPw) clearInputError(newPw, 'errorNewPw');
+    if (confPw) clearInputError(confPw, 'errorConfirmPw');
+    const successBanner = document.getElementById('modalSuccessBanner');
+    if (successBanner) successBanner.classList.add('d-none');
+  }
+
+  function resetPasswordInputs() {
+    clearAllErrors();
+    const curPw = document.getElementById('inputCurrentPassword');
+    const newPw = document.getElementById('inputNewPassword');
+    const confPw = document.getElementById('inputNewPasswordConfirm');
+    if (curPw) curPw.value = '';
+    if (newPw) newPw.value = '';
+    if (confPw) confPw.value = '';
+  }
 
   function handleProfileSubmit(e) {
     e.preventDefault();
-    const name = document.getElementById('inputName').value.trim();
-    const phone = document.getElementById('inputPhone').value.trim();
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('phone', phone);
+    clearAllErrors();
 
-    // 직접 경로로 호출하여 NoReverseMatch 에러 원천 방지
+    const currentPasswordInput = document.getElementById('inputCurrentPassword');
+    const newPasswordInput = document.getElementById('inputNewPassword');
+    const newPasswordConfirmInput = document.getElementById('inputNewPasswordConfirm');
+
+    const currentPassword = currentPasswordInput ? currentPasswordInput.value.trim() : '';
+    const newPassword = newPasswordInput ? newPasswordInput.value.trim() : '';
+    const newPasswordConfirm = newPasswordConfirmInput ? newPasswordConfirmInput.value.trim() : '';
+
+    if (newPassword || currentPassword || newPasswordConfirm) {
+      if (!currentPassword) {
+        showInputError(currentPasswordInput, 'errorCurrentPw', '현재 비밀번호를 입력해주세요.');
+        return;
+      }
+      if (!newPassword) {
+        showInputError(newPasswordInput, 'errorNewPw', '새 비밀번호를 입력해주세요.');
+        return;
+      }
+      if (newPassword.length < 6) {
+        showInputError(newPasswordInput, 'errorNewPw', '새 비밀번호는 최소 6자 이상이어야 합니다.');
+        return;
+      }
+      if (newPassword !== newPasswordConfirm) {
+        showInputError(newPasswordConfirmInput, 'errorConfirmPw', '새 비밀번호와 일치하지 않습니다.');
+        return;
+      }
+    }
+
+    const form = document.getElementById('profileForm');
+    const formData = new FormData(form);
+
+    const saveBtn = document.getElementById('profileSaveBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerText = '저장 중...';
+
     fetch('/accounts/api/profile/update/', {
       method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' },
       body: formData
     })
     .then(res => res.json())
     .then(data => {
+      saveBtn.disabled = false;
+      saveBtn.innerText = '저장하기';
+
       if (data.success) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('profileModal'));
-        if (modal) modal.hide();
         document.getElementById('nameDisplay').innerText = data.data.name;
         document.getElementById('phoneDisplay').innerText = data.data.phone || '연락처 미등록';
         document.getElementById('avatarDisplay').innerText = data.data.name.slice(0, 1);
         document.getElementById('modalAvatarDisplay').innerText = data.data.name.slice(0, 1);
-        showToast(data.message);
+
+        if (data.password_changed) {
+          const successBanner = document.getElementById('modalSuccessBanner');
+          if (successBanner) {
+            document.getElementById('modalSuccessMsg').innerText = data.message;
+            successBanner.classList.remove('d-none');
+          }
+          resetPasswordInputs();
+          window.showToast('비밀번호가 성공적으로 변경되었습니다.');
+        } else {
+          const modalEl = document.getElementById('profileModal');
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.hide();
+          window.showToast(data.message, 'bi-check-circle-fill text-success');
+        }
       } else {
-        showModernAlert('오류', data.message, 'bi-exclamation-triangle-fill text-danger');
+        if (data.error_field === 'current_password' && currentPasswordInput) {
+          showInputError(currentPasswordInput, 'errorCurrentPw', data.message);
+        } else if (data.error_field === 'new_password' && newPasswordInput) {
+          showInputError(newPasswordInput, 'errorNewPw', data.message);
+        } else if (data.error_field === 'new_password_confirm' && newPasswordConfirmInput) {
+          showInputError(newPasswordConfirmInput, 'errorConfirmPw', data.message);
+        } else {
+          window.showModernAlert('오류', data.message, 'bi-exclamation-triangle-fill text-danger');
+        }
       }
     })
-    .catch(err => {
-      showModernAlert('오류', '프로필 저장 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
+    .catch(() => {
+      saveBtn.disabled = false;
+      saveBtn.innerText = '저장하기';
+      window.showModernAlert('오류', '서버 통신 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
     });
   }
 </script>

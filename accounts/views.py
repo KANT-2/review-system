@@ -1,11 +1,12 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from .models import User, WhitelistEmail
 from .forms import SignUpForm, LoginForm, OnboardingForm
+
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -16,6 +17,8 @@ def login_view(request):
         if form.is_valid():
             email = form.cleaned_data['email']
             password = form.cleaned_data['password']
+            remember_login = request.POST.get('remember_login')
+
             user = authenticate(request, username=email, password=password)
 
             if user is not None:
@@ -28,6 +31,12 @@ def login_view(request):
                     return render(request, 'accounts/login.html', {'form': form})
 
                 login(request, user)
+
+                if remember_login:
+                    request.session.set_expiry(60 * 60 * 24 * 30)  # 30일 세션 유지
+                else:
+                    request.session.set_expiry(0)  # 브라우저 종료 시 만료
+
                 if not user.is_onboarded:
                     return redirect('accounts:onboarding')
 
@@ -56,6 +65,117 @@ def signup_view(request):
     return render(request, 'accounts/signup.html', {'form': form})
 
 
+@require_POST
+def signup_api(request):
+    """모달 전용 비동기 회원가입 API"""
+    name = request.POST.get('name', '').strip()
+    email = request.POST.get('email', '').strip()
+    password = request.POST.get('password', '').strip()
+    password_confirm = request.POST.get('password_confirm', '').strip()
+
+    if not name or not email or not password:
+        return JsonResponse({'success': False, 'message': '모든 필수 항목을 입력해주세요.'}, status=400)
+
+    if password != password_confirm:
+        return JsonResponse({'success': False, 'message': '비밀번호가 일치하지 않습니다.'}, status=400)
+
+    if len(password) < 6:
+        return JsonResponse({'success': False, 'message': '비밀번호는 최소 6자 이상이어야 합니다.'}, status=400)
+
+    if User.objects.filter(email=email).exists():
+        return JsonResponse({'success': False, 'message': '이미 가입된 이메일 주소입니다.'}, status=400)
+
+    whitelist_entry = WhitelistEmail.objects.filter(email=email).first()
+    if whitelist_entry:
+        approval_status = User.ApprovalStatus.APPROVED
+        role = whitelist_entry.role
+        session_info = whitelist_entry.session_info
+        is_auto_approved = True
+    else:
+        approval_status = User.ApprovalStatus.PENDING
+        role = User.Role.STUDENT
+        session_info = ''
+        is_auto_approved = False
+
+    user = User.objects.create_user(
+        username=email,
+        email=email,
+        password=password,
+        first_name=name,
+        role=role,
+        approval_status=approval_status,
+        session_info=session_info
+    )
+
+    if is_auto_approved:
+        msg = f'사전 등록된 수강생({name})으로 확인되어 자동 승인되었습니다! 바로 로그인해 주세요.'
+    else:
+        msg = '회원가입 신청이 완료되었습니다! 튜터 심사 후 로그인이 승인됩니다.'
+
+    return JsonResponse({
+        'success': True,
+        'is_auto_approved': is_auto_approved,
+        'email': user.email,
+        'message': msg
+    })
+
+
+@require_POST
+def verify_user_for_reset_api(request):
+    """비밀번호 찾기 Step 1: 이름 + 이메일 일치 여부 확인"""
+    name = request.POST.get('name', '').strip()
+    email = request.POST.get('email', '').strip()
+
+    if not name or not email:
+        return JsonResponse({'success': False, 'message': '이름과 이메일을 모두 입력해주세요.'}, status=400)
+
+    user = User.objects.filter(email=email, first_name=name).first()
+    if not user:
+        user = User.objects.filter(email=email, username=name).first()
+
+    if user:
+        if user.is_social_account:
+            return JsonResponse({'success': False, 'message': '구글 소셜 연동 계정은 구글 로그인으로 접속해 주세요.'}, status=400)
+        return JsonResponse({
+            'success': True,
+            'user_id': user.id,
+            'name': user.first_name or user.username,
+            'email': user.email,
+            'message': '사용자 정보가 확인되었습니다.'
+        })
+    else:
+        return JsonResponse({'success': False, 'message': '일치하는 회원 정보를 찾을 수 없습니다.'}, status=404)
+
+
+@require_POST
+def reset_password_api(request):
+    """비밀번호 찾기 Step 2: 새 비밀번호 변경 적용"""
+    user_id = request.POST.get('user_id')
+    new_password = request.POST.get('new_password', '').strip()
+    new_password_confirm = request.POST.get('new_password_confirm', '').strip()
+
+    if not user_id or not new_password:
+        return JsonResponse({'success': False, 'message': '새 비밀번호를 입력해주세요.'}, status=400)
+
+    if new_password != new_password_confirm:
+        return JsonResponse({'success': False, 'message': '새 비밀번호가 서로 일치하지 않습니다.'}, status=400)
+
+    if len(new_password) < 6:
+        return JsonResponse({'success': False, 'message': '비밀번호는 최소 6자 이상이어야 합니다.'}, status=400)
+
+    try:
+        user = User.objects.get(id=user_id)
+        user.set_password(new_password)
+        user.save()
+        return JsonResponse({
+            'success': True,
+            'email': user.email,
+            'message': '비밀번호가 성공적으로 재설정되었습니다. 새 비밀번호로 로그인해 주세요.'
+        })
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'message': '사용자를 찾을 수 없습니다.'}, status=404)
+
+
 def logout_view(request):
     logout(request)
     return redirect('accounts:login')
@@ -81,7 +201,6 @@ def onboarding_view(request):
     return render(request, 'accounts/onboarding.html', {'form': form})
 
 
-# 8주차 누적 피드백 11건 (3단 탭 분리 데이터)
 SAMPLE_FEEDBACKS = {
     'tutor': [
         {"author": "박교수 튜터", "week": "8주차 파이널", "date": "2026.08.15", "content": "전체 아키텍처 구조가 매우 견고하며, Redis 캐싱 및 비동기 처리 적용이 탁월합니다. 상용 서비스 배포 수준입니다."},
@@ -103,7 +222,6 @@ SAMPLE_FEEDBACKS = {
     ]
 }
 
-# 1주차 ~ 7주차 과거 이력 데이터
 WEEKS_HISTORY = [
     {"week": 7, "team": "3팀 (Alpha)", "members": "이수진, 박도현, 김민준", "grade": "A+ (97점)", "peer_score": "4.85 / 5.0", "repo": "github.com/team3/final-prep"},
     {"week": 6, "team": "3팀 (Alpha)", "members": "이수진, 박도현, 김민준", "grade": "A (93점)", "peer_score": "4.70 / 5.0", "repo": "github.com/team3/api-perf"},
@@ -119,12 +237,7 @@ WEEKS_HISTORY = [
 def dashboard_view(request):
     if not request.user.is_onboarded:
         return redirect('accounts:onboarding')
-
-    context = {
-        'current_week': 8,
-        'feedbacks': SAMPLE_FEEDBACKS,
-    }
-    return render(request, 'accounts/dashboard.html', context)
+    return render(request, 'accounts/dashboard.html', {'current_week': 8, 'feedbacks': SAMPLE_FEEDBACKS})
 
 
 @login_required
@@ -155,13 +268,12 @@ def mypage_view(request):
 def tutor_admin_view(request):
     pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by('-date_joined')
     students = User.objects.filter(role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED).order_by('first_name')
-    context = {
+    return render(request, 'accounts/tutor_admin.html', {
         'current_week': 8,
         'pending_users': pending_users,
         'students': students,
         'feedbacks': SAMPLE_FEEDBACKS,
-    }
-    return render(request, 'accounts/tutor_admin.html', context)
+    })
 
 
 @login_required
@@ -195,16 +307,76 @@ def reject_user_api(request, user_id):
 @login_required
 @require_POST
 def update_profile_api(request):
-    name = request.POST.get('name', '').strip()
-    phone = request.POST.get('phone', '').strip()
-    if not name:
-        return JsonResponse({'success': False, 'message': '이름을 입력해주세요.'}, status=400)
-    user = request.user
-    user.first_name = name
-    user.phone = phone
-    user.save()
-    return JsonResponse({
-        'success': True, 
-        'message': '프로필이 성공적으로 수정되었습니다.',
-        'data': {'name': user.first_name, 'phone': user.phone}
-    })
+    """마이페이지: 프로필 정보(이름, 연락처) 및 비밀번호 변경 API"""
+    try:
+        name = request.POST.get('name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        current_password = request.POST.get('current_password', '').strip()
+        new_password = request.POST.get('new_password', '').strip()
+        new_password_confirm = request.POST.get('new_password_confirm', '').strip()
+
+        if not name:
+            return JsonResponse({'success': False, 'message': '이름을 입력해주세요.', 'error_field': 'name'})
+
+        user = request.user
+        password_changed = False
+
+        if new_password or current_password or new_password_confirm:
+            if user.is_social_account:
+                return JsonResponse({'success': False, 'message': '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.'})
+
+            if not current_password:
+                return JsonResponse({
+                    'success': False, 
+                    'error_field': 'current_password', 
+                    'message': '현재 사용 중인 기존 비밀번호를 입력해주세요.'
+                })
+
+            if not user.check_password(current_password):
+                return JsonResponse({
+                    'success': False, 
+                    'error_field': 'current_password', 
+                    'message': '기존 비밀번호가 일치하지 않습니다. 다시 확인해 주세요.'
+                })
+
+            if not new_password:
+                return JsonResponse({
+                    'success': False, 
+                    'error_field': 'new_password', 
+                    'message': '새 비밀번호를 입력해주세요.'
+                })
+
+            if len(new_password) < 6:
+                return JsonResponse({
+                    'success': False, 
+                    'error_field': 'new_password', 
+                    'message': '새 비밀번호는 최소 6자 이상이어야 합니다.'
+                })
+
+            if new_password != new_password_confirm:
+                return JsonResponse({
+                    'success': False, 
+                    'error_field': 'new_password_confirm', 
+                    'message': '새 비밀번호와 비밀번호 확인이 서로 일치하지 않습니다.'
+                })
+
+            user.set_password(new_password)
+            user.save()
+            update_session_auth_hash(request, user)
+            password_changed = True
+
+        user.first_name = name
+        user.phone = phone
+        user.save()
+
+        msg = '비밀번호가 성공적으로 변경되었습니다.' if password_changed else '프로필 정보가 수정되었습니다.'
+
+        return JsonResponse({
+            'success': True,
+            'password_changed': password_changed,
+            'message': msg,
+            'data': {'name': user.first_name, 'phone': user.phone}
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'처리 중 오류가 발생했습니다: {str(e)}'})

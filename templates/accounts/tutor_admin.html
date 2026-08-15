@@ -12,7 +12,7 @@
   <span class="badge bg-dark fs-6 rounded-pill px-3 py-2">Tutor Mode</span>
 </div>
 
-<!-- 1. Approval Queue -->
+<!-- 1. 가입 승인 대기 큐 -->
 <div class="card-custom mb-4">
   <div class="card-header-custom">
     <div class="card-title-custom">
@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<!-- 2. Student List -->
+<!-- 2. 등록 학생 목록 -->
 <div class="card-custom">
   <div class="card-header-custom">
     <div class="card-title-custom"><i class="bi bi-people-fill text-primary"></i> 등록 학생 목록 및 피드백 작성</div>
@@ -97,21 +97,23 @@
     </table>
   </div>
 </div>
+{% endblock %}
 
-<!-- Tutor Feedback Modal -->
-<div class="modal fade" id="tutorWriteModal" tabindex="-1">
+{% block modals %}
+<!-- 튜터 피드백 작성 모달 -->
+<div class="modal fade" id="tutorWriteModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-4 border-0 shadow">
       <div class="modal-header border-bottom px-4 py-3">
         <h6 class="modal-title fw-bold" id="tutorModalTitle">튜터 피드백 작성</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-4">
         <div class="mb-3">
           <label class="form-label small fw-bold">피드백 구분</label>
           <select class="form-select form-select-sm">
             <option>개인 역량 1:1 피드백</option>
-            <option>3주차 팀 과제물 첨삭 피드백</option>
+            <option>8주차 팀 과제물 첨삭 피드백</option>
           </select>
         </div>
         <div class="mb-3">
@@ -122,7 +124,7 @@
       </div>
       <div class="modal-footer border-top-0 px-4 pb-3">
         <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
-        <button type="button" class="btn btn-ax-primary" data-bs-dismiss="modal" onclick="showToast('피드백이 학생에게 실시간 발행되었습니다!')">발행하기</button>
+        <button type="button" class="btn btn-ax-primary" data-bs-dismiss="modal" onclick="window.showToast('피드백이 학생에게 실시간 발행되었습니다!')">발행하기</button>
       </div>
     </div>
   </div>
@@ -146,14 +148,12 @@
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        // UI에서 해당 행 제거
         const row = document.getElementById(`user-row-${userId}`);
         if (row) {
           row.style.transition = 'all 0.3s ease';
           row.style.opacity = '0';
           setTimeout(() => {
             row.remove();
-            // 남은 행 개수 업데이트
             const tbody = document.getElementById('approvalQueueTbody');
             const remainingRows = tbody.querySelectorAll('tr[id^="user-row-"]').length;
             document.getElementById('queueBadge').innerText = `${remainingRows}명 대기중`;
@@ -162,19 +162,19 @@
             }
           }, 300);
         }
-        showToast(data.message);
+        window.showToast(data.message);
       } else {
-        showModernAlert('오류', data.message, 'bi-exclamation-triangle-fill text-danger');
+        window.showModernAlert('오류', data.message, 'bi-exclamation-triangle-fill text-danger');
       }
     })
-    .catch(err => {
-      showModernAlert('오류', '서버 통신 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
+    .catch(() => {
+      window.showModernAlert('오류', '서버 통신 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
     });
   }
 
   function openFeedbackModal(studentName) {
     document.getElementById('tutorModalTitle').innerText = `튜터 피드백 작성 (${studentName} 학생)`;
-    const modal = new bootstrap.Modal(document.getElementById('tutorWriteModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('tutorWriteModal'));
     modal.show();
   }
 </script>
