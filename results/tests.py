@@ -8,6 +8,7 @@ from results.services import (
     calculate_seed,
     calculate_team_score,
     competition_rank,
+    determine_data_status,
     reveal_if_published,
     round_to_1dp,
     round_to_2dp,
@@ -37,8 +38,9 @@ class CalculateTeamScoreTests(SimpleTestCase):
         ]  # 88,92,76,84
         self.assertEqual(calculate_team_score(received), Decimal("85.00"))
 
-    def test_is_zero_when_team_received_no_reviews(self):
-        self.assertEqual(calculate_team_score([]), Decimal("0.00"))
+    def test_is_na_when_team_received_no_reviews(self):
+        # RES-002 / SUB-006: N/A, not 0.00
+        self.assertIsNone(calculate_team_score([]))
 
 
 class CalculatePeerScoreTests(SimpleTestCase):
@@ -46,8 +48,9 @@ class CalculatePeerScoreTests(SimpleTestCase):
         received = [[5, 4, 5, 4], [4, 4, 4, 4, 4], [5, 5, 5, 5, 5]]  # 90, 80, 100
         self.assertEqual(calculate_peer_score(received), Decimal("90.00"))
 
-    def test_is_zero_when_student_received_no_reviews(self):
-        self.assertEqual(calculate_peer_score([]), Decimal("0.00"))
+    def test_is_na_when_student_received_no_reviews(self):
+        # RES-003 / SUB-006: N/A, not 0.00
+        self.assertIsNone(calculate_peer_score([]))
 
 
 class CalculateFinalScoreTests(SimpleTestCase):
@@ -55,6 +58,26 @@ class CalculateFinalScoreTests(SimpleTestCase):
         self.assertEqual(
             calculate_final_score(Decimal("85.00"), Decimal("90.00")), Decimal("88.00")
         )
+
+    def test_is_na_when_team_score_is_na(self):
+        self.assertIsNone(calculate_final_score(None, Decimal("90.00")))
+
+    def test_is_na_when_peer_score_is_na(self):
+        self.assertIsNone(calculate_final_score(Decimal("85.00"), None))
+
+
+class DetermineDataStatusTests(SimpleTestCase):
+    def test_not_applicable_when_nothing_expected(self):
+        self.assertEqual(determine_data_status(expected_count=0, valid_count=0), "NOT_APPLICABLE")
+
+    def test_no_data_when_nothing_valid(self):
+        self.assertEqual(determine_data_status(expected_count=3, valid_count=0), "NO_DATA")
+
+    def test_partial_when_some_but_not_all_valid(self):
+        self.assertEqual(determine_data_status(expected_count=3, valid_count=2), "PARTIAL")
+
+    def test_complete_when_all_expected_are_valid(self):
+        self.assertEqual(determine_data_status(expected_count=3, valid_count=3), "COMPLETE")
 
 
 class CompetitionRankTests(SimpleTestCase):
@@ -70,21 +93,18 @@ class CompetitionRankTests(SimpleTestCase):
 
 class CalculateSeedTests(SimpleTestCase):
     def test_three_rounds_use_20_30_50(self):
-        # 1회차=0, 2회차=80, 3회차=100 -> 0*.2 + 80*.3 + 100*.5 = 74
+        # 1회차=60, 2회차=80, 3회차=100 -> 60*.2 + 80*.3 + 100*.5 = 86
         self.assertEqual(
-            calculate_seed([Decimal("0.00"), Decimal("80.00"), Decimal("100.00")]),
-            Decimal("74.00"),
+            calculate_seed([Decimal("60.00"), Decimal("80.00"), Decimal("100.00")]),
+            Decimal("86.00"),
         )
-
-    def test_two_rounds_renormalize_from_the_front(self):
-        # 1회차=80, 2회차=90 -> 20/(20+30), 30/(20+30) 재정규화 -> 86 (30/50, 50/... 아님)
-        self.assertEqual(calculate_seed([Decimal("80.00"), Decimal("90.00")]), Decimal("86.00"))
 
     def test_single_round_gets_full_weight(self):
         self.assertEqual(calculate_seed([Decimal("60.00")]), Decimal("60.00"))
 
-    def test_no_rounds_gives_zero(self):
-        self.assertEqual(calculate_seed([]), Decimal("0.00"))
+    def test_no_valid_history_is_na_not_zero(self):
+        # TEAM-005 / RES-016: 무시드는 N/A, 0점 대체 금지
+        self.assertIsNone(calculate_seed([]))
 
 
 class RevealIfPublishedTests(SimpleTestCase):
