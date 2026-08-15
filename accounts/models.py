@@ -46,11 +46,9 @@ class User(AbstractUser):
         APPROVED = "approved", _("승인")
         REJECTED = "rejected", _("반려")
 
-    # username 필드 비활성화 및 email을 기본 식별자로 설정
     username = None
     email = models.EmailField(_("이메일"), unique=True)
 
-    # 권한 및 승인 상태
     role = models.CharField(
         _("역할"),
         max_length=20,
@@ -64,13 +62,11 @@ class User(AbstractUser):
         default=ApprovalStatus.PENDING,
     )
 
-    # 온보딩 및 계정 유형 플래그
     is_onboarded = models.BooleanField(_("온보딩 완료 여부"), default=False)
     is_social_account = models.BooleanField(_("소셜 계정 여부"), default=False)
 
-    # 추가 정보
-    session_info = models.CharField(_("기수 정보"), max_length=50, blank=True, null=True)
-    phone_number = models.CharField(_("연락처"), max_length=20, blank=True, null=True)
+    session_info = models.CharField(_("기수 정보"), max_length=50, blank=True, default="")
+    phone_number = models.CharField(_("연락처"), max_length=20, blank=True, default="")
 
     objects = UserManager()
 
@@ -87,7 +83,6 @@ class User(AbstractUser):
 
     @property
     def login_provider(self):
-        """가입/로그인 수단 반환 (kakao / google / email)"""
         if not self.is_social_account:
             return "email"
         social_acc = self.socialaccount_set.first()
@@ -104,7 +99,7 @@ class WhitelistEmail(models.Model):
         choices=User.Role.choices,
         default=User.Role.STUDENT,
     )
-    session_info = models.CharField(_("배정 기수"), max_length=50, blank=True, null=True)
+    session_info = models.CharField(_("배정 기수"), max_length=50, blank=True, default="")
     created_at = models.DateTimeField(_("등록 일시"), auto_now_add=True)
 
     class Meta:
