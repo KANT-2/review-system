@@ -20,10 +20,16 @@ shown to a user (matching the ``display_score numeric(4,2)`` column). Rounding t
 intermediate step (this app's earlier approach) would compound rounding error across the chain.
 """
 
+import hashlib
+from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
 TEAM_WEIGHT = Decimal("0.4")
 PEER_WEIGHT = Decimal("0.6")
+
+# results_calculation_run.formula_version - 계산 실행마다 어떤 버전의 공식으로 채점했는지
+# 남긴다 (docs/DATABASE-DESIGN.md 5.10). 계산 공식이 바뀌면 이 문자열도 올린다.
+FORMULA_VERSION = "score-v1"
 
 # 오래된 순 20% / 30% / 50%. 3개 미만이면 뒤(최근)부터 잘라 재정규화한다: 2개면 30%+50%,
 # 1개면 50%를 100%로. docs/REFINED-REQUIREMENTS.md AC-10(과거 4.0, 최신 5.0 ->
@@ -147,6 +153,20 @@ def calculate_seed(recent_final_scores_oldest_first: list[Decimal]) -> Decimal |
         for score, weight in zip(recent_final_scores_oldest_first, weights, strict=True)
     )
     return round_to_raw(weighted_total / weight_sum)
+
+
+def compute_input_digest(valid_submissions: Sequence[tuple[int, str]]) -> str:
+    """채점 실행의 입력 지문 (results_calculation_run.input_digest).
+
+    유효 제출 ID와 값의 결정적 SHA-256 해시 - 재채점이 실제로 입력 데이터가 달라져서
+    실행된 건지, 아니면 입력이 그대로인데 다시 돌린 건지 감사할 때 쓴다.
+    ``valid_submissions``는 (submission_id, value) 쌍의 목록이며, 순서는 상관없다 -
+    id 기준으로 정렬한 뒤 해시하므로 같은 입력 집합이면 항상 같은 다이제스트가 나온다.
+    """
+    canonical = "\n".join(
+        f"{submission_id}:{value}" for submission_id, value in sorted(valid_submissions)
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def reveal_if_published(value, published_at):

@@ -9,6 +9,7 @@ from results.services import (
     calculate_seed,
     calculate_team_score,
     competition_rank,
+    compute_input_digest,
     determine_data_status,
     reveal_if_published,
     round_to_display,
@@ -138,6 +139,23 @@ class RevealIfPublishedTests(SimpleTestCase):
         self.assertEqual(
             reveal_if_published(Decimal("74.00"), published_at=published_at), Decimal("74.00")
         )
+
+
+class ComputeInputDigestTests(SimpleTestCase):
+    def test_is_order_independent(self):
+        forward = compute_input_digest([(1, "88.00"), (2, "92.00")])
+        reversed_order = compute_input_digest([(2, "92.00"), (1, "88.00")])
+        self.assertEqual(forward, reversed_order)
+
+    def test_changes_when_a_value_changes(self):
+        original = compute_input_digest([(1, "88.00")])
+        changed = compute_input_digest([(1, "89.00")])
+        self.assertNotEqual(original, changed)
+
+    def test_is_a_64_character_hex_string(self):
+        digest = compute_input_digest([(1, "88.00")])
+        self.assertEqual(len(digest), 64)
+        int(digest, 16)  # raises ValueError if not valid hex
 
 
 class RoundingTests(SimpleTestCase):
