@@ -5,7 +5,13 @@ from teams import views
 app_name = "teams"
 
 urlpatterns = [
+    path("student/", views.student_team_page, name="student-page"),
     path("student/team/", views.student_team_view, name="student-team"),
+    path(
+        "manage/rounds/<int:round_id>/",
+        views.management_team_page,
+        name="management-page",
+    ),
     path(
         "manage/rounds/<int:round_id>/teams/",
         views.management_team_view,

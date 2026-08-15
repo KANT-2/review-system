@@ -63,6 +63,8 @@ class StudentTeamView:
     round_id: int
     is_configured: bool
     team: TeamView | None
+    teams: tuple[TeamView, ...] = ()
+    participant_id: int | None = None
 
 
 def build_management_team_view(data: TeamQueryData) -> ManagementTeamView:
@@ -117,8 +119,20 @@ def build_student_team_view(data: TeamQueryData, user_id: int) -> StudentTeamVie
         if any(member.participant_id == participant_id for member in team.members)
     ]
     if not matching_teams:
-        return StudentTeamView(data.round_id, False, None)
-    return StudentTeamView(data.round_id, True, matching_teams[0])
+        return StudentTeamView(
+            data.round_id,
+            False,
+            None,
+            management_view.teams,
+            participant_id,
+        )
+    return StudentTeamView(
+        data.round_id,
+        True,
+        matching_teams[0],
+        management_view.teams,
+        participant_id,
+    )
 
 
 def _participant_map(

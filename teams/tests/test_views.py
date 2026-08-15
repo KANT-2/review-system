@@ -22,8 +22,10 @@ from teams.queries import (
 from teams.services import ImbalanceConfirmationRequired
 from teams.views import (
     auto_assignment_view,
+    management_team_page,
     management_team_view,
     save_team_view,
+    student_team_page,
     student_team_view,
 )
 
@@ -44,10 +46,13 @@ class FakeTeamsBackend:
         self.save_error = None
 
     def get_student_team(self, user_id):
+        team = TeamView(1, "1팀", (TeamMemberView(101, "A001", "김민수"),))
         return StudentTeamView(
             10,
             True,
-            TeamView(1, "1팀", (TeamMemberView(101, "A001", "김민수"),)),
+            team,
+            (team, TeamView(2, "2팀", (TeamMemberView(102, "A002", "이영희"),))),
+            101,
         )
 
     def get_management_team(self, round_id):
@@ -103,7 +108,33 @@ class TeamsHttpViewTests(TestCase):
         response = student_team_view(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(json.loads(response.content)["team"]["name"], "1팀")
+        payload = json.loads(response.content)
+        self.assertEqual(payload["team"]["name"], "1팀")
+        self.assertEqual([team["name"] for team in payload["teams"]], ["1팀", "2팀"])
+        self.assertEqual(payload["my_participant_id"], 101)
+
+    def test_student_page_renders_all_team_workspace(self):
+        request = self.factory.get("/teams/student/")
+        request.user = FakeUser(1, "STUDENT")
+
+        response = student_team_page(request)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("teams-initial-data", content)
+        self.assertIn("팀 편성", content)
+
+    def test_tutor_page_renders_management_workspace(self):
+        request = self.factory.get("/teams/manage/rounds/10/")
+        request.user = FakeUser(2, "TUTOR")
+
+        response = management_team_page(request, 10)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "/teams/manage/rounds/10/teams/auto/",
+            response.content.decode(),
+        )
 
     def test_student_cannot_open_management_team_view(self):
         request = self.factory.get("/manage/rounds/10/teams/")

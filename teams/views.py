@@ -1,7 +1,8 @@
 import json
 from typing import Protocol
 
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
 from teams.application import (
@@ -51,6 +52,41 @@ class TeamsHttpBackend(Protocol):
 def get_teams_backend() -> TeamsHttpBackend:
     """rounds·results·audit 모델 병합 후 실제 ORM 백엔드로 교체한다."""
     raise RuntimeError("Teams Django backend is not configured")
+
+
+@require_GET
+def student_team_page(request: HttpRequest) -> HttpResponse:
+    permission_error = _permission_error(request, allowed_roles={"STUDENT"})
+    if permission_error is not None:
+        return permission_error
+    view = get_teams_backend().get_student_team(request.user.id)
+    return render(
+        request,
+        "teams/workspace.html",
+        {
+            "role": "student",
+            "team_data": student_team_response(view),
+            "my_participant_id": view.participant_id,
+        },
+    )
+
+
+@require_GET
+def management_team_page(request: HttpRequest, round_id: int) -> HttpResponse:
+    permission_error = _permission_error(request, allowed_roles={"TUTOR"})
+    if permission_error is not None:
+        return permission_error
+    view = get_teams_backend().get_management_team(round_id)
+    return render(
+        request,
+        "teams/workspace.html",
+        {
+            "role": "tutor",
+            "team_data": management_team_response(view),
+            "auto_url": f"/teams/manage/rounds/{round_id}/teams/auto/",
+            "save_url": f"/teams/manage/rounds/{round_id}/teams/save/",
+        },
+    )
 
 
 @require_GET

@@ -153,4 +153,13 @@ class TeamResponseContractTests(TestCase):
     def test_serializes_student_team_not_configured(self):
         response = student_team_response(StudentTeamView(10, False, None))
 
-        self.assertEqual(response, {"round_id": 10, "is_configured": False, "team": None})
+        self.assertEqual(
+            response,
+            {
+                "round_id": 10,
+                "is_configured": False,
+                "team": None,
+                "teams": [],
+                "my_participant_id": None,
+            },
+        )
