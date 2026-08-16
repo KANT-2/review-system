@@ -1,6 +1,33 @@
-from django.shortcuts import render
+from django.contrib import messages
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_POST
 
-from results.fake_data import build_scenario, reveal
+from results.fake_data import PUBLISHED_AT, build_scenario
+from results.services import reveal_if_published
+
+PUBLISH_ITEMS = [
+    ("team_winner", "팀 1위"),
+    ("team_ranking", "전체 팀 순위"),
+    ("my_score", "내 최종 점수"),
+    ("peer_ranking", "내 개인 순위"),
+]
+PUBLISH_KEYS = {key for key, _ in PUBLISH_ITEMS}
+
+
+def _get_publish_state(request):
+    """세션에 저장된 항목별 공개 상태(bool). 저장된 모델이 없어서 세션으로 대신하는
+    프로토타입 전용 장치 - 실제 구현에서는 CalculationRun의 *_published_at 컬럼이 된다."""
+    if "publish_state" not in request.session:
+        request.session["publish_state"] = {
+            key: value is not None for key, value in PUBLISHED_AT.items()
+        }
+    return request.session["publish_state"]
+
+
+def _reveal(request, value, key):
+    is_published = _get_publish_state(request).get(key, False)
+    return reveal_if_published(value, True if is_published else None)
 
 
 def manage_preview(request):
@@ -11,34 +38,87 @@ def manage_preview(request):
     생기면 이 뷰는 실제 CalculationRun/EvaluationResult 조회로 바뀐다.
     """
     scenario = build_scenario()
+    publish_state = _get_publish_state(request)
+    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
+        student.peer_data_status == "PARTIAL" for student in scenario["students"]
+    )
     return render(
         request,
         "results/manage.html",
         {
             "scenario": scenario,
             "active_nav": "manage",
+            "publish_items": PUBLISH_ITEMS,
+            "publish_state": publish_state,
+            "pending_confirm": request.session.get("pending_confirm"),
+            "has_partial_data": has_partial_data,
         },
     )
+
+
+@require_POST
+def toggle_publish(request, item_key):
+    """RES-010/011 프로토타입: 항목별 공개를 켜고 끈다.
+
+    켜려는 항목이 있고(off->on) 이번 회차에 PARTIAL 데이터가 있으면, 바로 공개하지 않고
+    한 번 더 확인을 요구한다(세션에 pending_confirm만 표시하고 실제 상태는 안 바꿈).
+    이미 확인을 거쳤으면(POST에 confirm=1) 그대로 진행한다. 끄는 것(on->off)은 확인 없이
+    바로 처리한다.
+    """
+    if item_key not in PUBLISH_KEYS:
+        return redirect("results:manage_preview")
+
+    publish_state = _get_publish_state(request)
+    turning_on = not publish_state.get(item_key, False)
+    confirmed = request.POST.get("confirm") == "1"
+
+    scenario = build_scenario()
+    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
+        student.peer_data_status == "PARTIAL" for student in scenario["students"]
+    )
+
+    if turning_on and has_partial_data and not confirmed:
+        request.session["pending_confirm"] = item_key
+    else:
+        publish_state[item_key] = turning_on
+        request.session["publish_state"] = publish_state
+        request.session.pop("pending_confirm", None)
+        label = dict(PUBLISH_ITEMS)[item_key]
+        messages.success(
+            request, f"'{label}' 항목을 {'공개' if turning_on else '비공개'}로 전환했습니다."
+        )
+
+    request.session.modified = True
+    return redirect(reverse("results:manage_preview") + "#publish")
+
+
+@require_POST
+def cancel_publish_confirm(request):
+    request.session.pop("pending_confirm", None)
+    request.session.modified = True
+    return redirect(reverse("results:manage_preview") + "#publish")
 
 
 def me_preview(request):
     """PG-16 '내 결과' 화면 프로토타입 (수강생용, 학생A 시점).
 
-    항목별 독립 공개(RES-010)를 실제로 시연한다 - 본인 개인 순위는 아직 비공개 상태로 보여준다.
+    항목별 독립 공개(RES-010)를 실제로 시연한다 - 관리 화면에서 토글한 상태가 그대로
+    반영된다(같은 세션 기준).
     """
     scenario = build_scenario()
     me = next(s for s in scenario["students"] if s.name == "학생A")
-    published_at = scenario["published_at"]
     winner_team = scenario["winner_team"]
 
     context = {
         "round_name": scenario["round_name"],
         "me": me,
-        "team_winner_number": reveal(winner_team.number if winner_team else None, "team_winner"),
-        "team_ranking": reveal(scenario["teams_by_rank"], "team_ranking"),
-        "my_score": reveal(me, "my_score"),
-        "my_rank": reveal(me.rank, "peer_ranking"),
-        "published_at": published_at,
+        "team_winner_number": _reveal(
+            request, winner_team.number if winner_team else None, "team_winner"
+        ),
+        "team_ranking": _reveal(request, scenario["teams_by_rank"], "team_ranking"),
+        "my_score": _reveal(request, me, "my_score"),
+        "my_rank": _reveal(request, me.rank, "peer_ranking"),
+        "publish_state": _get_publish_state(request),
         "active_nav": "me",
     }
     return render(request, "results/me.html", context)

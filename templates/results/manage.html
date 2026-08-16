@@ -110,51 +110,17 @@
       </p>
     </div>
   </section>
-  <section class="ax-section">
+  <section class="ax-section" id="publish">
     <div class="ax-card">
       <h2 class="ax-section-title">결과 공개</h2>
-      <p class="text-muted small">항목마다 따로 공개합니다. 다시 채점하면 4개 항목 모두 다시 비공개로 바뀝니다.</p>
+      <p class="text-muted small">
+        항목마다 따로 공개합니다. 일부만 제출된 팀·학생이 있는 회차를 공개하려 하면 한 번 더
+        확인합니다. 다시 채점하면 4개 항목 모두 다시 비공개로 바뀝니다.
+      </p>
       <div class="row g-3">
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">팀 1위</div>
-            {% if scenario.published_at.team_winner %}
-              <span class="badge ax-badge-published">공개됨</span>
-            {% else %}
-              <span class="badge ax-badge-unpublished">비공개</span>
-            {% endif %}
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">전체 팀 순위</div>
-            {% if scenario.published_at.team_ranking %}
-              <span class="badge ax-badge-published">공개됨</span>
-            {% else %}
-              <span class="badge ax-badge-unpublished">비공개</span>
-            {% endif %}
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">내 최종 점수</div>
-            {% if scenario.published_at.my_score %}
-              <span class="badge ax-badge-published">공개됨</span>
-            {% else %}
-              <span class="badge ax-badge-unpublished">비공개</span>
-            {% endif %}
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">내 개인 순위</div>
-            {% if scenario.published_at.peer_ranking %}
-              <span class="badge ax-badge-published">공개됨</span>
-            {% else %}
-              <span class="badge ax-badge-unpublished">비공개</span>
-            {% endif %}
-          </div>
-        </div>
+        {% for item_key, label in publish_items %}
+          {% include "results/_publish_item.html" %}
+        {% endfor %}
       </div>
     </div>
   </section>

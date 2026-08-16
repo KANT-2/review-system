@@ -50,3 +50,9 @@ def response_rate_percent(value):
     if value is None:
         return None
     return int(round(value * 100))
+
+
+@register.filter
+def get_item(mapping, key):
+    """템플릿에서 dict[변수] 형태의 동적 키 조회를 하기 위한 필터."""
+    return mapping.get(key)

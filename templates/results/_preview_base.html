@@ -51,6 +51,17 @@
         </div>
         <main class="ax-main">
           <div class="ax-main-inner">
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button"
+                          class="btn-close"
+                          data-bs-dismiss="alert"
+                          aria-label="닫기"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
             {% block content %}{% endblock %}
           </div>
         </main>

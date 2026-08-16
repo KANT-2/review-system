@@ -290,3 +290,12 @@ tbody.collapse.show {
 .ax-trend-flat {
   color: var(--ax-text-muted);
 }
+
+/* ---- publish confirmation banner (RES-011: PARTIAL 데이터 공개 시 재확인) ---- */
+
+.ax-confirm-banner {
+  background: #fdf3e3;
+  border: 1px solid #f3dfb3;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
