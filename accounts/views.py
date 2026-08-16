@@ -1,88 +1,191 @@
 import json
-from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from accounts.forms import LoginForm, SignUpForm
+from accounts.forms import (
+    ConfirmationPasswordForm,
+    LoginForm,
+    PasswordChangeForm,
+    SignUpForm,
+)
 from accounts.models import User, WhitelistEmail
+from accounts.portal import build_student_portal
+from accounts.services import (
+    AccountConflictError,
+    InvalidAccountTransition,
+    RateLimitExceeded,
+    change_password,
+    confirm_email_ownership,
+    finalize_password_login,
+    get_confirmation_address,
+    request_signup,
+    resend_confirmation,
+    store_confirmation_grant,
+    transition_approval,
+)
 
-# ==========================================
-# 1. 템플릿 렌더링 뷰
-# ==========================================
+GENERIC_SIGNUP_MESSAGE = "요청을 접수했습니다. 해당 주소로 보낸 안내를 확인해 주세요."
 
 
+def _safe_json(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _is_tutor(user):
+    return (
+        user.is_active
+        and user.approval_status == User.ApprovalStatus.APPROVED
+        and user.role == User.Role.TUTOR
+    )
+
+
+def _can_manage_approvals(user):
+    return _is_tutor(user) or user.is_application_admin
+
+
+def _login_context(*, login_form=None, signup_form=None, open_signup_modal=False):
+    return {
+        "form": login_form or LoginForm(),
+        "signup_form": signup_form or SignUpForm(),
+        "open_signup_modal": open_signup_modal,
+        "google_enabled": settings.GOOGLE_OAUTH_ENABLED,
+        "kakao_enabled": settings.KAKAO_OAUTH_ENABLED,
+    }
+
+
+@require_GET
+def home_view(request):
+    if not request.user.is_authenticated:
+        return redirect("accounts:login")
+    if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
+        return redirect("accounts:tutor_dashboard")
+    return redirect("accounts:dashboard")
+
+
+@require_http_methods(["GET", "POST"])
 def login_view(request):
-    """로그인 뷰 (로그인 유지 및 승인 상태 제어)"""
     if request.user.is_authenticated:
-        if request.user.role in [User.Role.TUTOR, User.Role.ADMIN]:
+        if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
             return redirect("accounts:tutor_dashboard")
         return redirect("accounts:dashboard")
 
-    if request.method == "POST":
-        form = LoginForm(request.POST)
-        if form.is_valid():
-            user = form.get_user()
-            if user.approval_status == User.ApprovalStatus.PENDING:
-                messages.warning(
-                    request, "아직 가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요."
-                )
-                return redirect("accounts:login")
-            elif user.approval_status == User.ApprovalStatus.REJECTED:
-                messages.error(request, "승인이 거절된 계정입니다. 관리자에게 문의하세요.")
-                return redirect("accounts:login")
-
-            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-
-            if not request.POST.get("remember_session"):
-                request.session.set_expiry(0)
-
-            if user.role in [User.Role.TUTOR, User.Role.ADMIN]:
+    form = LoginForm(request.POST or None, request=request)
+    if request.method == "POST" and form.is_valid():
+        try:
+            user = finalize_password_login(
+                request,
+                form.get_user(),
+                remember_session=request.POST.get("remember_session") == "on",
+            )
+        except PermissionDenied:
+            messages.error(request, "이메일 확인과 계정 승인 상태를 확인해 주세요.")
+        else:
+            if user.must_rotate_password:
+                return redirect("accounts:password_change")
+            if user.role in {User.Role.TUTOR, User.Role.ADMIN}:
                 return redirect("accounts:tutor_dashboard")
             return redirect("accounts:dashboard")
-    else:
-        form = LoginForm()
 
-    return render(request, "accounts/login.html", {"form": form})
+    return render(
+        request,
+        "accounts/login.html",
+        _login_context(
+            login_form=form,
+            open_signup_modal=request.GET.get("signup") == "1",
+        ),
+    )
 
 
+@require_http_methods(["GET", "POST"])
 def signup_view(request):
-    """회원가입 뷰"""
-    if request.user.is_authenticated:
-        return redirect("accounts:dashboard")
+    if request.method == "GET":
+        return redirect(f"{reverse('accounts:login')}?signup=1")
 
+    form = SignUpForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            request_signup(request=request, **form.cleaned_data)
+        except RateLimitExceeded as error:
+            response = render(
+                request,
+                "accounts/login.html",
+                _login_context(signup_form=form, open_signup_modal=True),
+                status=429,
+            )
+            response["Retry-After"] = str(error.retry_after)
+            return response
+        messages.success(request, GENERIC_SIGNUP_MESSAGE)
+        return redirect("accounts:login")
+    return render(
+        request,
+        "accounts/login.html",
+        _login_context(signup_form=form, open_signup_modal=True),
+    )
+
+
+@require_GET
+def email_confirm_key(request, key):
+    store_confirmation_grant(request, key)
+    return redirect("accounts:email_confirm")
+
+
+@require_http_methods(["GET", "POST"])
+def email_confirm(request):
+    address = get_confirmation_address(request)
+    needs_password = bool(address and not address.user.has_usable_password())
+    form = ConfirmationPasswordForm(request.POST or None) if needs_password else None
     if request.method == "POST":
-        form = SignUpForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            whitelist = WhitelistEmail.objects.filter(email=user.email).first()
-
-            if whitelist:
-                user.approval_status = User.ApprovalStatus.APPROVED
-                user.role = whitelist.role
-                user.session_info = whitelist.session_info
-                user.save()
-                messages.success(request, "사전 승인된 계정입니다. 로그인해 주세요.")
+        if needs_password and not form.is_valid():
+            return render(
+                request,
+                "accounts/email_confirm.html",
+                {"address": address, "form": form, "needs_password": True},
+            )
+        try:
+            user = confirm_email_ownership(
+                request,
+                password=form.cleaned_data["password"] if needs_password else None,
+            )
+        except (AccountConflictError, ValidationError):
+            messages.error(request, "확인 요청이 만료되었거나 이미 처리되었습니다.")
+        else:
+            if user.approval_status == User.ApprovalStatus.APPROVED:
+                messages.success(request, "이메일 확인과 계정 승인이 완료되었습니다.")
             else:
-                user.approval_status = User.ApprovalStatus.PENDING
-                user.role = User.Role.STUDENT
-                user.save()
-                messages.warning(
-                    request, "가입 신청이 완료되었습니다. 튜터 승인 후 이용 가능합니다."
-                )
-
-            return redirect("accounts:login")
-    else:
-        form = SignUpForm()
-
-    return render(request, "accounts/signup.html", {"form": form})
+                messages.success(request, "이메일 확인이 완료되었습니다. 승인을 기다려주세요.")
+        return redirect("accounts:login")
+    return render(
+        request,
+        "accounts/email_confirm.html",
+        {"address": address, "form": form, "needs_password": needs_password},
+    )
 
 
+@require_POST
+def email_resend(request):
+    email = request.POST.get("email", "")
+    try:
+        resend_confirmation(request=request, email=email)
+    except RateLimitExceeded as error:
+        response = JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=429)
+        response["Retry-After"] = str(error.retry_after)
+        return response
+    return JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE})
+
+
+@require_POST
 def logout_view(request):
     logout(request)
     return redirect("accounts:login")
@@ -90,318 +193,182 @@ def logout_view(request):
 
 @login_required
 def dashboard_view(request):
-    """수강생 메인 대시보드 (진행 중 라운드, 동료 평가 목록, 팀 정보)"""
-    if request.user.role in [User.Role.TUTOR, User.Role.ADMIN]:
+    if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
         return redirect("accounts:tutor_dashboard")
-
-    # 평가 라운드 및 팀 피어 데이터 구성
-    team_peers = [
-        {
-            "id": 101,
-            "name": "김민수",
-            "role_in_team": "기획 / 데이터 분석",
-            "task_summary": "LLM 프롬프트 엔지니어링 및 데이터 전처리",
-            "is_evaluated": False,
-        },
-        {
-            "id": 102,
-            "name": "이지은",
-            "role_in_team": "프론트엔드",
-            "task_summary": "대시보드 UI 구현 및 API 연동",
-            "is_evaluated": False,
-        },
-        {
-            "id": 103,
-            "name": "박준호",
-            "role_in_team": "백엔드 / DB",
-            "task_summary": "Django ORM 및 인증 파이프라인 구축",
-            "is_evaluated": True,
-        },
-    ]
-
-    total_peers = len(team_peers)
-    evaluated_count = sum(1 for p in team_peers if p["is_evaluated"])
-    progress_percent = int((evaluated_count / total_peers * 100)) if total_peers > 0 else 0
-
-    context = {
-        "user": request.user,
-        "my_team_name": "AX 3팀 (Alpha Innovators)",
-        "team_project_topic": "생성형 AI 기반 기업 내부 문서 검색 & 평가 자동화 플랫폼",
-        "current_round": {
-            "name": "1차 프로젝트 스프린트 피어 리뷰",
-            "deadline": timezone.now() + timedelta(days=3),
-        },
-        "team_peers": team_peers,
-        "total_peers_count": total_peers,
-        "evaluated_count": evaluated_count,
-        "progress_percent": progress_percent,
-    }
-    return render(request, "accounts/dashboard.html", context)
+    return render(
+        request,
+        "accounts/dashboard.html",
+        {"portal": build_student_portal(request.user)},
+    )
 
 
 @login_required
 def mypage_view(request):
-    """마이페이지 (5대 역량 레이더 차트 및 정성 피드백 리포트)"""
-    competency_labels = [
-        "AI 도구 활용",
-        "문제 정의 및 기획",
-        "기술 완성도",
-        "팀 협업 및 책임감",
-        "커뮤니케이션",
-    ]
-    my_scores = [88, 82, 85, 94, 90]
-    avg_scores = [78, 75, 76, 82, 80]
-
-    competency_details = [
-        {"label": lbl, "score": sc} for lbl, sc in zip(competency_labels, my_scores, strict=False)
-    ]
-
-    peer_feedbacks = [
-        {
-            "round_name": "1차 프로젝트 피어 리뷰",
-            "comment": "기획 단계에서 AI 도구를 적극적으로 도입하여 분석 시간을 대폭 단축해 주셨습니다.",
-        },
-        {
-            "round_name": "1차 프로젝트 피어 리뷰",
-            "comment": "팀 내 이슈가 발생했을 때 즉각적인 커뮤니케이션으로 조율해 주셔서 든든했습니다.",
-        },
-        {
-            "round_name": "0차 사전 과제 리뷰",
-            "comment": "코드 구조가 깔끔하고 문서화가 잘 되어 있어 협업하기 매우 편했습니다.",
-        },
-    ]
-
-    context = {
-        "user": request.user,
-        "competency_labels": json.dumps(competency_labels),
-        "competency_scores": json.dumps(my_scores),
-        "competency_avg_scores": json.dumps(avg_scores),
-        "competency_details": competency_details,
-        "avg_score": round(sum(my_scores) / len(my_scores), 1),
-        "received_reviews_count": len(peer_feedbacks) + 3,
-        "peer_feedbacks": peer_feedbacks,
-    }
-    return render(request, "accounts/mypage.html", context)
+    return render(
+        request,
+        "accounts/mypage.html",
+        {"portal": build_student_portal(request.user)},
+    )
 
 
 @login_required
 def tutor_dashboard(request):
-    """튜터 콘솔"""
-    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
-        messages.error(request, "튜터 전용 페이지입니다.")
-        return redirect("accounts:dashboard")
-
-    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by(
-        "-date_joined"
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    pending_users = User.objects.filter(
+        role=User.Role.STUDENT,
+        approval_status=User.ApprovalStatus.PENDING,
+        emailaddress__verified=True,
+        emailaddress__primary=True,
+    ).order_by("-date_joined")
+    return render(
+        request,
+        "accounts/tutor_dashboard.html",
+        {
+            "pending_users": pending_users,
+            "approved_students_count": User.objects.filter(
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            ).count(),
+            "whitelist_count": WhitelistEmail.objects.count(),
+        },
     )
-    approved_students_count = User.objects.filter(
-        role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED
-    ).count()
-    whitelist_count = WhitelistEmail.objects.count()
 
-    context = {
-        "pending_users": pending_users,
-        "approved_students_count": approved_students_count,
-        "whitelist_count": whitelist_count,
-    }
-    return render(request, "accounts/tutor_dashboard.html", context)
+
+def _html_transition(request, user_id, decision):
+    try:
+        target = transition_approval(actor=request.user, target_id=user_id, decision=decision)
+    except PermissionDenied:
+        raise
+    except (InvalidAccountTransition, User.DoesNotExist):
+        messages.error(request, "이미 처리되었거나 승인할 수 없는 계정입니다.")
+    else:
+        messages.success(request, f"{target.email} 계정 상태를 변경했습니다.")
+    return redirect("accounts:tutor_dashboard")
 
 
 @login_required
+@require_POST
 def approve_user(request, user_id):
-    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
-        messages.error(request, "권한이 없습니다.")
-        return redirect("accounts:dashboard")
-
-    if request.method == "POST":
-        target_user = get_object_or_404(User, id=user_id)
-        target_user.approval_status = User.ApprovalStatus.APPROVED
-        target_user.save()
-        messages.success(request, f"{target_user.email} 계정이 승인되었습니다.")
-    return redirect("accounts:tutor_dashboard")
+    return _html_transition(request, user_id, User.ApprovalStatus.APPROVED)
 
 
 @login_required
+@require_POST
 def reject_user(request, user_id):
-    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
-        messages.error(request, "권한이 없습니다.")
-        return redirect("accounts:dashboard")
-
-    if request.method == "POST":
-        target_user = get_object_or_404(User, id=user_id)
-        target_user.approval_status = User.ApprovalStatus.REJECTED
-        target_user.save()
-        messages.warning(request, f"{target_user.email} 계정이 반려되었습니다.")
-    return redirect("accounts:tutor_dashboard")
-
-
-# ==========================================
-# 2. 비동기 JSON API
-# ==========================================
+    return _html_transition(request, user_id, User.ApprovalStatus.REJECTED)
 
 
 @login_required
 @require_POST
 def api_onboarding(request):
-    """온보딩 정보 저장 비동기 API"""
-    try:
-        data = json.loads(request.body)
-        user = request.user
-        first_name = data.get("first_name")
-        session_info = data.get("session_info")
-        phone_number = data.get("phone_number")
-
-        if not first_name or not session_info or not phone_number:
-            return JsonResponse(
-                {"success": False, "message": "모든 필수 항목을 입력해 주세요."}, status=400
-            )
-
-        user.first_name = first_name
-        user.session_info = session_info
-        user.phone_number = phone_number
-        user.is_onboarded = True
-        user.save()
-
-        return JsonResponse({"success": True, "message": "온보딩이 완료되었습니다."})
-    except Exception as e:
-        return JsonResponse({"success": False, "message": str(e)}, status=500)
+    data = _safe_json(request)
+    if data is None:
+        return JsonResponse({"success": False, "message": "잘못된 JSON 요청입니다."}, status=400)
+    fields = {
+        key: str(data.get(key, "")).strip()
+        for key in ("first_name", "session_info", "phone_number")
+    }
+    if (
+        not all(fields.values())
+        or len(fields["first_name"]) > 150
+        or len(fields["session_info"]) > 50
+        or len(fields["phone_number"]) > 20
+    ):
+        return JsonResponse({"success": False, "message": "입력값을 확인해 주세요."}, status=400)
+    for key, value in fields.items():
+        setattr(request.user, key, value)
+    request.user.is_onboarded = True
+    request.user.save()
+    return JsonResponse({"success": True, "message": "온보딩이 완료되었습니다."})
 
 
 @login_required
 @require_POST
 def update_profile_api(request):
-    """프로필 수정 비동기 API"""
-    try:
-        data = json.loads(request.body)
-        user = request.user
-        if "first_name" in data:
-            user.first_name = data["first_name"]
-        if "phone_number" in data:
-            user.phone_number = data["phone_number"]
-        if "session_info" in data:
-            user.session_info = data["session_info"]
-
-        user.save()
-        return JsonResponse({"success": True, "message": "프로필이 수정되었습니다."})
-    except Exception as e:
-        return JsonResponse({"success": False, "message": str(e)}, status=500)
+    data = _safe_json(request)
+    if data is None:
+        if request.content_type == "application/json":
+            return JsonResponse(
+                {"success": False, "message": "잘못된 JSON 요청입니다."}, status=400
+            )
+        data = request.POST.dict()
+    allowed = {"first_name": 150, "phone_number": 20, "session_info": 50}
+    for field, max_length in allowed.items():
+        if field in data:
+            value = str(data[field]).strip()
+            if len(value) > max_length:
+                return JsonResponse(
+                    {"success": False, "message": "입력값이 너무 깁니다."}, status=400
+                )
+            setattr(request.user, field, value)
+    request.user.save()
+    return JsonResponse({"success": True, "message": "프로필이 수정되었습니다."})
 
 
 @require_POST
 def signup_api(request):
+    data = _safe_json(request)
+    if data is None or not data.get("email"):
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
     try:
-        data = json.loads(request.body)
-        email = data.get("email")
-        password = data.get("password")
-        first_name = data.get("first_name", "")
-        phone_number = data.get("phone_number", "")
-
-        if not email or not password:
-            return JsonResponse(
-                {"success": False, "message": "이메일과 비밀번호는 필수입니다."}, status=400
-            )
-
-        if User.objects.filter(email=email).exists():
-            return JsonResponse(
-                {"success": False, "message": "이미 가입된 이메일입니다."}, status=400
-            )
-
-        whitelist = WhitelistEmail.objects.filter(email=email).first()
-        user = User(email=email, first_name=first_name, phone_number=phone_number)
-        user.set_password(password)
-
-        if whitelist:
-            user.approval_status = User.ApprovalStatus.APPROVED
-            user.role = whitelist.role
-            user.session_info = whitelist.session_info
-            user.save()
-            return JsonResponse(
-                {
-                    "success": True,
-                    "approved": True,
-                    "message": "사전 승인된 계정으로 가입되었습니다.",
-                }
-            )
-        else:
-            user.approval_status = User.ApprovalStatus.PENDING
-            user.role = User.Role.STUDENT
-            user.save()
-            return JsonResponse(
-                {
-                    "success": True,
-                    "approved": False,
-                    "message": "가입 신청되었습니다. 튜터 승인을 기다려주세요.",
-                }
-            )
-    except Exception as e:
-        return JsonResponse({"success": False, "message": str(e)}, status=500)
+        request_signup(
+            request=request,
+            email=data["email"],
+            first_name=str(data.get("first_name", "")),
+            phone_number=str(data.get("phone_number", "")),
+        )
+    except RateLimitExceeded as error:
+        response = JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=429)
+        response["Retry-After"] = str(error.retry_after)
+        return response
+    return JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=202)
 
 
-@require_POST
-def verify_user_for_reset_api(request):
+def _api_transition(request, user_id, decision):
     try:
-        data = json.loads(request.body)
-        email = data.get("email")
-        phone_number = data.get("phone_number")
-
-        user = User.objects.filter(email=email).first()
-        if not user:
-            return JsonResponse(
-                {"success": False, "message": "해당 이메일의 사용자를 찾을 수 없습니다."},
-                status=404,
-            )
-
-        if (
-            phone_number
-            and user.phone_number
-            and user.phone_number.replace("-", "") != phone_number.replace("-", "")
-        ):
-            return JsonResponse(
-                {"success": False, "message": "등록된 연락처와 일치하지 않습니다."}, status=400
-            )
-
-        return JsonResponse({"success": True, "message": "본인 인증이 완료되었습니다."})
-    except Exception as e:
-        return JsonResponse({"success": False, "message": str(e)}, status=500)
-
-
-@require_POST
-def reset_password_api(request):
-    try:
-        data = json.loads(request.body)
-        email = data.get("email")
-        new_password = data.get("new_password")
-
-        user = User.objects.filter(email=email).first()
-        if not user:
-            return JsonResponse(
-                {"success": False, "message": "사용자를 찾을 수 없습니다."}, status=404
-            )
-
-        user.set_password(new_password)
-        user.save()
-        return JsonResponse({"success": True, "message": "비밀번호가 성공적으로 변경되었습니다."})
-    except Exception as e:
-        return JsonResponse({"success": False, "message": str(e)}, status=500)
+        target = transition_approval(actor=request.user, target_id=user_id, decision=decision)
+    except PermissionDenied:
+        return JsonResponse({"success": False, "message": "권한이 없습니다."}, status=403)
+    except (InvalidAccountTransition, User.DoesNotExist):
+        return JsonResponse({"success": False, "message": "상태가 충돌했습니다."}, status=409)
+    return JsonResponse({"success": True, "message": f"{target.email} 계정 상태를 변경했습니다."})
 
 
 @login_required
 @require_POST
 def approve_user_api(request, user_id):
-    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
-        return JsonResponse({"success": False, "message": "권한이 없습니다."}, status=403)
-    user = get_object_or_404(User, id=user_id)
-    user.approval_status = User.ApprovalStatus.APPROVED
-    user.save()
-    return JsonResponse({"success": True, "message": f"{user.email} 계정이 승인되었습니다."})
+    return _api_transition(request, user_id, User.ApprovalStatus.APPROVED)
 
 
 @login_required
 @require_POST
 def reject_user_api(request, user_id):
-    if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
-        return JsonResponse({"success": False, "message": "권한이 없습니다."}, status=403)
-    user = get_object_or_404(User, id=user_id)
-    user.approval_status = User.ApprovalStatus.REJECTED
-    user.save()
-    return JsonResponse({"success": True, "message": f"{user.email} 계정이 반려되었습니다."})
+    return _api_transition(request, user_id, User.ApprovalStatus.REJECTED)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def password_change_view(request):
+    if not request.user.has_usable_password():
+        raise PermissionDenied
+    form = PasswordChangeForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            change_password(
+                request=request,
+                **{
+                    "current_password": form.cleaned_data["current_password"],
+                    "new_password": form.cleaned_data["new_password"],
+                },
+            )
+        except RateLimitExceeded as error:
+            response = render(request, "accounts/password_change.html", {"form": form}, status=429)
+            response["Retry-After"] = str(error.retry_after)
+            return response
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(request, "비밀번호를 변경했습니다.")
+            return redirect("accounts:mypage")
+    return render(request, "accounts/password_change.html", {"form": form})

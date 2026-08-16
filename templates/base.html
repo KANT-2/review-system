@@ -46,7 +46,7 @@
       <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow">
           <div class="modal-header border-bottom px-4 py-3">
-            <h6 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill text-primary me-2"></i>통합 피드백 센터 (8주차 누적)</h6>
+            <h6 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill text-primary me-2"></i>통합 피드백 센터</h6>
             <button type="button"
                     class="btn-close"
                     data-bs-dismiss="modal"
@@ -58,21 +58,21 @@
                 <button class="nav-link active fw-semibold small"
                         data-bs-toggle="tab"
                         data-bs-target="#tutor-pane">
-                  튜터 피드백 <span class="badge bg-primary rounded-pill ms-1">{{ feedbacks.tutor|length|default:"4" }}</span>
+                  튜터 피드백 <span class="badge bg-primary rounded-pill ms-1">{{ feedbacks.tutor|length|default:"0" }}</span>
                 </button>
               </li>
               <li class="nav-item">
                 <button class="nav-link fw-semibold small"
                         data-bs-toggle="tab"
                         data-bs-target="#team-pane">
-                  팀 과제 피드백 <span class="badge bg-warning text-dark rounded-pill ms-1">{{ feedbacks.team|length|default:"4" }}</span>
+                  팀 과제 피드백 <span class="badge bg-warning text-dark rounded-pill ms-1">{{ feedbacks.team|length|default:"0" }}</span>
                 </button>
               </li>
               <li class="nav-item">
                 <button class="nav-link fw-semibold small"
                         data-bs-toggle="tab"
                         data-bs-target="#peer-pane">
-                  동료 상호 피드백 <span class="badge bg-secondary rounded-pill ms-1">{{ feedbacks.peer|length|default:"4" }}</span>
+                  동료 상호 피드백 <span class="badge bg-secondary rounded-pill ms-1">{{ feedbacks.peer|length|default:"0" }}</span>
                 </button>
               </li>
             </ul>

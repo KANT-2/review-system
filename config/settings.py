@@ -1,14 +1,49 @@
+import os
+from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = "django-insecure-ax-evaluation-platform-dev-key"
 
-DEBUG = True
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ImproperlyConfigured(f"{name} must be a boolean value")
 
-ALLOWED_HOSTS = ["*"]
 
-# Application definition
+def env_int(name, default):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as error:
+        raise ImproperlyConfigured(f"{name} must be an integer") from error
+
+
+def env_list(name, default=()):
+    value = os.getenv(name)
+    if value is None:
+        return list(default)
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+DEBUG = env_bool("DJANGO_DEBUG", True)
+ENABLE_DEV_PREVIEWS = env_bool("DJANGO_ENABLE_DEV_PREVIEWS", DEBUG)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-local-development-key")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -17,30 +52,33 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
-    # django-allauth 소셜 로그인
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.kakao",
-    # Custom Apps
-    "accounts",
-    "results",
+    "axes",
+    "accounts.apps.AccountsConfig",
+    "teams.apps.TeamsConfig",
+    "results.apps.ResultsConfig",
 ]
 
 MIDDLEWARE = [
+    "accounts.middleware.TrustedProxyMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "axes.middleware.AxesMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "accounts.middleware.AccountAccessMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
-
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -54,83 +92,188 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
             ],
         },
-    },
+    }
 ]
-
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+POSTGRES_KEYS = (
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+)
+if all(os.getenv(key) for key in POSTGRES_KEYS):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ["POSTGRES_DB"],
+            "USER": os.environ["POSTGRES_USER"],
+            "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+            "HOST": os.environ["POSTGRES_HOST"],
+            "PORT": os.environ["POSTGRES_PORT"],
+            "CONN_MAX_AGE": env_int("POSTGRES_CONN_MAX_AGE", 60),
+        }
     }
-}
+elif DEBUG:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+else:
+    raise ImproperlyConfigured("Production requires all POSTGRES_* settings")
 
-# Custom User Model
 AUTH_USER_MODEL = "accounts.User"
-
-# Authentication Backends
 AUTHENTICATION_BACKENDS = (
+    "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 )
-
 SITE_ID = 1
 
-# allauth 설정
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
-ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_SIGNUP_FIELDS = ["email*"]
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_ADAPTER = "accounts.adapters.CustomAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "accounts.adapters.CustomSocialAccountAdapter"
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_LOGIN_TIMEOUT = 300
+SOCIALACCOUNT_STORE_TOKENS = False
+
+GOOGLE_OAUTH_REQUESTED = env_bool("GOOGLE_OAUTH_ENABLED", False)
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+GOOGLE_OAUTH_ENABLED = GOOGLE_OAUTH_REQUESTED and bool(
+    GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+)
+KAKAO_OAUTH_REQUESTED = env_bool("KAKAO_OAUTH_ENABLED", False)
+KAKAO_OAUTH_CLIENT_ID = os.getenv("KAKAO_OAUTH_CLIENT_ID", "").strip()
+KAKAO_OAUTH_CLIENT_SECRET = os.getenv("KAKAO_OAUTH_CLIENT_SECRET", "").strip()
+KAKAO_OAUTH_ENABLED = KAKAO_OAUTH_REQUESTED and bool(
+    KAKAO_OAUTH_CLIENT_ID and KAKAO_OAUTH_CLIENT_SECRET
+)
+SOCIALACCOUNT_PROVIDERS = {}
+if GOOGLE_OAUTH_ENABLED:
+    SOCIALACCOUNT_PROVIDERS["google"] = {
+        "APPS": [
+            {
+                "client_id": GOOGLE_OAUTH_CLIENT_ID,
+                "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+                "key": "",
+            }
+        ],
+        "SCOPE": ["openid", "email", "profile"],
+        "AUTH_PARAMS": {"access_type": "online"},
+        "OAUTH_PKCE_ENABLED": True,
+    }
+if KAKAO_OAUTH_ENABLED:
+    SOCIALACCOUNT_PROVIDERS["kakao"] = {
+        "APPS": [
+            {
+                "client_id": KAKAO_OAUTH_CLIENT_ID,
+                "secret": KAKAO_OAUTH_CLIENT_SECRET,
+                "key": "",
+            }
+        ]
+    }
+SOCIALACCOUNT_REQUESTS_TIMEOUT = env_int("SOCIALACCOUNT_REQUESTS_TIMEOUT", 5)
+
+LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/accounts/dashboard/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
 
-# 소셜 로그인 커스텀 어댑터 연결
-SOCIALACCOUNT_ADAPTER = "accounts.adapters.CustomSocialAccountAdapter"
-SOCIALACCOUNT_LOGIN_ON_GET = True
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = env_int("DJANGO_HSTS_SECONDS", 0 if DEBUG else 31_536_000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_INCLUDE_SUBDOMAINS", False)
+SECURE_HSTS_PRELOAD = env_bool("DJANGO_HSTS_PRELOAD", False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+TRUST_PROXY_HEADERS = env_bool("DJANGO_TRUST_PROXY_HEADERS", False)
+TRUSTED_PROXY_IPS = env_list("DJANGO_TRUSTED_PROXY_IPS")
+TRUSTED_PROXY_HOPS = env_int("DJANGO_TRUSTED_PROXY_HOPS", 0)
+HTTPS_READY = env_bool("DJANGO_HTTPS_READY", False)
 
-# 소셜 로그인 OAuth 공급자 설정 (구글 & 카카오)
-SOCIALACCOUNT_PROVIDERS = {
-    "google": {
-        "APP": {
-            "client_id": "805973414468-ecdtfslc6ng1he5o9kct8ghmdirbfs8n.apps.googleusercontent.com",
-            "secret": "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",
-            "key": "",
-        },
-        "SCOPE": [
-            "profile",
-            "email",
-        ],
-        "AUTH_PARAMS": {
-            "access_type": "online",
-        },
-    },
-    "kakao": {
-        "APP": {
-            "client_id": "474e9a6d99541ffc8d2f5cb7bc7d9d75",
-            "secret": "txBNp8WERKZ7Bjw3SgtnhY8tS3661zdp",
-            "key": "",
-        }
-    },
-}
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = env_int("DJANGO_EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("DJANGO_EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = env_int("DJANGO_EMAIL_TIMEOUT", 10)
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@localhost")
+ACCOUNT_EMAIL_SUBJECT_PREFIX = os.getenv("DJANGO_ACCOUNT_EMAIL_SUBJECT_PREFIX", "[AX Console] ")
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {"min_length": 6},
+        "OPTIONS": {"min_length": 12},
     },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Internationalization
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+AXES_RESET_ON_SUCCESS = True
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+AXES_USERNAME_CALLABLE = "accounts.security.canonicalize_axes_username"
+AXES_CLIENT_IP_CALLABLE = "accounts.security.get_direct_client_ip"
+AXES_LOCKOUT_CALLABLE = "accounts.security.axes_lockout_response"
+AXES_HTTP_RESPONSE_CODE = 429
+AXES_SENSITIVE_PARAMETERS = ["username", "email", "password"]
+
 LANGUAGE_CODE = "ko-kr"
 TIME_ZONE = "Asia/Seoul"
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "structured": {
+            "format": "{levelname} {name} request_id={request_id} event={message}",
+            "style": "{",
+            "defaults": {"request_id": "-"},
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "structured",
+        }
+    },
+    "loggers": {
+        "accounts.security": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
