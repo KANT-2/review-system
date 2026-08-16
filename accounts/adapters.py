@@ -15,11 +15,13 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         user.is_onboarded = False  # 소셜 가입자도 승인 후 대시보드에서 온보딩을 진행하도록 설정
         extra_data = sociallogin.account.extra_data
 
-        kakao_nickname = (
-            extra_data.get("properties", {}).get("nickname")
-            or extra_data.get("kakao_account", {}).get("profile", {}).get("nickname")
+        kakao_nickname = extra_data.get("properties", {}).get("nickname") or extra_data.get(
+            "kakao_account", {}
+        ).get("profile", {}).get("nickname")
+        google_name = (
+            f"{data.get('last_name', '')}{data.get('first_name', '')}".strip()
+            or data.get("name", "")
         )
-        google_name = f"{data.get('last_name', '')}{data.get('first_name', '')}".strip() or data.get("name", "")
         full_name = kakao_nickname or google_name
 
         if full_name:
@@ -72,7 +74,9 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 sociallogin.user.save()
                 sociallogin.save(request)
 
-                messages.warning(request, "신규 계정으로 가입 신청되었습니다. 튜터 승인 후 이용 가능합니다.")
+                messages.warning(
+                    request, "신규 계정으로 가입 신청되었습니다. 튜터 승인 후 이용 가능합니다."
+                )
                 raise ImmediateHttpResponse(redirect("accounts:login"))
 
     def save_user(self, request, sociallogin, form=None):

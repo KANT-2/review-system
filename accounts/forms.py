@@ -9,11 +9,15 @@ class LoginForm(forms.Form):
 
     email = forms.EmailField(
         label="이메일",
-        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "name@example.com", "autofocus": True}),
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "name@example.com", "autofocus": True}
+        ),
     )
     password = forms.CharField(
         label="비밀번호",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "비밀번호를 입력하세요"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "비밀번호를 입력하세요"}
+        ),
     )
 
     def clean(self):
@@ -36,18 +40,24 @@ class SignUpForm(forms.ModelForm):
 
     password = forms.CharField(
         label="비밀번호",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "비밀번호 (6자 이상)"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "비밀번호 (6자 이상)"}
+        ),
     )
     password_confirm = forms.CharField(
         label="비밀번호 확인",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "비밀번호를 한 번 더 입력하세요"}),
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "placeholder": "비밀번호를 한 번 더 입력하세요"}
+        ),
     )
 
     class Meta:
         model = User
         fields = ["email"]
         widgets = {
-            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "name@example.com"}),
+            "email": forms.EmailInput(
+                attrs={"class": "form-control", "placeholder": "name@example.com"}
+            ),
         }
 
     def clean(self):
