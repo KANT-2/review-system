@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
 from results.services import (
     calculate_coverage,
@@ -16,6 +17,20 @@ from results.services import (
     round_to_raw,
     score_from_answers,
 )
+
+
+class ResultsPreviewViewTests(TestCase):
+    def test_manage_preview_renders(self):
+        response = self.client.get(reverse("results:manage_preview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "결과·공개")
+
+    def test_me_preview_renders(self):
+        response = self.client.get(reverse("results:me_preview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "내 결과")
 
 
 class ScoreFromAnswersTests(SimpleTestCase):
@@ -67,6 +82,16 @@ class CalculateFinalScoreTests(SimpleTestCase):
 
     def test_is_na_when_peer_score_is_na(self):
         self.assertIsNone(calculate_final_score(Decimal("85.00"), None))
+
+    def test_uses_team_30_peer_40_tutor_30_when_tutor_score_given(self):
+        # 85*.3 + 90*.4 + 80*.3 = 25.5 + 36 + 24 = 85.5
+        self.assertEqual(
+            calculate_final_score(Decimal("85.00"), Decimal("90.00"), Decimal("80.00")),
+            Decimal("85.500000"),
+        )
+
+    def test_is_na_when_team_score_is_na_even_with_tutor_score(self):
+        self.assertIsNone(calculate_final_score(None, Decimal("90.00"), Decimal("80.00")))
 
 
 class DetermineDataStatusTests(SimpleTestCase):

@@ -1,0 +1,20 @@
+{% load results_extras %}
+<tr {% if team.number == me.team_number %}class="table-primary"{% endif %}>
+  <td>
+    {% if team.rank %}
+      {{ team.rank }}위
+    {% else %}
+      <span class="ax-na-value">-</span>
+    {% endif %}
+  </td>
+  <td class="fw-semibold">{{ team.number }}팀{% if team.number == me.team_number %} (내 팀){% endif %}</td>
+  <td>
+    {% with score=team.team_score|as_five_point %}
+      {% if score is not None %}
+        {{ score }}
+      {% else %}
+        <span class="ax-na-value">평가 없음</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+</tr>

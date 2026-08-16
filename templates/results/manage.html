@@ -1,0 +1,236 @@
+{% extends "results/_preview_base.html" %}
+{% load results_extras %}
+{% block title %}결과·공개 - AX Evaluation Console{% endblock %}
+{% block breadcrumb %}회차 관리 / 결과·공개{% endblock %}
+{% block content %}
+  <div class="ax-page-header">
+    <div>
+      <h1>{{ scenario.round_name }} 결과·공개</h1>
+      <span class="ax-status-chip"><span class="ax-status-dot"></span>채점 완료</span>
+    </div>
+    <button type="button" class="btn btn-primary" disabled title="프로토타입에서는 비활성화">채점 실행</button>
+  </div>
+  <section class="ax-section">
+    <div class="row g-3 mb-1">
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">전체 평가 현황</span>
+          <span class="ax-summary-value">{{ scenario.student_count }}명 · {{ scenario.team_count }}팀</span>
+          <span class="ax-summary-note">{{ scenario.no_data_count }}명 데이터 미비</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">최고 종합 점수</span>
+          <span class="ax-summary-value">
+            {% if scenario.top_student %}{{ scenario.top_student.final_score|as_five_point }}/5{% else %}-{% endif %}
+          </span>
+          <span class="ax-summary-note">{% if scenario.top_student %}{{ scenario.top_student.name }}{% else %}-{% endif %}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">최우수 팀</span>
+          <span class="ax-summary-value">{% if scenario.top_team %}{{ scenario.top_team.number }}팀{% else %}-{% endif %}</span>
+          <span class="ax-summary-note">
+            {% if scenario.top_team %}{{ scenario.top_team.team_score|as_five_point }}/5{% else %}-{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="ax-section">
+    <div class="ax-card">
+      <h2 class="ax-section-title">팀 순위</h2>
+      <div class="table-responsive">
+        <table class="table align-middle mb-2">
+          <thead>
+            <tr>
+              <th scope="col" class="text-end">순위</th>
+              <th scope="col">팀</th>
+              <th scope="col">구성원</th>
+              <th scope="col" class="text-end">팀 점수 (5점 만점)</th>
+              <th scope="col" class="text-center">제출 현황</th>
+              <th scope="col" class="text-end">응답률</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for team in scenario.teams_by_rank|slice:":3" %}
+              {% include "results/_team_row.html" %}
+            {% endfor %}
+          </tbody>
+          {% with rest=scenario.teams_by_rank|slice:"3:" %}
+            {% if rest %}
+              <tbody class="collapse" id="teamRestRows">
+                {% for team in rest %}
+                  {% include "results/_team_row.html" %}
+                {% endfor %}
+              </tbody>
+            {% endif %}
+          {% endwith %}
+        </table>
+      </div>
+      {% with rest=scenario.teams_by_rank|slice:"3:" %}
+        {% if rest %}
+          <div class="ax-expand-wrapper">
+            <button type="button"
+                    class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#teamRestRows"
+                    data-more-text="나머지 {{ rest|length }}개 팀 더보기"
+                    aria-expanded="false"
+                    aria-controls="teamRestRows">
+              <i class="bi bi-chevron-down ax-toggle-icon"></i>
+              <span class="ax-toggle-label">나머지 {{ rest|length }}개 팀 더보기</span>
+            </button>
+          </div>
+        {% endif %}
+      {% endwith %}
+    </div>
+  </section>
+  <section class="ax-section">
+    <div class="ax-card">
+      <h2 class="ax-section-title">개인 결과</h2>
+      <div class="table-responsive">
+        <table class="table align-middle mb-2">
+          <thead>
+            <tr>
+              <th scope="col" class="text-end">순위</th>
+              <th scope="col">이름</th>
+              <th scope="col">팀</th>
+              <th scope="col" class="text-end">점수 계산 (팀×40% + 개인×60%)</th>
+              <th scope="col" class="text-end">최종점수 (5점 만점)</th>
+              <th scope="col" class="text-center">개인 평가 제출 현황</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in scenario.students_by_rank|slice:":3" %}
+              {% include "results/_student_row.html" %}
+            {% endfor %}
+          </tbody>
+          {% with rest=scenario.students_by_rank|slice:"3:" %}
+            {% if rest %}
+              <tbody class="collapse" id="studentRestRows">
+                {% for student in rest %}
+                  {% include "results/_student_row.html" %}
+                {% endfor %}
+              </tbody>
+            {% endif %}
+          {% endwith %}
+        </table>
+      </div>
+      {% with rest=scenario.students_by_rank|slice:"3:" %}
+        {% if rest %}
+          <div class="ax-expand-wrapper">
+            <button type="button"
+                    class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#studentRestRows"
+                    data-more-text="나머지 {{ rest|length }}명 더보기"
+                    aria-expanded="false"
+                    aria-controls="studentRestRows">
+              <i class="bi bi-chevron-down ax-toggle-icon"></i>
+              <span class="ax-toggle-label">나머지 {{ rest|length }}명 더보기</span>
+            </button>
+          </div>
+        {% endif %}
+      {% endwith %}
+      <p class="text-muted small mb-0 mt-3">"평가 없음"은 0점이 아니라 미제출 상태이며, 순위 계산에서 빠집니다.</p>
+    </div>
+  </section>
+  <section class="ax-section" id="publish">
+    <div class="ax-card">
+      <h2 class="ax-section-title">결과 공개</h2>
+      <p class="text-muted small">항목별로 따로 공개할 수 있습니다.</p>
+      <div class="row g-3">
+        {% for item in publish_items %}
+          {% include "results/_publish_item.html" with item_key=item.key label=item.label hint=item.hint %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  <section class="ax-section">
+    <div class="ax-card">
+      <h2 class="ax-section-title">다음 팀 편성 기준 점수 (예시)</h2>
+      <p class="text-muted small">최근 3회차 최종점수를 20%·30%·50% 비중으로 평균 냅니다.</p>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th scope="col">이름</th>
+              <th scope="col">과거 최종점수 (오래된 순, 5점 만점)</th>
+              <th scope="col" class="text-end">다음 팀 편성 기준 점수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in scenario.seeds %}
+              <tr>
+                <td class="fw-semibold">{{ row.name }}</td>
+                <td class="text-muted">
+                  {% if row.history %}
+                    {% for value in row.history %}
+                      {{ value|as_five_point }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                    {% if row.trend == "up" %}
+                      <i class="bi bi-arrow-up-short ax-trend-up" title="최근 회차에서 상승"></i>
+                    {% elif row.trend == "down" %}
+                      <i class="bi bi-arrow-down-short ax-trend-down" title="최근 회차에서 하락"></i>
+                    {% elif row.trend == "flat" %}
+                      <i class="bi bi-arrow-right-short ax-trend-flat" title="변화 없음"></i>
+                    {% endif %}
+                  {% else %}
+                    <span class="ax-na-value">이력 없음</span>
+                  {% endif %}
+                </td>
+                <td class="text-end fw-semibold">
+                  {% include "results/_score_cell.html" with value=row.seed empty_message="기준 점수 없음 (신규)" %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <section class="ax-section">
+    <div class="ax-card">
+      <h2 class="ax-section-title">튜터 평가 반영 시 계산 예시 (협의 예정)</h2>
+      <p class="text-muted small">
+        도입 시 산식이 <strong>팀 30% + 개인 40% + 튜터 30%</strong>로 바뀝니다. {{ scenario.tutor_example.student_name }} 기준 비교입니다.
+      </p>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">방식</th>
+              <th scope="col" class="text-end">팀 점수</th>
+              <th scope="col" class="text-end">개인 점수</th>
+              <th scope="col" class="text-end">튜터 점수</th>
+              <th scope="col" class="text-end">최종점수</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>지금 (튜터 미반영)</td>
+              <td class="text-end">{{ scenario.tutor_example.team_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.peer_score|as_five_point }}/5</td>
+              <td class="text-end"><span class="ax-na-value">해당없음</span></td>
+              <td class="text-end fw-semibold">
+                {% include "results/_score_cell.html" with value=scenario.tutor_example.final_without_tutor %}
+              </td>
+            </tr>
+            <tr>
+              <td>도입 후 (예시)</td>
+              <td class="text-end">{{ scenario.tutor_example.team_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.peer_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.tutor_score|as_five_point }}/5</td>
+              <td class="text-end fw-semibold">
+                {% include "results/_score_cell.html" with value=scenario.tutor_example.final_with_tutor %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock %}

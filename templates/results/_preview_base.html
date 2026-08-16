@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description"
+          content="AX Evaluation Console results screen prototype">
+    <title>{% block title %}AX Evaluation Console{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+          rel="stylesheet">
+    <link href="{% static 'css/app.css' %}" rel="stylesheet">
+  </head>
+  <body>
+    <div class="ax-shell">
+      <aside class="ax-sidebar d-none d-lg-flex">
+        <div class="ax-sidebar-brand">
+          <span>AX Console</span>
+        </div>
+        {% include "results/_preview_nav.html" %}
+        <div class="ax-sidebar-profile">
+          <strong>튜터 계정</strong>
+          <span>AX 1기 관리자</span>
+        </div>
+      </aside>
+      <div class="offcanvas offcanvas-start ax-sidebar-offcanvas"
+           tabindex="-1"
+           id="mobileSidebar"
+           aria-labelledby="mobileSidebarLabel">
+        <div class="offcanvas-header">
+          <span class="ax-sidebar-brand mb-0 p-0" id="mobileSidebarLabel">AX Console</span>
+          <button type="button"
+                  class="btn-close btn-close-white"
+                  data-bs-dismiss="offcanvas"
+                  aria-label="닫기"></button>
+        </div>
+        <div class="offcanvas-body">{% include "results/_preview_nav.html" %}</div>
+      </div>
+      <div class="ax-content-area">
+        <div class="ax-topbar">
+          <div class="d-flex align-items-center gap-2">
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary d-lg-none"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#mobileSidebar"
+                    aria-controls="mobileSidebar"
+                    aria-label="메뉴 열기">
+              <i class="bi bi-list"></i>
+            </button>
+            <span class="ax-breadcrumb">{% block breadcrumb %}Results{% endblock %}</span>
+          </div>
+          <span class="text-muted small d-none d-md-inline">프로토타입 · 가짜 데이터로 계산한 화면</span>
+        </div>
+        <main class="ax-main">
+          <div class="ax-main-inner">
+            {% block content %}{% endblock %}
+          </div>
+        </main>
+      </div>
+    </div>
+    {% if messages %}
+      <div class="ax-toast" id="axToast" role="status" aria-live="polite">
+        {% for message in messages %}{{ message }}{% endfor %}
+      </div>
+    {% endif %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/results-preview.js' %}"></script>
+  </body>
+</html>
