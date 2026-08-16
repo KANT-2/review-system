@@ -2,19 +2,189 @@
 <!DOCTYPE html>
 <html lang="ko">
   <head>
+    <script>
+      (function() {
+        const savedTheme = localStorage.getItem('ax_theme') || 'light';
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+      })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="AX Evaluation Console">
     <title>{% block title %}AX Evaluation Console{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css"
-          rel="stylesheet">
-    <link rel="stylesheet"
-          as="style"
-          crossorigin
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+
+    <!-- ================= [야간모드 완벽 색상 오버라이드] ================= -->
+    <style>
+      /* 1. CSS 전역 변수 다크 테마 오버라이드 */
+      [data-bs-theme="dark"] {
+        --surface: #162032 !important;
+        --surface-subtle: #1C2B46 !important;
+        --background: #0B132B !important;
+        --bg: #0B132B !important;
+        --text: #F8FAFC !important;
+        --text-muted: #94A3B8 !important;
+        --outline: #2E3856 !important;
+        --border-color: #2E3856 !important;
+        --bs-body-bg: #0B132B !important;
+        --bs-body-color: #F8FAFC !important;
+        --bs-card-bg: #162032 !important;
+        --bs-tertiary-bg: #1C2B46 !important;
+        --bs-secondary-bg: #1C2B46 !important;
+      }
+
+      /* 2. 전체 배경 */
+      [data-bs-theme="dark"] body,
+      [data-bs-theme="dark"] #app-shell,
+      [data-bs-theme="dark"] #content-area,
+      [data-bs-theme="dark"] main,
+      [data-bs-theme="dark"] .auth-shell {
+        background-color: #0B132B !important;
+        color: #F8FAFC !important;
+      }
+
+      /* 3. 상단 톱바 */
+      [data-bs-theme="dark"] #topbar,
+      [data-bs-theme="dark"] .topbar,
+      [data-bs-theme="dark"] .app-topbar,
+      [data-bs-theme="dark"] header {
+        background-color: #162032 !important;
+        border-color: #2E3856 !important;
+      }
+
+      /* 4. 흰색 메인 카드/박스 전체 어둡게 전환 (하얀 부분 완전 제거) */
+      [data-bs-theme="dark"] .card,
+      [data-bs-theme="dark"] .ax-card,
+      [data-bs-theme="dark"] .bg-white,
+      [data-bs-theme="dark"] .surface,
+      [data-bs-theme="dark"] [class*="card"],
+      [data-bs-theme="dark"] main div[style*="background: white"],
+      [data-bs-theme="dark"] main div[style*="background-color: white"],
+      [data-bs-theme="dark"] main div[style*="background-color: #fff"],
+      [data-bs-theme="dark"] main div[style*="background-color: rgb(255, 255, 255)"],
+      [data-bs-theme="dark"] .modal-content,
+      [data-bs-theme="dark"] .dropdown-menu,
+      [data-bs-theme="dark"] .offcanvas {
+        background-color: #162032 !important;
+        border-color: #2E3856 !important;
+        color: #F8FAFC !important;
+      }
+
+      /* 5. 카드 내부 서브 박스 (평가 항목, 일정 리스트, 팀원 리스트 등) */
+      [data-bs-theme="dark"] .bg-light,
+      [data-bs-theme="dark"] .bg-body-secondary,
+      [data-bs-theme="dark"] .bg-body-tertiary,
+      [data-bs-theme="dark"] .list-group-item,
+      [data-bs-theme="dark"] .table,
+      [data-bs-theme="dark"] main div[class*="border"][class*="rounded"] {
+        background-color: #1C2B46 !important;
+        border-color: #2E3856 !important;
+        color: #F8FAFC !important;
+      }
+
+      /* 6. 제목 및 텍스트 색상 */
+      [data-bs-theme="dark"] h1, [data-bs-theme="dark"] h2, [data-bs-theme="dark"] h3,
+      [data-bs-theme="dark"] h4, [data-bs-theme="dark"] h5, [data-bs-theme="dark"] h6,
+      [data-bs-theme="dark"] .text-dark, [data-bs-theme="dark"] .text-body,
+      [data-bs-theme="dark"] strong, [data-bs-theme="dark"] .fw-bold {
+        color: #F8FAFC !important;
+      }
+
+      [data-bs-theme="dark"] .text-secondary,
+      [data-bs-theme="dark"] .text-muted,
+      [data-bs-theme="dark"] p {
+        color: #CBD5E1 !important;
+      }
+
+      /* 7. 테두리선 */
+      [data-bs-theme="dark"] .border,
+      [data-bs-theme="dark"] .border-top,
+      [data-bs-theme="dark"] .border-bottom,
+      [data-bs-theme="dark"] .border-start,
+      [data-bs-theme="dark"] .border-end,
+      [data-bs-theme="dark"] hr {
+        border-color: #2E3856 !important;
+      }
+
+      /* 8. 버튼 (새로고침, 현황보기, 상세정보, 평가하기 등) */
+      [data-bs-theme="dark"] .btn-outline-secondary,
+      [data-bs-theme="dark"] .btn-light,
+      [data-bs-theme="dark"] .btn-ax-secondary,
+      [data-bs-theme="dark"] .btn[class*="outline"] {
+        background-color: #1C2B46 !important;
+        border-color: #33476A !important;
+        color: #F8FAFC !important;
+      }
+
+      [data-bs-theme="dark"] .btn-outline-secondary:hover,
+      [data-bs-theme="dark"] .btn-light:hover,
+      [data-bs-theme="dark"] .btn[class*="outline"]:hover {
+        background-color: #2E3E5C !important;
+        color: #FFFFFF !important;
+      }
+
+      [data-bs-theme="dark"] .btn-ax-primary,
+      [data-bs-theme="dark"] .btn-primary {
+        background-color: #1769E0 !important;
+        border-color: #1769E0 !important;
+        color: #FFFFFF !important;
+      }
+
+      [data-bs-theme="dark"] .btn:disabled,
+      [data-bs-theme="dark"] .btn.disabled {
+        background-color: #1C2B46 !important;
+        border-color: #2E3856 !important;
+        color: #64748B !important;
+        opacity: 0.65;
+      }
+
+      /* 9. 뱃지 및 아바타/아이콘 */
+      [data-bs-theme="dark"] .badge.bg-white,
+      [data-bs-theme="dark"] .badge.bg-light,
+      [data-bs-theme="dark"] .badge.text-secondary {
+        background-color: #243552 !important;
+        color: #CBD5E1 !important;
+        border: 1px solid #33476A !important;
+      }
+
+      [data-bs-theme="dark"] div[class*="avatar"],
+      [data-bs-theme="dark"] span[class*="avatar"] {
+        background-color: #243552 !important;
+        color: #38BDF8 !important;
+      }
+
+      /* 10. 프로그레스 바 */
+      [data-bs-theme="dark"] .progress {
+        background-color: #0B132B !important;
+        border: 1px solid #2E3856 !important;
+      }
+
+      /* 11. 탭 & 폼 */
+      [data-bs-theme="dark"] .nav-tabs {
+        border-color: #2E3856 !important;
+      }
+      [data-bs-theme="dark"] .nav-tabs.bg-light {
+        background-color: #121E36 !important;
+      }
+      [data-bs-theme="dark"] .nav-tabs .nav-link {
+        color: #94A3B8 !important;
+      }
+      [data-bs-theme="dark"] .nav-tabs .nav-link.active {
+        background-color: #162032 !important;
+        color: #38BDF8 !important;
+        border-color: #2E3856 #2E3856 #162032 !important;
+      }
+      [data-bs-theme="dark"] .form-control,
+      [data-bs-theme="dark"] .form-select {
+        background-color: #0B132B !important;
+        border-color: #2E3856 !important;
+        color: #F8FAFC !important;
+      }
+    </style>
+
     {% block extra_head %}{% endblock %}
   </head>
   <body>
@@ -37,41 +207,30 @@
         </div>
       </div>
     {% endif %}
+
     <!-- ================= [전역 모달 영역] ================= -->
     <!-- 1. 통합 피드백 센터 모달 -->
-    <div class="modal fade"
-         id="feedbackModal"
-         tabindex="-1"
-         aria-hidden="true">
+    <div class="modal fade" id="feedbackModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow">
           <div class="modal-header border-bottom px-4 py-3">
             <h6 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill text-primary me-2"></i>통합 피드백 센터 (8주차 누적)</h6>
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body p-0">
             <ul class="nav nav-tabs nav-fill bg-light border-bottom px-3 pt-2">
               <li class="nav-item">
-                <button class="nav-link active fw-semibold small"
-                        data-bs-toggle="tab"
-                        data-bs-target="#tutor-pane">
+                <button class="nav-link active fw-semibold small" data-bs-toggle="tab" data-bs-target="#tutor-pane">
                   튜터 피드백 <span class="badge bg-primary rounded-pill ms-1">{{ feedbacks.tutor|length|default:"4" }}</span>
                 </button>
               </li>
               <li class="nav-item">
-                <button class="nav-link fw-semibold small"
-                        data-bs-toggle="tab"
-                        data-bs-target="#team-pane">
+                <button class="nav-link fw-semibold small" data-bs-toggle="tab" data-bs-target="#team-pane">
                   팀 과제 피드백 <span class="badge bg-warning text-dark rounded-pill ms-1">{{ feedbacks.team|length|default:"4" }}</span>
                 </button>
               </li>
               <li class="nav-item">
-                <button class="nav-link fw-semibold small"
-                        data-bs-toggle="tab"
-                        data-bs-target="#peer-pane">
+                <button class="nav-link fw-semibold small" data-bs-toggle="tab" data-bs-target="#peer-pane">
                   동료 상호 피드백 <span class="badge bg-secondary rounded-pill ms-1">{{ feedbacks.peer|length|default:"4" }}</span>
                 </button>
               </li>
@@ -125,18 +284,14 @@
             </div>
           </div>
           <div class="modal-footer border-top-0 px-4 pb-3">
-            <button type="button"
-                    class="btn btn-ax-secondary px-4"
-                    data-bs-dismiss="modal">닫기</button>
+            <button type="button" class="btn btn-ax-secondary px-4" data-bs-dismiss="modal">닫기</button>
           </div>
         </div>
       </div>
     </div>
+
     <!-- 2. 전역 알림 모달 -->
-    <div class="modal fade"
-         id="globalAlertModal"
-         tabindex="-1"
-         aria-hidden="true">
+    <div class="modal fade" id="globalAlertModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content rounded-4 border-0 shadow text-center p-3">
           <div class="modal-body pt-3 pb-2">
@@ -147,82 +302,97 @@
             <p class="small text-muted mb-0" id="globalAlertMsg">알림 내용</p>
           </div>
           <div class="modal-footer border-0 justify-content-center p-0 pt-3">
-            <button type="button"
-                    class="btn btn-ax-primary w-100 py-2"
-                    data-bs-dismiss="modal">확인</button>
+            <button type="button" class="btn btn-ax-primary w-100 py-2" data-bs-dismiss="modal">확인</button>
           </div>
         </div>
       </div>
     </div>
+
     <!-- 3. 전역 토스트 -->
     <div class="global-toast-container toast-container position-fixed top-0 end-0 p-3">
-      <div id="globalToast"
-           class="toast align-items-center text-white bg-dark border-0 rounded-3 shadow-lg"
-           role="alert"
-           aria-live="assertive"
-           aria-atomic="true">
+      <div id="globalToast" class="toast align-items-center text-white bg-dark border-0 rounded-3 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
-          <div class="toast-body d-flex align-items-center gap-2 small"
-               id="globalToastMsg">
+          <div class="toast-body d-flex align-items-center gap-2 small" id="globalToastMsg">
             <i class="bi bi-check-circle-fill text-success fs-6"></i> 메시지
           </div>
-          <button type="button"
-                  class="btn-close btn-close-white me-2 m-auto"
-                  data-bs-dismiss="toast"
-                  aria-label="Close"></button>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
       </div>
     </div>
+
     <!-- 개별 페이지 모달 슬롯 -->
     {% block modals %}{% endblock %}
+
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    if (sidebarToggle && sidebar) {
-      sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-      });
-    }
-
-    window.showToast = function(msg, iconClass = "bi-check-circle-fill text-success") {
-      const toastEl = document.getElementById('globalToast');
-      const toastMsgEl = document.getElementById('globalToastMsg');
-      if (toastEl && toastMsgEl) {
-        toastMsgEl.innerHTML = `<i class="bi ${iconClass} fs-6"></i> ${msg}`;
-        const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
-        toast.show();
+      const sidebar = document.getElementById('sidebar');
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+          sidebar.classList.toggle('collapsed');
+        });
       }
-    };
 
-    window.showModernAlert = function(title, msg, iconClass = "bi-info-circle-fill text-primary") {
-      const titleEl = document.getElementById('globalAlertTitle');
-      const msgEl = document.getElementById('globalAlertMsg');
-      const iconEl = document.getElementById('globalAlertIcon');
-      const modalEl = document.getElementById('globalAlertModal');
-
-      if (titleEl && msgEl && iconEl && modalEl) {
-        titleEl.innerText = title;
-        msgEl.innerText = msg;
-        iconEl.innerHTML = `<i class="bi ${iconClass}" style="font-size: 2.5rem;"></i>`;
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
-      }
-    };
-
-    // 모달 닫힐 때 잔여 투명 가림막 강제 청소 (버튼 잠김 방지)
-    document.addEventListener('hidden.bs.modal', function () {
-      setTimeout(() => {
-        if (!document.querySelector('.modal.show')) {
-          document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-          document.body.classList.remove('modal-open');
-          document.body.style.removeProperty('overflow');
-          document.body.style.removeProperty('padding-right');
+      window.showToast = function(msg, iconClass = "bi-check-circle-fill text-success") {
+        const toastEl = document.getElementById('globalToast');
+        const toastMsgEl = document.getElementById('globalToastMsg');
+        if (toastEl && toastMsgEl) {
+          toastMsgEl.innerHTML = `<i class="bi ${iconClass} fs-6"></i> ${msg}`;
+          const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
+          toast.show();
         }
-      }, 100);
-    });
+      };
+
+      window.showModernAlert = function(title, msg, iconClass = "bi-info-circle-fill text-primary") {
+        const titleEl = document.getElementById('globalAlertTitle');
+        const msgEl = document.getElementById('globalAlertMsg');
+        const iconEl = document.getElementById('globalAlertIcon');
+        const modalEl = document.getElementById('globalAlertModal');
+
+        if (titleEl && msgEl && iconEl && modalEl) {
+          titleEl.innerText = title;
+          msgEl.innerText = msg;
+          iconEl.innerHTML = `<i class="bi ${iconClass}" style="font-size: 2.5rem;"></i>`;
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        }
+      };
+
+      // 모달 닫힐 때 잔여 투명 가림막 강제 청소 (버튼 잠김 방지)
+      document.addEventListener('hidden.bs.modal', function () {
+        setTimeout(() => {
+          if (!document.querySelector('.modal.show')) {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+          }
+        }, 100);
+      });
     </script>
     {% block extra_js %}{% endblock %}
+
+    <!-- 야간모드 토글 스크립트 -->
+    <script>
+      function updateAxThemeIcon(theme) {
+        const icon = document.getElementById('axThemeIcon');
+        if (icon) {
+          icon.className = theme === 'dark' ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-fill';
+        }
+      }
+
+      function toggleAxTheme() {
+        const current = document.documentElement.getAttribute('data-bs-theme') || 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-bs-theme', next);
+        localStorage.setItem('ax_theme', next);
+        updateAxThemeIcon(next);
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        updateAxThemeIcon(document.documentElement.getAttribute('data-bs-theme') || 'light');
+      });
+    </script>
   </body>
 </html>

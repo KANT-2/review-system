@@ -1,5 +1,5 @@
-import json
 from datetime import timedelta
+import json
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
@@ -12,13 +12,9 @@ from django.views.decorators.http import require_POST
 from accounts.forms import LoginForm, SignUpForm
 from accounts.models import User, WhitelistEmail
 
-# ==========================================
-# 1. 템플릿 렌더링 뷰
-# ==========================================
-
 
 def login_view(request):
-    """로그인 뷰 (로그인 유지 및 승인 상태 제어)"""
+    """로그인 뷰 (승인 상태 분기 및 세션 유지 제어)"""
     if request.user.is_authenticated:
         if request.user.role in [User.Role.TUTOR, User.Role.ADMIN]:
             return redirect("accounts:tutor_dashboard")
@@ -29,12 +25,10 @@ def login_view(request):
         if form.is_valid():
             user = form.get_user()
             if user.approval_status == User.ApprovalStatus.PENDING:
-                messages.warning(
-                    request, "아직 가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요."
-                )
+                messages.warning(request, "가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요.")
                 return redirect("accounts:login")
             elif user.approval_status == User.ApprovalStatus.REJECTED:
-                messages.error(request, "승인이 거절된 계정입니다. 관리자에게 문의하세요.")
+                messages.error(request, "가입 승인이 거절된 계정입니다. 관리자에게 문의하세요.")
                 return redirect("accounts:login")
 
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
@@ -60,6 +54,7 @@ def signup_view(request):
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
+            user.is_onboarded = False
             whitelist = WhitelistEmail.objects.filter(email=user.email).first()
 
             if whitelist:
@@ -72,9 +67,7 @@ def signup_view(request):
                 user.approval_status = User.ApprovalStatus.PENDING
                 user.role = User.Role.STUDENT
                 user.save()
-                messages.warning(
-                    request, "가입 신청이 완료되었습니다. 튜터 승인 후 이용 가능합니다."
-                )
+                messages.warning(request, "가입 신청이 완료되었습니다. 튜터 승인 후 이용 가능합니다.")
 
             return redirect("accounts:login")
     else:
@@ -90,35 +83,15 @@ def logout_view(request):
 
 @login_required
 def dashboard_view(request):
-    """수강생 메인 대시보드 (진행 중 라운드, 동료 평가 목록, 팀 정보)"""
+    """수강생 메인 대시보드"""
     if request.user.role in [User.Role.TUTOR, User.Role.ADMIN]:
         return redirect("accounts:tutor_dashboard")
 
-    # 평가 라운드 및 팀 피어 데이터 구성
     team_peers = [
-        {
-            "id": 101,
-            "name": "김민수",
-            "role_in_team": "기획 / 데이터 분석",
-            "task_summary": "LLM 프롬프트 엔지니어링 및 데이터 전처리",
-            "is_evaluated": False,
-        },
-        {
-            "id": 102,
-            "name": "이지은",
-            "role_in_team": "프론트엔드",
-            "task_summary": "대시보드 UI 구현 및 API 연동",
-            "is_evaluated": False,
-        },
-        {
-            "id": 103,
-            "name": "박준호",
-            "role_in_team": "백엔드 / DB",
-            "task_summary": "Django ORM 및 인증 파이프라인 구축",
-            "is_evaluated": True,
-        },
+        {"id": 101, "name": "김민수", "role_in_team": "기획 / 데이터 분석", "task_summary": "LLM 프롬프트 엔지니어링", "is_evaluated": False},
+        {"id": 102, "name": "이지은", "role_in_team": "프론트엔드", "task_summary": "대시보드 UI 구현", "is_evaluated": False},
+        {"id": 103, "name": "박준호", "role_in_team": "백엔드 / DB", "task_summary": "인증 파이프라인 구축", "is_evaluated": True},
     ]
-
     total_peers = len(team_peers)
     evaluated_count = sum(1 for p in team_peers if p["is_evaluated"])
     progress_percent = int((evaluated_count / total_peers * 100)) if total_peers > 0 else 0
@@ -141,7 +114,7 @@ def dashboard_view(request):
 
 @login_required
 def mypage_view(request):
-    """마이페이지 (5대 역량 레이더 차트 및 정성 피드백 리포트)"""
+    """수강생 마이페이지 (5대 역량 분석, 피드백 코멘트, 주차별 상세 이력)"""
     competency_labels = [
         "AI 도구 활용",
         "문제 정의 및 기획",
@@ -156,18 +129,56 @@ def mypage_view(request):
         {"label": lbl, "score": sc} for lbl, sc in zip(competency_labels, my_scores, strict=False)
     ]
 
+    # 강점 및 보완 필요 역량 추출
+    lowest_idx = my_scores.index(min(my_scores))
+    highest_idx = my_scores.index(max(my_scores))
+    weakness_label = competency_labels[lowest_idx]
+    strength_label = competency_labels[highest_idx]
+
+    # 동료 피드백 목록 (통합 피드백 센터)
     peer_feedbacks = [
         {
-            "round_name": "1차 프로젝트 피어 리뷰",
-            "comment": "기획 단계에서 AI 도구를 적극적으로 도입하여 분석 시간을 대폭 단축해 주셨습니다.",
+            "round_name": "1차 스프린트 피어 리뷰",
+            "date": "2026.08.10",
+            "comment": "기획 단계에서 AI 도구를 적극적으로 도입하여 프롬프트 설계 및 분석 시간을 획기적으로 단축해 주셨습니다.",
         },
         {
-            "round_name": "1차 프로젝트 피어 리뷰",
-            "comment": "팀 내 이슈가 발생했을 때 즉각적인 커뮤니케이션으로 조율해 주셔서 든든했습니다.",
+            "round_name": "1차 스프린트 피어 리뷰",
+            "date": "2026.08.10",
+            "comment": "팀 내 이슈가 발생했을 때 신속하게 소통하며 전체 일정이 지연되지 않도록 잘 조율해 주셨습니다.",
         },
         {
-            "round_name": "0차 사전 과제 리뷰",
-            "comment": "코드 구조가 깔끔하고 문서화가 잘 되어 있어 협업하기 매우 편했습니다.",
+            "round_name": "2차 프로토타입 리뷰",
+            "date": "2026.08.15",
+            "comment": "어려운 백엔드 인증 파이프라인 연동 과정을 꼼꼼히 문서화하여 팀원들에게 공유해주셔서 큰 도움이 되었습니다.",
+        },
+    ]
+
+    # 주차별 상세 평가 이력
+    weekly_history = [
+        {
+            "round_num": "1주차",
+            "title": "비즈니스 모델 기획 및 문제 정의",
+            "period": "2026.08.01 ~ 2026.08.07",
+            "score": 86.5,
+            "status": "완료",
+            "highlights": "시장 분석 타당성 우수, 요구사항 정의 완료",
+        },
+        {
+            "round_num": "2주차",
+            "title": "AI 아키텍처 및 UX/UI 와이어프레임",
+            "period": "2026.08.08 ~ 2026.08.14",
+            "score": 91.0,
+            "status": "완료",
+            "highlights": "사용자 여정 맵 및 프롬프트 파이프라인 설계 완료",
+        },
+        {
+            "round_num": "3주차",
+            "title": "MVP 기능 구현 및 중간 피어 리뷰",
+            "period": "2026.08.15 ~ 2026.08.21",
+            "score": 89.8,
+            "status": "진행중",
+            "highlights": "핵심 API 연동 및 팀 피드백 진행 중",
         },
     ]
 
@@ -178,25 +189,24 @@ def mypage_view(request):
         "competency_avg_scores": json.dumps(avg_scores),
         "competency_details": competency_details,
         "avg_score": round(sum(my_scores) / len(my_scores), 1),
-        "received_reviews_count": len(peer_feedbacks) + 3,
+        "received_reviews_count": len(peer_feedbacks),
+        "strength_label": strength_label,
+        "weakness_label": weakness_label,
         "peer_feedbacks": peer_feedbacks,
+        "weekly_history": weekly_history,
     }
     return render(request, "accounts/mypage.html", context)
 
 
 @login_required
 def tutor_dashboard(request):
-    """튜터 콘솔"""
+    """튜터 관리 콘솔"""
     if request.user.role not in [User.Role.TUTOR, User.Role.ADMIN]:
         messages.error(request, "튜터 전용 페이지입니다.")
         return redirect("accounts:dashboard")
 
-    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by(
-        "-date_joined"
-    )
-    approved_students_count = User.objects.filter(
-        role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED
-    ).count()
+    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by("-date_joined")
+    approved_students_count = User.objects.filter(role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED).count()
     whitelist_count = WhitelistEmail.objects.count()
 
     context = {
@@ -235,26 +245,18 @@ def reject_user(request, user_id):
     return redirect("accounts:tutor_dashboard")
 
 
-# ==========================================
-# 2. 비동기 JSON API
-# ==========================================
-
-
 @login_required
 @require_POST
 def api_onboarding(request):
-    """온보딩 정보 저장 비동기 API"""
     try:
         data = json.loads(request.body)
         user = request.user
-        first_name = data.get("first_name")
-        session_info = data.get("session_info")
-        phone_number = data.get("phone_number")
+        first_name = data.get("first_name", "").strip()
+        session_info = data.get("session_info", "").strip()
+        phone_number = data.get("phone_number", "").strip()
 
         if not first_name or not session_info or not phone_number:
-            return JsonResponse(
-                {"success": False, "message": "모든 필수 항목을 입력해 주세요."}, status=400
-            )
+            return JsonResponse({"success": False, "message": "이름, 소속 기수, 연락처는 필수 입력 항목입니다."}, status=400)
 
         user.first_name = first_name
         user.session_info = session_info
@@ -270,7 +272,6 @@ def api_onboarding(request):
 @login_required
 @require_POST
 def update_profile_api(request):
-    """프로필 수정 비동기 API"""
     try:
         data = json.loads(request.body)
         user = request.user
@@ -291,23 +292,17 @@ def update_profile_api(request):
 def signup_api(request):
     try:
         data = json.loads(request.body)
-        email = data.get("email")
-        password = data.get("password")
-        first_name = data.get("first_name", "")
-        phone_number = data.get("phone_number", "")
+        email = data.get("email", "").strip()
+        password = data.get("password", "").strip()
 
         if not email or not password:
-            return JsonResponse(
-                {"success": False, "message": "이메일과 비밀번호는 필수입니다."}, status=400
-            )
+            return JsonResponse({"success": False, "message": "이메일과 비밀번호를 모두 입력해 주세요."}, status=400)
 
         if User.objects.filter(email=email).exists():
-            return JsonResponse(
-                {"success": False, "message": "이미 가입된 이메일입니다."}, status=400
-            )
+            return JsonResponse({"success": False, "message": "이미 가입된 이메일입니다."}, status=400)
 
         whitelist = WhitelistEmail.objects.filter(email=email).first()
-        user = User(email=email, first_name=first_name, phone_number=phone_number)
+        user = User(email=email, is_onboarded=False)
         user.set_password(password)
 
         if whitelist:
@@ -315,24 +310,12 @@ def signup_api(request):
             user.role = whitelist.role
             user.session_info = whitelist.session_info
             user.save()
-            return JsonResponse(
-                {
-                    "success": True,
-                    "approved": True,
-                    "message": "사전 승인된 계정으로 가입되었습니다.",
-                }
-            )
+            return JsonResponse({"success": True, "approved": True, "message": "사전 승인된 계정으로 가입되었습니다. 로그인해 주세요."})
         else:
             user.approval_status = User.ApprovalStatus.PENDING
             user.role = User.Role.STUDENT
             user.save()
-            return JsonResponse(
-                {
-                    "success": True,
-                    "approved": False,
-                    "message": "가입 신청되었습니다. 튜터 승인을 기다려주세요.",
-                }
-            )
+            return JsonResponse({"success": True, "approved": False, "message": "가입 신청되었습니다. 튜터 승인 후 로그인 시 온보딩이 진행됩니다."})
     except Exception as e:
         return JsonResponse({"success": False, "message": str(e)}, status=500)
 
@@ -346,19 +329,10 @@ def verify_user_for_reset_api(request):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return JsonResponse(
-                {"success": False, "message": "해당 이메일의 사용자를 찾을 수 없습니다."},
-                status=404,
-            )
+            return JsonResponse({"success": False, "message": "해당 이메일의 사용자를 찾을 수 없습니다."}, status=404)
 
-        if (
-            phone_number
-            and user.phone_number
-            and user.phone_number.replace("-", "") != phone_number.replace("-", "")
-        ):
-            return JsonResponse(
-                {"success": False, "message": "등록된 연락처와 일치하지 않습니다."}, status=400
-            )
+        if phone_number and user.phone_number and user.phone_number.replace("-", "") != phone_number.replace("-", ""):
+            return JsonResponse({"success": False, "message": "등록된 연락처와 일치하지 않습니다."}, status=400)
 
         return JsonResponse({"success": True, "message": "본인 인증이 완료되었습니다."})
     except Exception as e:
@@ -374,9 +348,7 @@ def reset_password_api(request):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return JsonResponse(
-                {"success": False, "message": "사용자를 찾을 수 없습니다."}, status=404
-            )
+            return JsonResponse({"success": False, "message": "사용자를 찾을 수 없습니다."}, status=404)
 
         user.set_password(new_password)
         user.save()
