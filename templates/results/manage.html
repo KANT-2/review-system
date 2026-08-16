@@ -15,47 +15,53 @@
     <div class="ax-card">
       <h2 class="ax-section-title">팀 순위</h2>
       <div class="table-responsive">
-        <table class="table align-middle">
+        <table class="table align-middle mb-2">
           <thead>
             <tr>
               <th scope="col">순위</th>
               <th scope="col">팀</th>
               <th scope="col">구성원</th>
-              <th scope="col">팀 점수</th>
-              <th scope="col">완결성</th>
-              <th scope="col">커버리지</th>
+              <th scope="col">팀 점수 (5점 만점)</th>
+              <th scope="col">제출 현황</th>
+              <th scope="col">응답률</th>
             </tr>
           </thead>
           <tbody>
-            {% for team in scenario.teams_by_rank %}
-              <tr>
-                <td>{% if team.rank %}{{ team.rank }}위{% else %}<span class="ax-na-value">-</span>{% endif %}</td>
-                <td class="fw-semibold">{{ team.number }}팀</td>
-                <td class="text-muted">{{ team.member_names|join:", " }}</td>
-                <td>
-                  {% with score=team.team_score|display_score %}
-                    {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
-                  {% endwith %}
-                </td>
-                <td><span class="badge {{ team.data_status|status_badge_class }}">{{ team.data_status|status_label }}</span></td>
-                <td>
-                  {% with pct=team.coverage|coverage_percent %}
-                    {% if pct is not None %}{{ pct }}%{% else %}<span class="ax-na-value">-</span>{% endif %}
-                  {% endwith %}
-                  <span class="text-muted small">({{ team.valid_reviews }}/{{ team.expected_reviews }})</span>
-                </td>
-              </tr>
+            {% for team in scenario.teams_by_rank|slice:":3" %}
+              {% include "results/_team_row.html" %}
             {% endfor %}
           </tbody>
+          {% with rest=scenario.teams_by_rank|slice:"3:" %}
+            {% if rest %}
+              <tbody class="collapse" id="teamRestRows">
+                {% for team in rest %}
+                  {% include "results/_team_row.html" %}
+                {% endfor %}
+              </tbody>
+            {% endif %}
+          {% endwith %}
         </table>
       </div>
+      {% with rest=scenario.teams_by_rank|slice:"3:" %}
+        {% if rest %}
+          <button type="button"
+                  class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#teamRestRows"
+                  aria-expanded="false"
+                  aria-controls="teamRestRows">
+            <i class="bi bi-chevron-down ax-toggle-icon"></i>
+            나머지 {{ rest|length }}개 팀 더보기
+          </button>
+        {% endif %}
+      {% endwith %}
     </div>
   </section>
   <section class="ax-section">
     <div class="ax-card">
       <h2 class="ax-section-title">개인 결과</h2>
       <div class="table-responsive">
-        <table class="table align-middle">
+        <table class="table align-middle mb-2">
           <thead>
             <tr>
               <th scope="col">순위</th>
@@ -63,50 +69,50 @@
               <th scope="col">팀</th>
               <th scope="col">팀 점수</th>
               <th scope="col">개인 점수</th>
-              <th scope="col">최종점수</th>
-              <th scope="col">개인 평가 완결성</th>
+              <th scope="col">최종점수 (5점 만점)</th>
+              <th scope="col">개인 평가 제출 현황</th>
             </tr>
           </thead>
           <tbody>
-            {% for student in scenario.students_by_rank %}
-              <tr>
-                <td>{% if student.rank %}{{ student.rank }}위{% else %}<span class="ax-na-value">-</span>{% endif %}</td>
-                <td class="fw-semibold">{{ student.name }}</td>
-                <td>{{ student.team_number }}팀</td>
-                <td>
-                  {% with score=student.team_score|display_score %}
-                    {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
-                  {% endwith %}
-                </td>
-                <td>
-                  {% with score=student.peer_score|display_score %}
-                    {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
-                  {% endwith %}
-                </td>
-                <td class="fw-semibold">
-                  {% with score=student.final_score|display_score %}
-                    {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
-                  {% endwith %}
-                </td>
-                <td>
-                  <span class="badge {{ student.peer_data_status|status_badge_class }}">{{ student.peer_data_status|status_label }}</span>
-                  <span class="text-muted small">({{ student.valid_peer_reviews }}/{{ student.expected_peer_reviews }})</span>
-                </td>
-              </tr>
+            {% for student in scenario.students_by_rank|slice:":3" %}
+              {% include "results/_student_row.html" %}
             {% endfor %}
           </tbody>
+          {% with rest=scenario.students_by_rank|slice:"3:" %}
+            {% if rest %}
+              <tbody class="collapse" id="studentRestRows">
+                {% for student in rest %}
+                  {% include "results/_student_row.html" %}
+                {% endfor %}
+              </tbody>
+            {% endif %}
+          {% endwith %}
         </table>
       </div>
-      <p class="text-muted small mb-0">
-        N/A는 0점이 아니라 유효 제출이 없어 계산할 수 없는 상태입니다. 순위와 다음 회차 Seed에서 제외됩니다.
-        학생I은 1인 팀이라 개인 평가 대상이 없어 NOT_APPLICABLE이고, 그래서 최종점수도 N/A입니다.
+      {% with rest=scenario.students_by_rank|slice:"3:" %}
+        {% if rest %}
+          <button type="button"
+                  class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#studentRestRows"
+                  aria-expanded="false"
+                  aria-controls="studentRestRows">
+            <i class="bi bi-chevron-down ax-toggle-icon"></i>
+            나머지 {{ rest|length }}명 더보기
+          </button>
+        {% endif %}
+      {% endwith %}
+      <p class="text-muted small mb-0 mt-3">
+        "평가 없음"은 0점이 아니라 받은 평가가 없어서 점수를 계산할 수 없는 상태입니다. 순위와
+        다음 팀 편성 기준 점수 계산에서 빠집니다. 학생I은 혼자인 팀이라 개인 평가를 주고받을
+        상대가 없어서 "해당없음"이고, 그래서 최종점수도 계산되지 않습니다.
       </p>
     </div>
   </section>
   <section class="ax-section">
     <div class="ax-card">
       <h2 class="ax-section-title">결과 공개</h2>
-      <p class="text-muted small">항목마다 독립적으로 공개합니다. 재채점하면 4개 항목 모두 다시 비공개로 전환됩니다.</p>
+      <p class="text-muted small">항목마다 따로 공개합니다. 다시 채점하면 4개 항목 모두 다시 비공개로 바뀝니다.</p>
       <div class="row g-3">
         <div class="col-12 col-md-6 col-lg-3">
           <div class="border rounded-3 p-3 h-100">
@@ -130,7 +136,7 @@
         </div>
         <div class="col-12 col-md-6 col-lg-3">
           <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">본인 최종·구성 점수</div>
+            <div class="small text-muted mb-1">내 최종 점수</div>
             {% if scenario.published_at.my_score %}
               <span class="badge ax-badge-published">공개됨</span>
             {% else %}
@@ -140,7 +146,7 @@
         </div>
         <div class="col-12 col-md-6 col-lg-3">
           <div class="border rounded-3 p-3 h-100">
-            <div class="small text-muted mb-1">본인 개인 순위</div>
+            <div class="small text-muted mb-1">내 개인 순위</div>
             {% if scenario.published_at.peer_ranking %}
               <span class="badge ax-badge-published">공개됨</span>
             {% else %}
@@ -153,19 +159,19 @@
   </section>
   <section class="ax-section">
     <div class="ax-card">
-      <h2 class="ax-section-title">다음 회차 자동편성용 Seed (예시)</h2>
+      <h2 class="ax-section-title">다음 팀 편성 기준 점수 (예시)</h2>
       <p class="text-muted small">
-        직전 최대 3개 회차의 유효 최종점수를 오래된 순 20%·30%·50%로 가중 평균합니다. 3개 미만이면
-        뒤(최근)에서부터 가중치를 재정규화하고, 유효 이력이 없으면 무시드(N/A)로 처리합니다 - 0점으로
-        대체하지 않습니다.
+        최근 3번의 유효 최종점수를 오래된 순서대로 20%·30%·50% 비중으로 평균 냅니다. 회차가
+        3번보다 적으면 최근 회차부터 비중을 다시 나눕니다. 유효한 이력이 없으면 기준 점수 없이
+        (0점으로 대체하지 않고) 새로 배정합니다.
       </p>
       <div class="table-responsive">
         <table class="table align-middle">
           <thead>
             <tr>
               <th scope="col">이름</th>
-              <th scope="col">과거 유효 최종점수 (오래된 순)</th>
-              <th scope="col">Seed</th>
+              <th scope="col">과거 최종점수 (오래된 순, 5점 만점)</th>
+              <th scope="col">다음 팀 편성 기준 점수</th>
             </tr>
           </thead>
           <tbody>
@@ -174,14 +180,20 @@
                 <td class="fw-semibold">{{ row.name }}</td>
                 <td class="text-muted">
                   {% if row.history %}
-                    {% for value in row.history %}{{ value|display_score }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% for value in row.history %}
+                      {{ value|as_five_point }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
                   {% else %}
                     <span class="ax-na-value">이력 없음</span>
                   {% endif %}
                 </td>
                 <td class="fw-semibold">
-                  {% with seed=row.seed|display_score %}
-                    {% if seed is not None %}{{ seed }}{% else %}<span class="ax-na-value">무시드 (N/A)</span>{% endif %}
+                  {% with seed=row.seed|as_five_point %}
+                    {% if seed is not None %}
+                      {{ seed }}
+                    {% else %}
+                      <span class="ax-na-value">기준 점수 없음 (신규)</span>
+                    {% endif %}
                   {% endwith %}
                 </td>
               </tr>

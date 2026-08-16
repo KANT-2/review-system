@@ -182,3 +182,29 @@ body {
   color: var(--ax-text-muted);
   font-style: normal;
 }
+
+/* ---- collapsible "show more" table rows ---- */
+
+tbody.collapse.show {
+  display: table-row-group;
+}
+
+.ax-toggle-rest {
+  color: var(--ax-primary);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.ax-toggle-rest:hover {
+  color: var(--ax-primary-hover);
+}
+
+.ax-toggle-icon {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.ax-toggle-rest[aria-expanded="true"] .ax-toggle-icon {
+  transform: rotate(180deg);
+}

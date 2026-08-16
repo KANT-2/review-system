@@ -27,16 +27,26 @@
     </div>
     <div class="col-12 col-lg-4">
       <div class="ax-card h-100">
-        <h2 class="ax-section-title">본인 최종점수</h2>
+        <h2 class="ax-section-title">내 최종 점수</h2>
         {% if my_score %}
           <p class="display-6 fw-bold mb-2">
-            {% with score=my_score.final_score|display_score %}
-              {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
+            {% with score=my_score.final_score|as_five_point %}
+              {% if score is not None %}
+                {{ score }}
+              {% else %}
+                <span class="ax-na-value">평가 없음</span>
+              {% endif %}
             {% endwith %}
           </p>
           <p class="text-muted small mb-0">
-            팀 점수 {% with s=my_score.team_score|display_score %}{% if s is not None %}{{ s }}{% else %}N/A{% endif %}{% endwith %}
-            (40%) + 개인 점수 {% with s=my_score.peer_score|display_score %}{% if s is not None %}{{ s }}{% else %}N/A{% endif %}{% endwith %}
+            팀 점수
+            {% with s=my_score.team_score|as_five_point %}
+              {% if s is not None %}{{ s }}{% else %}평가 없음{% endif %}
+            {% endwith %}
+            (40%) + 개인 점수
+            {% with s=my_score.peer_score|as_five_point %}
+              {% if s is not None %}{{ s }}{% else %}평가 없음{% endif %}
+            {% endwith %}
             (60%)
           </p>
         {% else %}
@@ -50,7 +60,7 @@
     </div>
     <div class="col-12 col-lg-4">
       <div class="ax-card h-100">
-        <h2 class="ax-section-title">본인 개인 순위</h2>
+        <h2 class="ax-section-title">내 개인 순위</h2>
         {% if my_rank %}
           <p class="display-6 fw-bold mb-0">{{ my_rank }}위</p>
         {% else %}
@@ -68,29 +78,43 @@
       <h2 class="ax-section-title">전체 팀 순위</h2>
       {% if team_ranking %}
         <div class="table-responsive">
-          <table class="table align-middle">
+          <table class="table align-middle mb-2">
             <thead>
               <tr>
                 <th scope="col">순위</th>
                 <th scope="col">팀</th>
-                <th scope="col">팀 점수</th>
+                <th scope="col">팀 점수 (5점 만점)</th>
               </tr>
             </thead>
             <tbody>
-              {% for team in team_ranking %}
-                <tr {% if team.number == me.team_number %}class="table-primary"{% endif %}>
-                  <td>{% if team.rank %}{{ team.rank }}위{% else %}<span class="ax-na-value">-</span>{% endif %}</td>
-                  <td class="fw-semibold">{{ team.number }}팀{% if team.number == me.team_number %} (내 팀){% endif %}</td>
-                  <td>
-                    {% with score=team.team_score|display_score %}
-                      {% if score is not None %}{{ score }}{% else %}<span class="ax-na-value">N/A</span>{% endif %}
-                    {% endwith %}
-                  </td>
-                </tr>
+              {% for team in team_ranking|slice:":3" %}
+                {% include "results/_me_team_row.html" %}
               {% endfor %}
             </tbody>
+            {% with rest=team_ranking|slice:"3:" %}
+              {% if rest %}
+                <tbody class="collapse" id="myTeamRestRows">
+                  {% for team in rest %}
+                    {% include "results/_me_team_row.html" %}
+                  {% endfor %}
+                </tbody>
+              {% endif %}
+            {% endwith %}
           </table>
         </div>
+        {% with rest=team_ranking|slice:"3:" %}
+          {% if rest %}
+            <button type="button"
+                    class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#myTeamRestRows"
+                    aria-expanded="false"
+                    aria-controls="myTeamRestRows">
+              <i class="bi bi-chevron-down ax-toggle-icon"></i>
+              나머지 {{ rest|length }}개 팀 더보기
+            </button>
+          {% endif %}
+        {% endwith %}
       {% else %}
         <p class="text-muted mb-0">
           <span class="badge ax-badge-unpublished mb-2">비공개</span>

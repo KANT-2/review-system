@@ -1,0 +1,43 @@
+{% load results_extras %}
+<tr>
+  <td>
+    {% if student.rank %}
+      {{ student.rank }}위
+    {% else %}
+      <span class="ax-na-value">-</span>
+    {% endif %}
+  </td>
+  <td class="fw-semibold">{{ student.name }}</td>
+  <td>{{ student.team_number }}팀</td>
+  <td>
+    {% with score=student.team_score|as_five_point %}
+      {% if score is not None %}
+        {{ score }}
+      {% else %}
+        <span class="ax-na-value">평가 없음</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+  <td>
+    {% with score=student.peer_score|as_five_point %}
+      {% if score is not None %}
+        {{ score }}
+      {% else %}
+        <span class="ax-na-value">평가 없음</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+  <td class="fw-semibold">
+    {% with score=student.final_score|as_five_point %}
+      {% if score is not None %}
+        {{ score }}
+      {% else %}
+        <span class="ax-na-value">평가 없음</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+  <td>
+    <span class="badge {{ student.peer_data_status|status_badge_class }}">{{ student.peer_data_status|status_label }}</span>
+    <span class="text-muted small">({{ student.valid_peer_reviews }}/{{ student.expected_peer_reviews }})</span>
+  </td>
+</tr>
