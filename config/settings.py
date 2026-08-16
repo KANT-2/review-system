@@ -88,6 +88,3 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-# 운영 환경에서는 비활성화하고 preview_settings에서만 연다.
-TEAMS_UI_PREVIEW_ENABLED = False

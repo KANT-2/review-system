@@ -30,5 +30,5 @@ urlpatterns = [
     ),
 ]
 
-if settings.TEAMS_UI_PREVIEW_ENABLED:
+if settings.DEBUG:
     urlpatterns.insert(0, path("preview/", views.team_ui_preview, name="ui-preview"))

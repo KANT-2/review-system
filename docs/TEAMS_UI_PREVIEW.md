@@ -1,13 +1,21 @@
 # 팀 편성 UI 검토 방법
 
-이 미리보기는 다른 파트의 PostgreSQL 모델이 병합되기 전에도 팀 편성 화면을 검토하기 위한 개발 전용 환경이다. 운영 설정에서는 미리보기 URL이 등록되지 않는다.
+이 미리보기는 다른 파트의 PostgreSQL 모델이 병합되기 전에도 팀 편성 화면을 검토하기 위한 개발 전용 화면이다. `DEBUG=True`인 개발 환경에서만 미리보기 URL이 등록되며 실제 데이터베이스에는 저장하지 않는다.
+
+teams 파트는 공통 URL 파일을 직접 수정하지 않는다. 병합 담당자가 프로젝트 URL에 다음 연결을 추가한 뒤 화면을 확인한다.
+
+```python
+from django.urls import include, path
+
+path("teams/", include("teams.urls")),
+```
 
 ## 실행
 
 PowerShell에서 프로젝트 폴더로 이동한 뒤 실행한다.
 
 ```powershell
-.\.venv\Scripts\python.exe manage.py runserver --settings=config.preview_settings
+.\.venv\Scripts\python.exe manage.py runserver
 ```
 
 ## 화면 주소
