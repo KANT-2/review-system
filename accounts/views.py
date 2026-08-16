@@ -1,5 +1,5 @@
-from datetime import timedelta
 import json
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
@@ -67,7 +67,9 @@ def signup_view(request):
                 user.approval_status = User.ApprovalStatus.PENDING
                 user.role = User.Role.STUDENT
                 user.save()
-                messages.warning(request, "가입 신청이 완료되었습니다. 튜터 승인 후 이용 가능합니다.")
+                messages.warning(
+                    request, "가입 신청이 완료되었습니다. 튜터 승인 후 이용 가능합니다."
+                )
 
             return redirect("accounts:login")
     else:
@@ -88,9 +90,27 @@ def dashboard_view(request):
         return redirect("accounts:tutor_dashboard")
 
     team_peers = [
-        {"id": 101, "name": "김민수", "role_in_team": "기획 / 데이터 분석", "task_summary": "LLM 프롬프트 엔지니어링", "is_evaluated": False},
-        {"id": 102, "name": "이지은", "role_in_team": "프론트엔드", "task_summary": "대시보드 UI 구현", "is_evaluated": False},
-        {"id": 103, "name": "박준호", "role_in_team": "백엔드 / DB", "task_summary": "인증 파이프라인 구축", "is_evaluated": True},
+        {
+            "id": 101,
+            "name": "김민수",
+            "role_in_team": "기획 / 데이터 분석",
+            "task_summary": "LLM 프롬프트 엔지니어링",
+            "is_evaluated": False,
+        },
+        {
+            "id": 102,
+            "name": "이지은",
+            "role_in_team": "프론트엔드",
+            "task_summary": "대시보드 UI 구현",
+            "is_evaluated": False,
+        },
+        {
+            "id": 103,
+            "name": "박준호",
+            "role_in_team": "백엔드 / DB",
+            "task_summary": "인증 파이프라인 구축",
+            "is_evaluated": True,
+        },
     ]
     total_peers = len(team_peers)
     evaluated_count = sum(1 for p in team_peers if p["is_evaluated"])
@@ -205,8 +225,12 @@ def tutor_dashboard(request):
         messages.error(request, "튜터 전용 페이지입니다.")
         return redirect("accounts:dashboard")
 
-    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by("-date_joined")
-    approved_students_count = User.objects.filter(role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED).count()
+    pending_users = User.objects.filter(approval_status=User.ApprovalStatus.PENDING).order_by(
+        "-date_joined"
+    )
+    approved_students_count = User.objects.filter(
+        role=User.Role.STUDENT, approval_status=User.ApprovalStatus.APPROVED
+    ).count()
     whitelist_count = WhitelistEmail.objects.count()
 
     context = {
@@ -256,7 +280,10 @@ def api_onboarding(request):
         phone_number = data.get("phone_number", "").strip()
 
         if not first_name or not session_info or not phone_number:
-            return JsonResponse({"success": False, "message": "이름, 소속 기수, 연락처는 필수 입력 항목입니다."}, status=400)
+            return JsonResponse(
+                {"success": False, "message": "이름, 소속 기수, 연락처는 필수 입력 항목입니다."},
+                status=400,
+            )
 
         user.first_name = first_name
         user.session_info = session_info
@@ -296,10 +323,14 @@ def signup_api(request):
         password = data.get("password", "").strip()
 
         if not email or not password:
-            return JsonResponse({"success": False, "message": "이메일과 비밀번호를 모두 입력해 주세요."}, status=400)
+            return JsonResponse(
+                {"success": False, "message": "이메일과 비밀번호를 모두 입력해 주세요."}, status=400
+            )
 
         if User.objects.filter(email=email).exists():
-            return JsonResponse({"success": False, "message": "이미 가입된 이메일입니다."}, status=400)
+            return JsonResponse(
+                {"success": False, "message": "이미 가입된 이메일입니다."}, status=400
+            )
 
         whitelist = WhitelistEmail.objects.filter(email=email).first()
         user = User(email=email, is_onboarded=False)
@@ -310,12 +341,24 @@ def signup_api(request):
             user.role = whitelist.role
             user.session_info = whitelist.session_info
             user.save()
-            return JsonResponse({"success": True, "approved": True, "message": "사전 승인된 계정으로 가입되었습니다. 로그인해 주세요."})
+            return JsonResponse(
+                {
+                    "success": True,
+                    "approved": True,
+                    "message": "사전 승인된 계정으로 가입되었습니다. 로그인해 주세요.",
+                }
+            )
         else:
             user.approval_status = User.ApprovalStatus.PENDING
             user.role = User.Role.STUDENT
             user.save()
-            return JsonResponse({"success": True, "approved": False, "message": "가입 신청되었습니다. 튜터 승인 후 로그인 시 온보딩이 진행됩니다."})
+            return JsonResponse(
+                {
+                    "success": True,
+                    "approved": False,
+                    "message": "가입 신청되었습니다. 튜터 승인 후 로그인 시 온보딩이 진행됩니다.",
+                }
+            )
     except Exception as e:
         return JsonResponse({"success": False, "message": str(e)}, status=500)
 
@@ -329,10 +372,19 @@ def verify_user_for_reset_api(request):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return JsonResponse({"success": False, "message": "해당 이메일의 사용자를 찾을 수 없습니다."}, status=404)
+            return JsonResponse(
+                {"success": False, "message": "해당 이메일의 사용자를 찾을 수 없습니다."},
+                status=404,
+            )
 
-        if phone_number and user.phone_number and user.phone_number.replace("-", "") != phone_number.replace("-", ""):
-            return JsonResponse({"success": False, "message": "등록된 연락처와 일치하지 않습니다."}, status=400)
+        if (
+            phone_number
+            and user.phone_number
+            and user.phone_number.replace("-", "") != phone_number.replace("-", "")
+        ):
+            return JsonResponse(
+                {"success": False, "message": "등록된 연락처와 일치하지 않습니다."}, status=400
+            )
 
         return JsonResponse({"success": True, "message": "본인 인증이 완료되었습니다."})
     except Exception as e:
@@ -348,7 +400,9 @@ def reset_password_api(request):
 
         user = User.objects.filter(email=email).first()
         if not user:
-            return JsonResponse({"success": False, "message": "사용자를 찾을 수 없습니다."}, status=404)
+            return JsonResponse(
+                {"success": False, "message": "사용자를 찾을 수 없습니다."}, status=404
+            )
 
         user.set_password(new_password)
         user.save()
