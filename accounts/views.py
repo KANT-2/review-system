@@ -153,8 +153,8 @@ def mypage_view(request):
     avg_scores = [78, 75, 76, 82, 80]
 
     competency_details = [
-    {"label": lbl, "score": sc} for lbl, sc in zip(competency_labels, my_scores, strict=False)
-]
+        {"label": lbl, "score": sc} for lbl, sc in zip(competency_labels, my_scores, strict=False)
+    ]
 
     peer_feedbacks = [
         {

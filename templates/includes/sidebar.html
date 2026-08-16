@@ -9,44 +9,48 @@
         <i class="bi bi-list fs-5"></i>
       </button>
     </div>
-
     <div class="nav-section-title">학생 포털 (Student)</div>
     <ul class="sidebar-nav">
       <li class="sidebar-nav-item">
-        <a href="{% url 'accounts:dashboard' %}" class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <a href="{% url 'accounts:dashboard' %}"
+           class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
           <i class="bi bi-grid-1x2-fill"></i>
           <span class="nav-text">메인 대시보드</span>
         </a>
       </li>
       <li class="sidebar-nav-item">
-        <a href="{% url 'accounts:mypage' %}" class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}">
+        <a href="{% url 'accounts:mypage' %}"
+           class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}">
           <i class="bi bi-person-lines-fill"></i>
           <span class="nav-text">마이페이지 (역량)</span>
         </a>
       </li>
       <li class="sidebar-nav-item">
-        <a href="#" class="sidebar-nav-link" data-bs-toggle="modal" data-bs-target="#feedbackModal">
+        <a href="#"
+           class="sidebar-nav-link"
+           data-bs-toggle="modal"
+           data-bs-target="#feedbackModal">
           <i class="bi bi-chat-left-text-fill"></i>
           <span class="nav-text">피드백 확인</span>
         </a>
       </li>
     </ul>
-
     {% if user.role == 'TUTOR' or user.role == 'ADMIN' or user.is_staff %}
-    <div class="nav-section-title">관리 및 운영 (Tutor)</div>
-    <ul class="sidebar-nav">
-      <li class="sidebar-nav-item">
-        <a href="{% url 'accounts:tutor_admin' %}" class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_admin' %}active{% endif %}">
-          <i class="bi bi-shield-check"></i>
-          <span class="nav-text">튜터 관리 / 승인</span>
-        </a>
-      </li>
-    </ul>
+      <div class="nav-section-title">관리 및 운영 (Tutor)</div>
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-item">
+          <a href="{% url 'accounts:tutor_admin' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_admin' %}active{% endif %}">
+            <i class="bi bi-shield-check"></i>
+            <span class="nav-text">튜터 관리 / 승인</span>
+          </a>
+        </li>
+      </ul>
     {% endif %}
   </div>
-
   <div class="sidebar-footer">
-    <a href="{% url 'accounts:logout' %}" class="sidebar-nav-link text-danger">
+    <a href="{% url 'accounts:logout' %}"
+       class="sidebar-nav-link text-danger">
       <i class="bi bi-box-arrow-right"></i>
       <span class="nav-text">로그아웃</span>
     </a>

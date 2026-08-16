@@ -1,35 +1,31 @@
 {% extends "base.html" %}
-
 {% block title %}회원가입 - AX Evaluation Console{% endblock %}
-
 {% block auth_content %}
-<div class="card-custom p-4 p-sm-5 shadow-sm">
-  <div class="text-center mb-4">
-    <div class="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-3 mb-3" style="width: 48px; height: 48px;">
-      <i class="bi bi-person-plus-fill fs-4"></i>
+  <div class="card-custom p-4 p-sm-5 shadow-sm">
+    <div class="text-center mb-4">
+      <div class="icon-box-48 d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-3 mb-3">
+        <i class="bi bi-person-plus-fill fs-4"></i>
+      </div>
+      <h4 class="fw-bold mb-1">회원가입</h4>
+      <p class="text-muted small">부트캠프 수강생 및 튜터 계정을 생성하세요.</p>
     </div>
-    <h4 class="fw-bold mb-1">회원가입</h4>
-    <p class="text-muted small">부트캠프 수강생 및 튜터 계정을 생성하세요.</p>
-  </div>
-
-  <form method="post">
-    {% csrf_token %}
-    {% for field in form %}
-    <div class="mb-3">
-      <label class="form-label small fw-bold">{{ field.label }}</label>
-      {{ field }}
-      {% if field.errors %}
-      <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
-      {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}
+            <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-ax-primary w-100 py-2 mt-2">가입 완료</button>
+    </form>
+    <div class="text-center pt-3 mt-3 border-top">
+      <span class="text-muted small">이미 계정이 있으신가요?</span>
+      <a href="{% url 'accounts:login' %}"
+         class="small fw-bold text-primary text-decoration-none ms-1">로그인</a>
     </div>
-    {% endfor %}
-
-    <button type="submit" class="btn btn-ax-primary w-100 py-2 mt-2">가입 완료</button>
-  </form>
-
-  <div class="text-center pt-3 mt-3 border-top">
-    <span class="text-muted small">이미 계정이 있으신가요?</span>
-    <a href="{% url 'accounts:login' %}" class="small fw-bold text-primary text-decoration-none ms-1">로그인</a>
   </div>
-</div>
 {% endblock %}

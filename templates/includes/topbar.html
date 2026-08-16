@@ -1,31 +1,36 @@
 <header id="topbar">
   <div class="topbar-breadcrumb d-flex align-items-center gap-2 small text-muted">
     <i class="bi bi-house"></i> AX Console
-    <i class="bi bi-chevron-right" style="font-size: 11px;"></i>
+    <i class="font-size-11 bi bi-chevron-right"></i>
     <span class="current text-dark fw-semibold">{% block breadcrumb %}포털{% endblock %}</span>
   </div>
-
   <div class="topbar-actions d-flex align-items-center gap-3">
     <!-- 알림 버튼 -->
-    <button class="btn btn-sm btn-ax-secondary position-relative" data-bs-toggle="modal" data-bs-target="#feedbackModal" title="알림 및 피드백">
+    <button class="btn btn-sm btn-ax-secondary position-relative"
+            data-bs-toggle="modal"
+            data-bs-target="#feedbackModal"
+            title="알림 및 피드백">
       <i class="bi bi-bell"></i>
       <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
     </button>
-
     <!-- 사용자 프로필 드롭다운 -->
     <div class="dropdown">
-      <button class="btn btn-sm d-flex align-items-center gap-2 p-1 pe-2 rounded-pill border" data-bs-toggle="dropdown">
-        <div class="member-avatar" style="width: 28px; height: 28px; font-size: 11px;">
-          {{ user.first_name|default:user.username|slice:":1" }}
-        </div>
+      <button class="btn btn-sm d-flex align-items-center gap-2 p-1 pe-2 rounded-pill border"
+              data-bs-toggle="dropdown">
+        <div class="member-avatar avatar-xs">{{ user.first_name|default:user.username|slice:":1" }}</div>
         <span class="fw-semibold small">{{ user.first_name|default:user.username }} ({{ user.session_info|default:"기수미지정" }})</span>
-        <i class="bi bi-chevron-down text-muted" style="font-size: 11px;"></i>
+        <i class="font-size-11 bi bi-chevron-down text-muted"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-        <li><h6 class="dropdown-header">{{ user.get_role_display }} 계정</h6></li>
+        <li>
+          <h6 class="dropdown-header">{{ user.get_role_display }} 계정</h6>
+        </li>
         <li><a class="dropdown-item small" href="{% url 'accounts:mypage' %}"><i class="bi bi-person-lines-fill me-2"></i>마이페이지</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item small text-danger" href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>로그아웃</a></li>
+        <li>
+          <hr class="dropdown-divider">
+        </li>
+        <li><a class="dropdown-item small text-danger"
+   href="{% url 'accounts:logout' %}"><i class="bi bi-box-arrow-right me-2"></i>로그아웃</a></li>
       </ul>
     </div>
   </div>

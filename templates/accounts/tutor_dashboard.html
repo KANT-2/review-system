@@ -1,144 +1,153 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>튜터 관리 콘솔 - AX 평가 시스템</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-  <style>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AX 평가 시스템 튜터 관리 콘솔">
+    <title>튜터 관리 콘솔 - AX 평가 시스템</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
     body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .card { border-radius: 12px; border: 1px solid #e2e8f0; }
     .table th { font-weight: 600; color: #475569; background-color: #f8fafc; }
     .badge-kakao { background-color: #FEE500; color: #191919; }
     .badge-google { background-color: #ffffff; color: #374151; border: 1px solid #d1d5db; }
-  </style>
-</head>
-<body>
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 py-3 shadow-sm">
-  <div class="container-fluid">
-    <span class="navbar-brand fw-bold">
-      <i class="bi bi-layers-fill text-primary me-2"></i>AX 평가 시스템 | 튜터 콘솔
-    </span>
-    <div class="d-flex align-items-center text-white gap-3">
-      <span><i class="bi bi-person-badge me-1"></i>{{ request.user.first_name|default:request.user.email }} (튜터)</span>
-      <a href="{% url 'accounts:logout' %}" class="btn btn-sm btn-outline-light">로그아웃</a>
-    </div>
-  </div>
-</nav>
-
-<div class="container py-5">
-  <!-- 메시지 알림 -->
-  {% if messages %}
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm mb-4" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 py-3 shadow-sm">
+      <div class="container-fluid">
+        <span class="navbar-brand fw-bold">
+          <i class="bi bi-layers-fill text-primary me-2"></i>AX 평가 시스템 | 튜터 콘솔
+        </span>
+        <div class="d-flex align-items-center text-white gap-3">
+          <span><i class="bi bi-person-badge me-1"></i>{{ request.user.first_name|default:request.user.email }} (튜터)</span>
+          <a href="{% url 'accounts:logout' %}"
+             class="btn btn-sm btn-outline-light">로그아웃</a>
+        </div>
       </div>
-    {% endfor %}
-  {% endif %}
-
-  <!-- 요약 통계 카드 -->
-  <div class="row g-4 mb-4">
-    <div class="col-md-4">
-      <div class="card p-3 shadow-sm">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="text-muted small">승인 대기 인원</div>
-            <div class="fs-3 fw-bold text-warning">{{ pending_users.count }}명</div>
+    </nav>
+    <div class="container py-5">
+      <!-- 메시지 알림 -->
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm mb-4"
+               role="alert">
+            {{ message }}
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"></button>
           </div>
-          <i class="bi bi-clock-history fs-1 text-warning"></i>
+        {% endfor %}
+      {% endif %}
+      <!-- 요약 통계 카드 -->
+      <div class="row g-4 mb-4">
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-muted small">승인 대기 인원</div>
+                <div class="fs-3 fw-bold text-warning">{{ pending_users.count }}명</div>
+              </div>
+              <i class="bi bi-clock-history fs-1 text-warning"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-muted small">승인 완료 수강생</div>
+                <div class="fs-3 fw-bold text-primary">{{ approved_students_count }}명</div>
+              </div>
+              <i class="bi bi-people-fill fs-1 text-primary"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3 shadow-sm">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-muted small">화이트리스트 등록</div>
+                <div class="fs-3 fw-bold text-success">{{ whitelist_count }}건</div>
+              </div>
+              <i class="bi bi-shield-check fs-1 text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 승인 대기 목록 테이블 -->
+      <div class="card shadow-sm mb-5">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-check-fill text-primary me-2"></i>수강생 가입 승인 대기 목록</h5>
+          <span class="badge bg-secondary">총 {{ pending_users.count }}건</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="ps-4">이름 / 닉네임</th>
+                <th>이메일</th>
+                <th>가입 방식</th>
+                <th>신청 일시</th>
+                <th class="text-center">승인 관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pending_user in pending_users %}
+                <tr>
+                  <td class="ps-4 fw-bold">{{ pending_user.first_name|default:"(이름 미입력)" }}</td>
+                  <td>{{ pending_user.email }}</td>
+                  <td>
+                    {% if pending_user.login_provider == 'kakao' %}
+                      <span class="badge badge-kakao shadow-sm">
+                        <i class="bi bi-chat-fill me-1"></i>카카오
+                      </span>
+                    {% elif pending_user.login_provider == 'google' %}
+                      <span class="badge badge-google shadow-sm">
+                        <i class="bi bi-google text-danger me-1"></i>구글
+                      </span>
+                    {% else %}
+                      <span class="badge bg-secondary">
+                        <i class="bi bi-envelope-fill me-1"></i>이메일
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted small">{{ pending_user.date_joined|date:"Y-m-d H:i" }}</td>
+                  <td class="text-center">
+                    <form action="{% url 'accounts:approve_user' pending_user.id %}"
+                          method="post"
+                          class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-primary px-3 shadow-sm">승인</button>
+                    </form>
+                    <form action="{% url 'accounts:reject_user' pending_user.id %}"
+                          method="post"
+                          class="d-inline ms-1">
+                      {% csrf_token %}
+                      <button type="submit"
+                              class="btn btn-sm btn-outline-danger px-3 shadow-sm"
+                              onclick="return confirm('해당 계정을 반려 처리하시겠습니까?');">반려</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-5">
+                    <i class="bi bi-check2-circle fs-2 d-block mb-2 text-success"></i>
+                    현재 승인 대기 중인 신청 건이 없습니다.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card p-3 shadow-sm">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="text-muted small">승인 완료 수강생</div>
-            <div class="fs-3 fw-bold text-primary">{{ approved_students_count }}명</div>
-          </div>
-          <i class="bi bi-people-fill fs-1 text-primary"></i>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card p-3 shadow-sm">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="text-muted small">화이트리스트 등록</div>
-            <div class="fs-3 fw-bold text-success">{{ whitelist_count }}건</div>
-          </div>
-          <i class="bi bi-shield-check fs-1 text-success"></i>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 승인 대기 목록 테이블 -->
-  <div class="card shadow-sm mb-5">
-    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-      <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-check-fill text-primary me-2"></i>수강생 가입 승인 대기 목록</h5>
-      <span class="badge bg-secondary">총 {{ pending_users.count }}건</span>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">이름 / 닉네임</th>
-            <th>이메일</th>
-            <th>가입 방식</th>
-            <th>신청 일시</th>
-            <th class="text-center">승인 관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for pending_user in pending_users %}
-          <tr>
-            <td class="ps-4 fw-bold">{{ pending_user.first_name|default:"(이름 미입력)" }}</td>
-            <td>{{ pending_user.email }}</td>
-            <td>
-              {% if pending_user.login_provider == 'kakao' %}
-                <span class="badge badge-kakao shadow-sm">
-                  <i class="bi bi-chat-fill me-1"></i>카카오
-                </span>
-              {% elif pending_user.login_provider == 'google' %}
-                <span class="badge badge-google shadow-sm">
-                  <i class="bi bi-google text-danger me-1"></i>구글
-                </span>
-              {% else %}
-                <span class="badge bg-secondary">
-                  <i class="bi bi-envelope-fill me-1"></i>이메일
-                </span>
-              {% endif %}
-            </td>
-            <td class="text-muted small">{{ pending_user.date_joined|date:"Y-m-d H:i" }}</td>
-            <td class="text-center">
-              <form action="{% url 'accounts:approve_user' pending_user.id %}" method="post" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-primary px-3 shadow-sm">승인</button>
-              </form>
-              <form action="{% url 'accounts:reject_user' pending_user.id %}" method="post" class="d-inline ms-1">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-danger px-3 shadow-sm" onclick="return confirm('해당 계정을 반려 처리하시겠습니까?');">반려</button>
-              </form>
-            </td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="5" class="text-center text-muted py-5">
-              <i class="bi bi-check2-circle fs-2 d-block mb-2 text-success"></i>
-              현재 승인 대기 중인 신청 건이 없습니다.
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
 </html>

@@ -1,218 +1,242 @@
 {% extends "base.html" %}
-
 {% block title %}마이페이지 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}마이페이지 (역량 리포트){% endblock %}
-
 {% block content %}
-<div class="page-header">
-  <div>
-    <h1 class="page-title">마이페이지 & 역량 분석 리포트</h1>
-    <p class="page-desc">8주간 누적된 정량/정성 평가를 바탕으로 분석된 역량 현황입니다.</p>
-  </div>
-  <button class="btn btn-ax-primary" data-bs-toggle="modal" data-bs-target="#profileModal">
-    <i class="bi bi-person-gear me-1"></i> 프로필 수정
-  </button>
-</div>
-
-<!-- Profile Banner -->
-<div class="card-custom mb-4">
-  <div class="card-body-custom">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-      <div class="d-flex align-items-center gap-3">
-        <div class="member-avatar" id="avatarDisplay" style="width: 56px; height: 56px; font-size: 20px;">
-          {{ user.first_name|default:user.username|slice:":1" }}
-        </div>
-        <div>
-          <div class="d-flex align-items-center gap-2">
-            <h5 class="fw-bold mb-0" id="nameDisplay">{{ user.first_name|default:user.username }}</h5>
-            <span class="badge bg-primary">{{ user.session_info|default:"4기 풀스택 트랙" }}</span>
-            <span class="badge bg-dark">8주차 진행중</span>
-          </div>
-          <div class="text-muted small mt-1">
-            {{ user.email }} · <span id="phoneDisplay">{{ user.phone|default:"010-1234-5678" }}</span>
-          </div>
-        </div>
-      </div>
-      <div class="d-flex gap-2">
-        <div class="text-end pe-3 border-end">
-          <div class="text-muted small">8주 누적 종합 점수</div>
-          <div class="fw-bold fs-5 text-primary">{{ competencies.total_avg|default:"4.62" }} / 5.0</div>
-        </div>
-        <div class="text-end ps-2">
-          <div class="text-muted small">누적 피드백 수</div>
-          <div class="fw-bold fs-5 text-dark">{{ competencies.feedback_count|default:"12" }}건</div>
-        </div>
-      </div>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">마이페이지 & 역량 분석 리포트</h1>
+      <p class="page-desc">8주간 누적된 정량/정성 평가를 바탕으로 분석된 역량 현황입니다.</p>
     </div>
+    <button class="btn btn-ax-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#profileModal">
+      <i class="bi bi-person-gear me-1"></i> 프로필 수정
+    </button>
   </div>
-</div>
-
-<div class="row g-4">
-  <!-- 5대 역량 시각화 (7 Col) -->
-  <div class="col-12 col-lg-7">
-    <div class="card-custom h-100">
-      <div class="card-header-custom">
-        <div class="card-title-custom"><i class="bi bi-diagram-3-fill text-primary"></i> 5대 역량 시각화 (Radar Chart)</div>
-        <span class="badge badge-ax badge-ax-completed">정량 평가 100% 반영</span>
-      </div>
-      <div class="card-body-custom">
-        <div class="d-flex justify-content-center my-2">
-          <svg width="300" height="260" viewBox="0 0 300 260">
-            <polygon points="150,20 270,105 225,235 75,235 30,105" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1"/>
-            <polygon points="150,55 235,115 200,210 100,210 65,115" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1"/>
-            <polygon points="150,90 200,125 180,185 120,185 100,125" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
-            <polygon points="150,30 255,108 192,218 112,192 48,108" fill="rgba(23, 105, 224, 0.25)" stroke="#1769E0" stroke-width="2.5"/>
-            <circle cx="150" cy="30" r="4" fill="#1769E0"/>
-            <circle cx="255" cy="108" r="4" fill="#1769E0"/>
-            <circle cx="192" cy="218" r="4" fill="#1769E0"/>
-            <circle cx="112" cy="192" r="4" fill="#1769E0"/>
-            <circle cx="48" cy="108" r="4" fill="#1769E0"/>
-            <text x="150" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">팀워크 ({{ competencies.teamwork|default:"4.8" }})</text>
-            <text x="280" y="110" text-anchor="start" font-size="12" font-weight="bold" fill="#182230">문제해결 ({{ competencies.problem_solving|default:"4.5" }})</text>
-            <text x="210" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">책임감 ({{ competencies.responsibility|default:"4.7" }})</text>
-            <text x="90" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</text>
-            <text x="15" y="110" text-anchor="end" font-size="12" font-weight="bold" fill="#182230">커뮤니케이션 ({{ competencies.communication|default:"4.9" }})</text>
-          </svg>
-        </div>
-        <div class="row g-2 mt-3">
-          <div class="col-6">
-            <div class="p-3 bg-light rounded-3 border">
-              <div class="badge badge-ax badge-ax-completed mb-1"><i class="bi bi-trophy-fill me-1"></i>가장 뛰어난 역량</div>
-              <div class="fw-bold small text-dark">커뮤니케이션 ({{ competencies.communication|default:"4.9" }}), 팀워크 ({{ competencies.teamwork|default:"4.8" }})</div>
+  <!-- Profile Banner -->
+  <div class="card-custom mb-4">
+    <div class="card-body-custom">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="member-avatar avatar-lg" id="avatarDisplay">{{ user.first_name|default:user.username|slice:":1" }}</div>
+          <div>
+            <div class="d-flex align-items-center gap-2">
+              <h5 class="fw-bold mb-0" id="nameDisplay">{{ user.first_name|default:user.username }}</h5>
+              <span class="badge bg-primary">{{ user.session_info|default:"4기 풀스택 트랙" }}</span>
+              <span class="badge bg-dark">8주차 진행중</span>
             </div>
-          </div>
-          <div class="col-6">
-            <div class="p-3 bg-light rounded-3 border">
-              <div class="badge badge-ax badge-ax-warning mb-1"><i class="bi bi-lightbulb-fill me-1"></i>보완 필요 역량</div>
-              <div class="fw-bold small text-dark">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</div>
+            <div class="text-muted small mt-1">
+              {{ user.email }} · <span id="phoneDisplay">{{ user.phone|default:"010-1234-5678" }}</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 피드백 미리보기 & 주차별 상세 이력 (5 Col) -->
-  <div class="col-12 col-lg-5">
-    <div class="card-custom mb-4">
-      <div class="card-header-custom">
-        <div class="card-title-custom"><i class="bi bi-chat-quote-fill text-primary"></i> 최근 받은 피드백</div>
-        <button class="btn btn-sm btn-ax-secondary" data-bs-toggle="modal" data-bs-target="#feedbackModal">전체 12건 보기 ></button>
-      </div>
-      <div class="card-body-custom p-0">
-        <div class="list-group list-group-flush small">
-          {% for rf in recent_feedbacks %}
-          <div class="list-group-item p-3">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="badge {{ rf.badge_class }}">{{ rf.badge }}</span>
-              <span class="text-muted" style="font-size: 11px;">{{ rf.week }}</span>
-            </div>
-            <p class="mb-0 text-dark">"{{ rf.text }}"</p>
+        <div class="d-flex gap-2">
+          <div class="text-end pe-3 border-end">
+            <div class="text-muted small">8주 누적 종합 점수</div>
+            <div class="fw-bold fs-5 text-primary">{{ competencies.total_avg|default:"4.62" }} / 5.0</div>
           </div>
-          {% endfor %}
+          <div class="text-end ps-2">
+            <div class="text-muted small">누적 피드백 수</div>
+            <div class="fw-bold fs-5 text-dark">{{ competencies.feedback_count|default:"12" }}건</div>
+          </div>
         </div>
       </div>
     </div>
-
-    <div class="card-custom">
-      <div class="card-header-custom">
-        <div class="card-title-custom"><i class="bi bi-clock-history text-muted"></i> 주차별 상세 이력</div>
-        <select class="form-select form-select-sm w-auto" id="historySelect" onchange="handleHistoryChange(this.value)">
-          {% for wh in weeks_history %}
-          <option value="{{ wh.week }}" {% if forloop.first %}selected{% endif %}>{{ wh.week }}주차 ({{ wh.team }})</option>
-          {% endfor %}
-        </select>
+  </div>
+  <div class="row g-4">
+    <!-- 5대 역량 시각화 (7 Col) -->
+    <div class="col-12 col-lg-7">
+      <div class="card-custom h-100">
+        <div class="card-header-custom">
+          <div class="card-title-custom"><i class="bi bi-diagram-3-fill text-primary"></i> 5대 역량 시각화 (Radar Chart)</div>
+          <span class="badge badge-ax badge-ax-completed">정량 평가 100% 반영</span>
+        </div>
+        <div class="card-body-custom">
+          <div class="d-flex justify-content-center my-2">
+            <svg width="300" height="260" viewBox="0 0 300 260">
+              <polygon points="150,20 270,105 225,235 75,235 30,105" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1" />
+              <polygon points="150,55 235,115 200,210 100,210 65,115" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1" />
+              <polygon points="150,90 200,125 180,185 120,185 100,125" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1" />
+              <polygon points="150,30 255,108 192,218 112,192 48,108" fill="rgba(23, 105, 224, 0.25)" stroke="#1769E0" stroke-width="2.5" />
+              <circle cx="150" cy="30" r="4" fill="#1769E0" />
+              <circle cx="255" cy="108" r="4" fill="#1769E0" />
+              <circle cx="192" cy="218" r="4" fill="#1769E0" />
+              <circle cx="112" cy="192" r="4" fill="#1769E0" />
+              <circle cx="48" cy="108" r="4" fill="#1769E0" />
+              <text x="150" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">팀워크 ({{ competencies.teamwork|default:"4.8" }})</text>
+              <text x="280" y="110" text-anchor="start" font-size="12" font-weight="bold" fill="#182230">문제해결 ({{ competencies.problem_solving|default:"4.5" }})</text>
+              <text x="210" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">책임감 ({{ competencies.responsibility|default:"4.7" }})</text>
+              <text x="90" y="255" text-anchor="middle" font-size="12" font-weight="bold" fill="#182230">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</text>
+              <text x="15" y="110" text-anchor="end" font-size="12" font-weight="bold" fill="#182230">커뮤니케이션 ({{ competencies.communication|default:"4.9" }})</text>
+            </svg>
+          </div>
+          <div class="row g-2 mt-3">
+            <div class="col-6">
+              <div class="p-3 bg-light rounded-3 border">
+                <div class="badge badge-ax badge-ax-completed mb-1"><i class="bi bi-trophy-fill me-1"></i>가장 뛰어난 역량</div>
+                <div class="fw-bold small text-dark">커뮤니케이션 ({{ competencies.communication|default:"4.9" }}), 팀워크 ({{ competencies.teamwork|default:"4.8" }})</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="p-3 bg-light rounded-3 border">
+                <div class="badge badge-ax badge-ax-warning mb-1"><i class="bi bi-lightbulb-fill me-1"></i>보완 필요 역량</div>
+                <div class="fw-bold small text-dark">개발이해도 ({{ competencies.dev_knowledge|default:"4.2" }})</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card-body-custom" id="historyCardBody"></div>
+    </div>
+    <!-- 피드백 미리보기 & 주차별 상세 이력 (5 Col) -->
+    <div class="col-12 col-lg-5">
+      <div class="card-custom mb-4">
+        <div class="card-header-custom">
+          <div class="card-title-custom"><i class="bi bi-chat-quote-fill text-primary"></i> 최근 받은 피드백</div>
+          <button class="btn btn-sm btn-ax-secondary"
+                  data-bs-toggle="modal"
+                  data-bs-target="#feedbackModal">전체 12건 보기 ></button>
+        </div>
+        <div class="card-body-custom p-0">
+          <div class="list-group list-group-flush small">
+            {% for rf in recent_feedbacks %}
+              <div class="list-group-item p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="badge {{ rf.badge_class }}">{{ rf.badge }}</span>
+                  <span class="font-size-11 text-muted">{{ rf.week }}</span>
+                </div>
+                <p class="mb-0 text-dark">"{{ rf.text }}"</p>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="card-custom">
+        <div class="card-header-custom">
+          <div class="card-title-custom"><i class="bi bi-clock-history text-muted"></i> 주차별 상세 이력</div>
+          <select class="form-select form-select-sm w-auto"
+                  id="historySelect"
+                  onchange="handleHistoryChange(this.value)">
+            {% for wh in weeks_history %}
+              <option value="{{ wh.week }}" {% if forloop.first %}selected{% endif %}>{{ wh.week }}주차 ({{ wh.team }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="card-body-custom" id="historyCardBody"></div>
+      </div>
     </div>
   </div>
-</div>
 {% endblock %}
-
 {% block modals %}
-<!-- 프로필 수정 및 비밀번호 변경 모달 -->
-<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content rounded-4 border-0 shadow">
-      <div class="modal-header border-bottom px-4 py-3">
-        <h6 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>프로필 및 계정 설정</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form id="profileForm" onsubmit="handleProfileSubmit(event)">
-        {% csrf_token %}
-        <div class="modal-body p-4">
-          <!-- 성공 알림 배너 -->
-          <div id="modalSuccessBanner" class="alert alert-success d-none py-2 px-3 small rounded-3 mb-3">
-            <i class="bi bi-check-circle-fill me-1"></i> <span id="modalSuccessMsg">비밀번호가 성공적으로 변경되었습니다!</span>
-          </div>
-
-          <div class="text-center mb-3">
-            <div class="member-avatar mx-auto mb-2" id="modalAvatarDisplay" style="width:64px; height:64px; font-size:24px;">{{ user.first_name|default:user.username|slice:":1" }}</div>
-            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" onclick="window.showToast('프로필 이미지 변경 기능은 준비 중입니다.')">사진 변경</button>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-bold">이름 (실명) *</label>
-            <input type="text" id="inputName" name="name" class="form-control form-control-sm" value="{{ user.first_name|default:user.username }}" required>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-bold">가입 이메일</label>
-            <input type="email" class="form-control form-control-sm bg-light text-muted" value="{{ user.email }}" readonly>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label small fw-bold">연락처</label>
-            <input type="text" id="inputPhone" name="phone" class="form-control form-control-sm" value="{{ user.phone|default:'010-1234-5678' }}" placeholder="010-0000-0000">
-          </div>
-
-          <!-- 비밀번호 변경 토글 -->
-          <hr class="my-3 text-muted">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <label class="form-label small fw-bold mb-0"><i class="bi bi-shield-lock me-1"></i>비밀번호 변경</label>
+  <!-- 프로필 수정 및 비밀번호 변경 모달 -->
+  <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom px-4 py-3">
+          <h6 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>프로필 및 계정 설정</h6>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        <form id="profileForm" onsubmit="handleProfileSubmit(event)">
+          {% csrf_token %}
+          <div class="modal-body p-4">
+            <!-- 성공 알림 배너 -->
+            <div id="modalSuccessBanner"
+                 class="alert alert-success d-none py-2 px-3 small rounded-3 mb-3">
+              <i class="bi bi-check-circle-fill me-1"></i> <span id="modalSuccessMsg">비밀번호가 성공적으로 변경되었습니다!</span>
+            </div>
+            <div class="text-center mb-3">
+              <div class="member-avatar avatar-xl mx-auto mb-2" id="modalAvatarDisplay">{{ user.first_name|default:user.username|slice:":1" }}</div>
+              <button type="button"
+                      class="btn btn-sm btn-outline-secondary rounded-pill"
+                      onclick="window.showToast('프로필 이미지 변경 기능은 준비 중입니다.')">사진 변경</button>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">이름 (실명) *</label>
+              <input type="text"
+                     id="inputName"
+                     name="name"
+                     class="form-control form-control-sm"
+                     value="{{ user.first_name|default:user.username }}"
+                     required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">가입 이메일</label>
+              <input type="email"
+                     class="form-control form-control-sm bg-light text-muted"
+                     value="{{ user.email }}"
+                     readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">연락처</label>
+              <input type="text"
+                     id="inputPhone"
+                     name="phone"
+                     class="form-control form-control-sm"
+                     value="{{ user.phone|default:'010-1234-5678' }}"
+                     placeholder="010-0000-0000">
+            </div>
+            <!-- 비밀번호 변경 토글 -->
+            <hr class="my-3 text-muted">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="form-label small fw-bold mb-0"><i class="bi bi-shield-lock me-1"></i>비밀번호 변경</label>
+              {% if not user.is_social_account %}
+                <button type="button"
+                        class="btn btn-sm btn-link text-decoration-none p-0 small text-primary fw-semibold"
+                        id="togglePasswordBtn"
+                        onclick="togglePasswordSection()">
+                  변경하기 <i class="bi bi-chevron-down ms-1" id="pwToggleIcon"></i>
+                </button>
+              {% else %}
+                <span class="font-size-11 badge bg-light text-muted border">구글 소셜 계정</span>
+              {% endif %}
+            </div>
             {% if not user.is_social_account %}
-            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 small text-primary fw-semibold" id="togglePasswordBtn" onclick="togglePasswordSection()">
-              변경하기 <i class="bi bi-chevron-down ms-1" id="pwToggleIcon"></i>
-            </button>
-            {% else %}
-            <span class="badge bg-light text-muted border" style="font-size: 11px;">구글 소셜 계정</span>
+              <div id="passwordChangeSection"
+                   class="password-change-section p-3 bg-light rounded-3 border">
+                <div class="mb-2">
+                  <label class="form-label small text-muted">현재 비밀번호 *</label>
+                  <input type="password"
+                         id="inputCurrentPassword"
+                         name="current_password"
+                         class="form-control form-control-sm"
+                         placeholder="현재 비밀번호">
+                  <div class="text-danger small mt-1 d-none" id="errorCurrentPw"></div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small text-muted">새 비밀번호 *</label>
+                  <input type="password"
+                         id="inputNewPassword"
+                         name="new_password"
+                         class="form-control form-control-sm"
+                         placeholder="최소 6자 이상">
+                  <div class="text-danger small mt-1 d-none" id="errorNewPw"></div>
+                </div>
+                <div>
+                  <label class="form-label small text-muted">새 비밀번호 확인 *</label>
+                  <input type="password"
+                         id="inputNewPasswordConfirm"
+                         name="new_password_confirm"
+                         class="form-control form-control-sm"
+                         placeholder="새 비밀번호 재입력">
+                  <div class="text-danger small mt-1 d-none" id="errorConfirmPw"></div>
+                </div>
+                <small class="font-size-11 text-muted d-block mt-2">* 비밀번호를 변경하지 않으려면 빈칸으로 두세요.</small>
+              </div>
             {% endif %}
           </div>
-
-          {% if not user.is_social_account %}
-          <div id="passwordChangeSection" style="display: none;" class="p-3 bg-light rounded-3 border">
-            <div class="mb-2">
-              <label class="form-label small text-muted">현재 비밀번호 *</label>
-              <input type="password" id="inputCurrentPassword" name="current_password" class="form-control form-control-sm" placeholder="현재 비밀번호">
-              <div class="text-danger small mt-1 d-none" id="errorCurrentPw"></div>
-            </div>
-            <div class="mb-2">
-              <label class="form-label small text-muted">새 비밀번호 *</label>
-              <input type="password" id="inputNewPassword" name="new_password" class="form-control form-control-sm" placeholder="최소 6자 이상">
-              <div class="text-danger small mt-1 d-none" id="errorNewPw"></div>
-            </div>
-            <div>
-              <label class="form-label small text-muted">새 비밀번호 확인 *</label>
-              <input type="password" id="inputNewPasswordConfirm" name="new_password_confirm" class="form-control form-control-sm" placeholder="새 비밀번호 재입력">
-              <div class="text-danger small mt-1 d-none" id="errorConfirmPw"></div>
-            </div>
-            <small class="text-muted d-block mt-2" style="font-size: 11px;">* 비밀번호를 변경하지 않으려면 빈칸으로 두세요.</small>
+          <div class="modal-footer border-top-0 px-4 pb-3">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-ax-primary" id="profileSaveBtn">저장하기</button>
           </div>
-          {% endif %}
-        </div>
-
-        <div class="modal-footer border-top-0 px-4 pb-3">
-          <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
-          <button type="submit" class="btn btn-ax-primary" id="profileSaveBtn">저장하기</button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   </div>
-</div>
 {% endblock %}
-
 {% block extra_js %}
-<script>
+  <script>
   const historyData = {
     {% for wh in weeks_history %}
     "{{ wh.week }}": {
@@ -405,5 +429,5 @@
       window.showModernAlert('오류', '서버 통신 중 문제가 발생했습니다.', 'bi-exclamation-triangle-fill text-danger');
     });
   }
-</script>
+  </script>
 {% endblock %}

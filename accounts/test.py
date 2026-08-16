@@ -36,12 +36,14 @@ class AccountsTests(TestCase):
         """화이트리스트 등록 유저의 가입 시 즉시 APPROVED 승인 검증"""
         response = self.client.post(
             reverse("accounts:api_signup"),
-            data=json.dumps({
-                "email": "whitelist@ax.com",
-                "password": "password123!",
-                "first_name": "화이트",
-                "phone_number": "010-1111-2222",
-            }),
+            data=json.dumps(
+                {
+                    "email": "whitelist@ax.com",
+                    "password": "password123!",
+                    "first_name": "화이트",
+                    "phone_number": "010-1111-2222",
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -52,12 +54,14 @@ class AccountsTests(TestCase):
         """화이트리스트 미등록 유저의 가입 시 PENDING 승인 대기 검증"""
         response = self.client.post(
             reverse("accounts:api_signup"),
-            data=json.dumps({
-                "email": "newbie@ax.com",
-                "password": "password123!",
-                "first_name": "신규",
-                "phone_number": "010-3333-4444",
-            }),
+            data=json.dumps(
+                {
+                    "email": "newbie@ax.com",
+                    "password": "password123!",
+                    "first_name": "신규",
+                    "phone_number": "010-3333-4444",
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -115,11 +119,13 @@ class AccountsTests(TestCase):
         self.client.force_login(self.approved_student)
         response = self.client.post(
             reverse("accounts:api_update_profile"),
-            data=json.dumps({
-                "first_name": "김수정",
-                "session_info": "3기 종합반",
-                "phone_number": "010-8888-7777",
-            }),
+            data=json.dumps(
+                {
+                    "first_name": "김수정",
+                    "session_info": "3기 종합반",
+                    "phone_number": "010-8888-7777",
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
