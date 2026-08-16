@@ -1,0 +1,263 @@
+:root {
+  --teams-line: #e2e8f0;
+  --teams-muted: #667085;
+}
+
+.teams-workspace {
+  color: #182230;
+}
+
+.teams-heading {
+  margin-bottom: 16px;
+}
+
+.teams-heading h1 {
+  margin: 5px 0 3px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.teams-heading p {
+  margin: 0;
+  color: var(--teams-muted);
+  font-size: 14px;
+}
+
+.teams-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eaf2ff;
+  color: #1769e0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.teams-status.closed {
+  background: #f0f2f5;
+  color: #596474;
+}
+
+.teams-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--teams-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.teams-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.teams-toolbar select {
+  width: 64px;
+}
+
+.teams-metric {
+  padding: 6px 9px;
+  border: 1px solid #d2ebdc;
+  border-radius: 6px;
+  background: #eff9f3;
+  color: #168a50;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.teams-metric.neutral {
+  border-color: var(--teams-line);
+  background: #f7f8fa;
+  color: var(--teams-muted);
+}
+
+.teams-metric.warn {
+  border-color: #f0d59b;
+  background: #fff9eb;
+  color: #9a5b0a;
+}
+
+.teams-spacer {
+  flex: 1;
+}
+
+.teams-waiting {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #f0d59b;
+  border-radius: 10px;
+  background: #fff9eb;
+}
+
+.teams-waiting strong {
+  color: #713b00;
+}
+
+.teams-chip {
+  display: inline-flex;
+  margin: 8px 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid #e4c47e;
+  border-radius: 18px;
+  background: #fff;
+  font-weight: 600;
+  cursor: grab;
+}
+
+.teams-board {
+  padding: 16px;
+  border: 1px solid var(--teams-line);
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+.teams-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.teams-row:last-child {
+  margin-bottom: 0;
+}
+
+.team-card {
+  width: var(--w);
+  flex: 0 0 var(--w);
+  overflow: hidden;
+  border: 1px solid var(--teams-line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 7px #1822300e;
+}
+
+.team-card.mine {
+  border: 2px solid #1769e0;
+}
+
+.team-card.over {
+  box-shadow: 0 0 0 3px #1769e025;
+}
+
+.team-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--teams-line);
+  background: #fafbfd;
+}
+
+.team-card h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.mine-label {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #eaf2ff;
+  color: #1769e0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.members {
+  min-height: 116px;
+  padding: 7px;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  padding: 7px 8px;
+  border: 1px solid #edf0f4;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 600;
+}
+
+.member[draggable="true"] {
+  cursor: grab;
+}
+
+.member.me {
+  border-color: #b8d2f7;
+  background: #f3f8ff;
+}
+
+.member-initial {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf2f7;
+  font-size: 11px;
+}
+
+.me-tag {
+  margin-left: auto;
+  color: #1769e0;
+  font-size: 11px;
+}
+
+.teams-legend {
+  margin: 10px 0 0;
+  color: var(--teams-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.teams-empty {
+  max-width: 560px;
+  margin: 54px auto;
+  padding: 24px 32px;
+  border: 1px solid var(--teams-line);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+}
+
+.teams-empty img {
+  width: 210px;
+  height: 165px;
+  object-fit: contain;
+}
+
+.teams-empty h2 {
+  font-size: 18px;
+}
+
+.teams-empty p {
+  color: var(--teams-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .teams-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .teams-row {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .team-card {
+    width: min(100%, 310px);
+    flex-basis: auto;
+  }
+}

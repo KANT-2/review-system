@@ -1,0 +1,497 @@
+{% load socialaccount %}
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AX 평가 시스템 로그인">
+    <title>로그인 - AX 평가 시스템</title>
+    <!-- Bootstrap 5 CSS & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+    body {
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-container {
+      max-width: 440px;
+      width: 100%;
+      padding: 1.5rem;
+    }
+    .login-card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+      padding: 2.5rem 2rem;
+    }
+    .app-icon {
+      width: 52px;
+      height: 52px;
+      background-color: #3b82f6;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    /* 원형 소셜 로그인 버튼 스타일 */
+    .social-circle-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .social-circle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+    }
+    .btn-kakao-circle {
+      background-color: #FEE500;
+      color: #191919;
+    }
+    .btn-google-circle {
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #374151;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      margin: 1.5rem 0 1.25rem 0;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .divider::before { margin-right: .75em; }
+    .divider::after { margin-left: .75em; }
+    .cursor-pointer {
+      cursor: pointer;
+    }
+    </style>
+  </head>
+  <body>
+    <div class="login-container">
+      <div class="login-card">
+        <!-- 1. 앱 로고 및 헤더 -->
+        <div class="text-center mb-4">
+          <div class="app-icon mb-3">
+            <i class="bi bi-layers-fill text-white fs-3"></i>
+          </div>
+          <h3 class="fw-bold text-dark mb-1">AX 평가 시스템</h3>
+          <p class="text-muted small mb-0">시스템에 로그인하여 평가 및 협업을 시작하세요.</p>
+        </div>
+        <!-- 2. Flash 메시지 -->
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show small py-2 px-3 mb-3 shadow-sm"
+                 role="alert">
+              {{ message }}
+              <button type="button"
+                      class="btn-close py-2"
+                      data-bs-dismiss="alert"
+                      aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+        <!-- 3. 일반 로그인 폼 -->
+        <form method="post" action="{% url 'accounts:login' %}" id="loginForm">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="id_email" class="form-label small fw-semibold text-secondary">이메일</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-envelope"></i></span>
+              <input type="email"
+                     name="email"
+                     id="id_email"
+                     class="form-control border-start-0"
+                     placeholder="name@example.com"
+                     required
+                     autofocus>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="id_password" class="form-label small fw-semibold text-secondary">비밀번호</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-lock"></i></span>
+              <input type="password"
+                     name="password"
+                     id="id_password"
+                     class="form-control border-start-0 border-end-0"
+                     placeholder="비밀번호"
+                     required>
+              <span class="input-group-text bg-light border-start-0 text-muted cursor-pointer"
+                    onclick="togglePasswordVisibility('id_password', this)">
+                <i class="bi bi-eye"></i>
+              </span>
+            </div>
+          </div>
+          <!-- 아이디 저장 & 로그인 유지 (가로 나란히 배치) -->
+          <div class="d-flex align-items-center gap-4 mb-2">
+            <div class="form-check mb-0">
+              <input type="checkbox" class="form-check-input" id="rememberEmail">
+              <label class="form-check-label small text-secondary" for="rememberEmail">아이디 저장</label>
+            </div>
+            <div class="form-check mb-0">
+              <input type="checkbox"
+                     name="remember_session"
+                     class="form-check-input"
+                     id="rememberSession"
+                     checked>
+              <label class="form-check-label small text-secondary" for="rememberSession">로그인 유지</label>
+            </div>
+          </div>
+          <!-- 비밀번호 찾기 (체크박스 바로 아래 위치) -->
+          <div class="mb-3 text-start">
+            <a href="#"
+               class="small text-decoration-none text-primary"
+               data-bs-toggle="modal"
+               data-bs-target="#passwordResetModal">비밀번호를 잊으셨나요?</a>
+          </div>
+          {% if form.non_field_errors %}
+            <div class="text-danger small mb-3">
+              {% for error in form.non_field_errors %}
+                <div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <button type="submit"
+                  class="btn btn-primary w-100 py-2 fw-semibold shadow-sm mb-3">로그인</button>
+        </form>
+        <!-- 4. 구분선 -->
+        <div class="divider">또는 소셜 계정으로 로그인</div>
+        <!-- 5. 원형 소셜 로그인 버튼 -->
+        <div class="d-flex justify-content-center gap-3 mb-4">
+          <a href="{% provider_login_url 'kakao' process='login' %}"
+             class="social-circle-btn btn-kakao-circle shadow-sm"
+             title="카카오로 시작하기">
+            <i class="bi bi-chat-fill fs-5"></i>
+          </a>
+          <a href="{% provider_login_url 'google' process='login' %}"
+             class="social-circle-btn btn-google-circle shadow-sm"
+             title="Google 계정으로 로그인">
+            <i class="bi bi-google text-danger fs-5"></i>
+          </a>
+        </div>
+        <!-- 6. 하단 회원가입 링크 -->
+        <div class="text-center pt-2 border-top">
+          <span class="text-muted small">계정이 없다면</span>
+          <a href="#"
+             class="small fw-semibold text-primary text-decoration-none ms-1"
+             data-bs-toggle="modal"
+             data-bs-target="#signupModal">회원가입</a>을 진행하세요.
+        </div>
+      </div>
+    </div>
+    <!-- 모달 1: 비동기 회원가입 모달 -->
+    <div class="modal fade" id="signupModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0 rounded-4">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-primary me-2"></i>수강생 회원가입</h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-4">
+            <p class="text-muted small mb-3">사전 등록된 수강생 이메일은 즉시 자동 승인 처리됩니다.</p>
+            <form id="signupApiForm">
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">이메일 <span class="text-danger">*</span></label>
+                <input type="email"
+                       class="form-control"
+                       id="modal_signup_email"
+                       placeholder="name@example.com"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">이름 (실명) <span class="text-danger">*</span></label>
+                <input type="text"
+                       class="form-control"
+                       id="modal_signup_name"
+                       placeholder="홍길동"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">연락처 <span class="text-danger">*</span></label>
+                <input type="text"
+                       class="form-control"
+                       id="modal_signup_phone"
+                       placeholder="010-1234-5678"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">비밀번호 (6자 이상) <span class="text-danger">*</span></label>
+                <input type="password"
+                       class="form-control"
+                       id="modal_signup_password"
+                       placeholder="비밀번호를 입력하세요"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">비밀번호 확인 <span class="text-danger">*</span></label>
+                <input type="password"
+                       class="form-control"
+                       id="modal_signup_password_confirm"
+                       placeholder="비밀번호 확인"
+                       required>
+              </div>
+              <div id="signupErrorMsg" class="alert alert-danger py-2 small d-none"></div>
+              <button type="submit"
+                      class="btn btn-primary w-100 py-2 fw-semibold mt-2"
+                      id="signupSubmitBtn">가입 신청하기</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 모달 2: 비밀번호 재설정 모달 -->
+    <div class="modal fade"
+         id="passwordResetModal"
+         tabindex="-1"
+         aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0 rounded-4">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold"><i class="bi bi-shield-lock text-primary me-2"></i>비밀번호 재설정</h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-4">
+            <div id="resetStep1">
+              <p class="text-muted small mb-3">가입 시 등록한 이메일과 연락처를 입력해 주세요.</p>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">가입 이메일</label>
+                <input type="email"
+                       class="form-control"
+                       id="reset_email"
+                       placeholder="name@example.com"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">등록된 연락처</label>
+                <input type="text"
+                       class="form-control"
+                       id="reset_phone"
+                       placeholder="010-1234-5678"
+                       required>
+              </div>
+              <div id="resetErrorMsg1" class="alert alert-danger py-2 small d-none"></div>
+              <button type="button"
+                      class="btn btn-primary w-100 py-2 fw-semibold"
+                      onclick="verifyUserForReset()">본인 확인</button>
+            </div>
+            <div id="resetStep2" class="d-none">
+              <p class="text-muted small mb-3">본인 인증 완료. 새 비밀번호를 설정해 주세요.</p>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">새 비밀번호 (6자 이상)</label>
+                <input type="password"
+                       class="form-control"
+                       id="reset_new_password"
+                       placeholder="새 비밀번호"
+                       required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">새 비밀번호 확인</label>
+                <input type="password"
+                       class="form-control"
+                       id="reset_new_password_confirm"
+                       placeholder="새 비밀번호 다시 입력"
+                       required>
+              </div>
+              <div id="resetErrorMsg2" class="alert alert-danger py-2 small d-none"></div>
+              <button type="button"
+                      class="btn btn-success w-100 py-2 fw-semibold"
+                      onclick="submitPasswordReset()">비밀번호 변경 완료</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+  const emailInput = document.getElementById('id_email');
+  const rememberCheckbox = document.getElementById('rememberEmail');
+  const savedEmail = localStorage.getItem('ax_saved_email');
+
+  if (savedEmail) {
+    emailInput.value = savedEmail;
+    rememberCheckbox.checked = true;
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', function() {
+    if (rememberCheckbox.checked) {
+      localStorage.setItem('ax_saved_email', emailInput.value);
+    } else {
+      localStorage.removeItem('ax_saved_email');
+    }
+  });
+
+  function togglePasswordVisibility(inputId, toggleElem) {
+    const input = document.getElementById(inputId);
+    const icon = toggleElem.querySelector('i');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.classList.replace('bi-eye', 'bi-eye-slash');
+    } else {
+      input.type = 'password';
+      icon.classList.replace('bi-eye-slash', 'bi-eye');
+    }
+  }
+
+  document.getElementById('signupApiForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const errorDiv = document.getElementById('signupErrorMsg');
+    const submitBtn = document.getElementById('signupSubmitBtn');
+    errorDiv.classList.add('d-none');
+    
+    const email = document.getElementById('modal_signup_email').value;
+    const first_name = document.getElementById('modal_signup_name').value;
+    const phone_number = document.getElementById('modal_signup_phone').value;
+    const password = document.getElementById('modal_signup_password').value;
+    const password_confirm = document.getElementById('modal_signup_password_confirm').value;
+
+    if (password !== password_confirm) {
+      errorDiv.textContent = '비밀번호가 일치하지 않습니다.';
+      errorDiv.classList.remove('d-none');
+      return;
+    }
+    if (password.length < 6) {
+      errorDiv.textContent = '비밀번호는 최소 6자 이상이어야 합니다.';
+      errorDiv.classList.remove('d-none');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = '처리 중...';
+
+    try {
+      const response = await fetch('/accounts/api/signup/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ email, first_name, phone_number, password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        errorDiv.textContent = data.message || '가입 처리 중 오류가 발생했습니다.';
+        errorDiv.classList.remove('d-none');
+      }
+    } catch (err) {
+      errorDiv.textContent = '서버 통신 오류가 발생했습니다.';
+      errorDiv.classList.remove('d-none');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '가입 신청하기';
+    }
+  });
+
+  let resetUserEmail = '';
+  async function verifyUserForReset() {
+    const email = document.getElementById('reset_email').value;
+    const phone_number = document.getElementById('reset_phone').value;
+    const errorDiv = document.getElementById('resetErrorMsg1');
+
+    if (!email || !phone_number) {
+      errorDiv.textContent = '이메일과 연락처를 모두 입력하세요.';
+      errorDiv.classList.remove('d-none');
+      return;
+    }
+
+    try {
+      const response = await fetch('/accounts/api/password/verify/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ email, phone_number })
+      });
+      const data = await response.json();
+      if (data.success) {
+        resetUserEmail = email;
+        errorDiv.classList.add('d-none');
+        document.getElementById('resetStep1').classList.add('d-none');
+        document.getElementById('resetStep2').classList.remove('d-none');
+      } else {
+        errorDiv.textContent = data.message || '일치하는 사용자 정보를 찾을 수 없습니다.';
+        errorDiv.classList.remove('d-none');
+      }
+    } catch (err) {
+      errorDiv.textContent = '서버 통신 오류가 발생했습니다.';
+      errorDiv.classList.remove('d-none');
+    }
+  }
+
+  async function submitPasswordReset() {
+    const newPassword = document.getElementById('reset_new_password').value;
+    const newPasswordConfirm = document.getElementById('reset_new_password_confirm').value;
+    const errorDiv = document.getElementById('resetErrorMsg2');
+
+    if (newPassword !== newPasswordConfirm) {
+      errorDiv.textContent = '새 비밀번호가 일치하지 않습니다.';
+      errorDiv.classList.remove('d-none');
+      return;
+    }
+    if (newPassword.length < 6) {
+      errorDiv.textContent = '비밀번호는 최소 6자 이상이어야 합니다.';
+      errorDiv.classList.remove('d-none');
+      return;
+    }
+
+    try {
+      const response = await fetch('/accounts/api/password/reset/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ email: resetUserEmail, new_password: newPassword })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        errorDiv.textContent = data.message || '비밀번호 변경에 실패했습니다.';
+        errorDiv.classList.remove('d-none');
+      }
+    } catch (err) {
+      errorDiv.textContent = '서버 통신 오류가 발생했습니다.';
+      errorDiv.classList.remove('d-none');
+    }
+  }
+    </script>
+  </body>
+</html>
