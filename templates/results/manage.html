@@ -6,10 +6,39 @@
   <div class="ax-page-header">
     <div>
       <h1>{{ scenario.round_name }} 결과·공개</h1>
-      <p>채점 결과를 확인하고 학생에게 공개할 항목을 관리합니다.</p>
+      <span class="ax-status-chip"><span class="ax-status-dot"></span>채점 완료</span>
     </div>
     <button type="button" class="btn btn-primary" disabled title="프로토타입에서는 비활성화">채점 실행</button>
   </div>
+  <section class="ax-section">
+    <div class="row g-3 mb-1">
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">전체 평가 현황</span>
+          <span class="ax-summary-value">{{ scenario.student_count }}명 · {{ scenario.team_count }}팀</span>
+          <span class="ax-summary-note">{{ scenario.no_data_count }}명 데이터 미비</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">최고 종합 점수</span>
+          <span class="ax-summary-value">
+            {% if scenario.top_student %}{{ scenario.top_student.final_score|as_five_point }}/5{% else %}-{% endif %}
+          </span>
+          <span class="ax-summary-note">{% if scenario.top_student %}{{ scenario.top_student.name }}{% else %}-{% endif %}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="ax-card ax-summary-card">
+          <span class="ax-summary-label">최우수 팀</span>
+          <span class="ax-summary-value">{% if scenario.top_team %}{{ scenario.top_team.number }}팀{% else %}-{% endif %}</span>
+          <span class="ax-summary-note">
+            {% if scenario.top_team %}{{ scenario.top_team.team_score|as_five_point }}/5{% else %}-{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
   <section class="ax-section">
     <div class="ax-card">
       <h2 class="ax-section-title">팀 순위</h2>
@@ -43,16 +72,18 @@
       </div>
       {% with rest=scenario.teams_by_rank|slice:"3:" %}
         {% if rest %}
-          <button type="button"
-                  class="btn btn-sm btn-link ax-toggle-rest ps-0"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#teamRestRows"
-                  data-more-text="나머지 {{ rest|length }}개 팀 더보기"
-                  aria-expanded="false"
-                  aria-controls="teamRestRows">
-            <i class="bi bi-chevron-down ax-toggle-icon"></i>
-            <span class="ax-toggle-label">나머지 {{ rest|length }}개 팀 더보기</span>
-          </button>
+          <div class="ax-expand-wrapper">
+            <button type="button"
+                    class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#teamRestRows"
+                    data-more-text="나머지 {{ rest|length }}개 팀 더보기"
+                    aria-expanded="false"
+                    aria-controls="teamRestRows">
+              <i class="bi bi-chevron-down ax-toggle-icon"></i>
+              <span class="ax-toggle-label">나머지 {{ rest|length }}개 팀 더보기</span>
+            </button>
+          </div>
         {% endif %}
       {% endwith %}
     </div>
@@ -67,8 +98,7 @@
               <th scope="col" class="text-end">순위</th>
               <th scope="col">이름</th>
               <th scope="col">팀</th>
-              <th scope="col" class="text-end">팀 점수</th>
-              <th scope="col" class="text-end">개인 점수</th>
+              <th scope="col" class="text-end">점수 계산 (팀×40% + 개인×60%)</th>
               <th scope="col" class="text-end">최종점수 (5점 만점)</th>
               <th scope="col" class="text-center">개인 평가 제출 현황</th>
             </tr>
@@ -91,35 +121,30 @@
       </div>
       {% with rest=scenario.students_by_rank|slice:"3:" %}
         {% if rest %}
-          <button type="button"
-                  class="btn btn-sm btn-link ax-toggle-rest ps-0"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#studentRestRows"
-                  data-more-text="나머지 {{ rest|length }}명 더보기"
-                  aria-expanded="false"
-                  aria-controls="studentRestRows">
-            <i class="bi bi-chevron-down ax-toggle-icon"></i>
-            <span class="ax-toggle-label">나머지 {{ rest|length }}명 더보기</span>
-          </button>
+          <div class="ax-expand-wrapper">
+            <button type="button"
+                    class="btn btn-sm btn-link ax-toggle-rest ps-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#studentRestRows"
+                    data-more-text="나머지 {{ rest|length }}명 더보기"
+                    aria-expanded="false"
+                    aria-controls="studentRestRows">
+              <i class="bi bi-chevron-down ax-toggle-icon"></i>
+              <span class="ax-toggle-label">나머지 {{ rest|length }}명 더보기</span>
+            </button>
+          </div>
         {% endif %}
       {% endwith %}
-      <p class="text-muted small mb-0 mt-3">
-        "평가 없음"은 0점이 아니라 받은 평가가 없어서 점수를 계산할 수 없는 상태입니다. 순위와
-        다음 팀 편성 기준 점수 계산에서 빠집니다. 학생I은 혼자인 팀이라 개인 평가를 주고받을
-        상대가 없어서 "해당없음"이고, 그래서 최종점수도 계산되지 않습니다.
-      </p>
+      <p class="text-muted small mb-0 mt-3">"평가 없음"은 0점이 아니라 미제출 상태이며, 순위 계산에서 빠집니다.</p>
     </div>
   </section>
   <section class="ax-section" id="publish">
     <div class="ax-card">
       <h2 class="ax-section-title">결과 공개</h2>
-      <p class="text-muted small">
-        항목마다 따로 공개합니다. 일부만 제출된 팀·학생이 있는 회차를 공개하려 하면 한 번 더
-        확인합니다. 다시 채점하면 4개 항목 모두 다시 비공개로 바뀝니다.
-      </p>
+      <p class="text-muted small">항목별로 따로 공개할 수 있습니다.</p>
       <div class="row g-3">
-        {% for item_key, label in publish_items %}
-          {% include "results/_publish_item.html" %}
+        {% for item in publish_items %}
+          {% include "results/_publish_item.html" with item_key=item.key label=item.label hint=item.hint %}
         {% endfor %}
       </div>
     </div>
@@ -127,11 +152,7 @@
   <section class="ax-section">
     <div class="ax-card">
       <h2 class="ax-section-title">다음 팀 편성 기준 점수 (예시)</h2>
-      <p class="text-muted small">
-        최근 3번의 유효 최종점수를 오래된 순서대로 20%·30%·50% 비중으로 평균 냅니다. 회차가
-        3번보다 적으면 최근 회차부터 비중을 다시 나눕니다. 유효한 이력이 없으면 기준 점수 없이
-        (0점으로 대체하지 않고) 새로 배정합니다.
-      </p>
+      <p class="text-muted small">최근 3회차 최종점수를 20%·30%·50% 비중으로 평균 냅니다.</p>
       <div class="table-responsive">
         <table class="table align-middle">
           <thead>
@@ -175,10 +196,7 @@
     <div class="ax-card">
       <h2 class="ax-section-title">튜터 평가 반영 시 계산 예시 (협의 예정)</h2>
       <p class="text-muted small">
-        튜터 평가를 입력받는 기능은 아직 안 만들었습니다. 도입되면 최종점수 산식이 팀 40%
-        + 개인 60%에서 <strong>팀 30% + 개인 40% + 튜터 30%</strong>로 바뀔 예정이라(정확한
-        비율은 협의 중), 계산식만 미리 대비해두고 {{ scenario.tutor_example.student_name }}의
-        실제 점수로 비교해봤습니다.
+        도입 시 산식이 <strong>팀 30% + 개인 40% + 튜터 30%</strong>로 바뀝니다. {{ scenario.tutor_example.student_name }} 기준 비교입니다.
       </p>
       <div class="table-responsive">
         <table class="table align-middle mb-0">

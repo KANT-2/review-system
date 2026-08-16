@@ -2,7 +2,8 @@
 <tr>
   <td class="text-end">
     {% if team.rank %}
-      {{ team.rank }}위
+      <span class="ax-rank-badge">{{ team.rank }}위</span>
+      {% if team.is_tied %}<span class="ax-tie-note">공동</span>{% endif %}
     {% else %}
       <span class="ax-na-value">-</span>
     {% endif %}

@@ -2,30 +2,22 @@
 <tr>
   <td class="text-end">
     {% if student.rank %}
-      {{ student.rank }}위
+      <span class="ax-rank-badge">{{ student.rank }}위</span>
+      {% if student.is_tied %}<span class="ax-tie-note">공동</span>{% endif %}
     {% else %}
       <span class="ax-na-value">-</span>
     {% endif %}
   </td>
   <td class="fw-semibold">{{ student.name }}</td>
   <td>{{ student.team_number }}팀</td>
-  <td class="text-end text-muted small">
-    {% with score=student.team_score|as_five_point %}
-      {% if score is not None %}
-        {{ score }}/5
-      {% else %}
-        <span class="ax-na-value">평가 없음</span>
-      {% endif %}
-    {% endwith %}
-  </td>
-  <td class="text-end text-muted small">
-    {% with score=student.peer_score|as_five_point %}
-      {% if score is not None %}
-        {{ score }}/5
-      {% else %}
-        <span class="ax-na-value">평가 없음</span>
-      {% endif %}
-    {% endwith %}
+  <td class="text-end">
+    <div class="ax-math-cell">
+      {% with team=student.team_score|as_five_point peer=student.peer_score|as_five_point %}
+        <span class="ax-score-part">{% if team is not None %}{{ team }}{% else %}-{% endif %}<span class="ax-weight">×40%</span></span>
+        <span class="ax-math-sign">+</span>
+        <span class="ax-score-part">{% if peer is not None %}{{ peer }}{% else %}-{% endif %}<span class="ax-weight">×60%</span></span>
+      {% endwith %}
+    </div>
   </td>
   <td class="text-end fw-semibold">{% include "results/_score_cell.html" with value=student.final_score %}</td>
   <td class="text-center">

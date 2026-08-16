@@ -1,7 +1,10 @@
+<p class="ax-nav-label">관리자 메뉴</p>
 <nav class="nav flex-column">
-  <a class="nav-link" href="{% url 'home' %}">홈</a>
+  <a class="nav-link" href="{% url 'home' %}"><span class="ax-nav-icon">⌂</span>홈</a>
   <a class="nav-link {% if active_nav == 'manage' %}active{% endif %}"
-     href="{% url 'results:manage_preview' %}">결과·공개 (관리자)</a>
+     href="{% url 'results:manage_preview' %}">
+    <span class="ax-nav-icon">♙</span>결과·공개
+  </a>
   <a class="nav-link {% if active_nav == 'me' %}active{% endif %}"
-     href="{% url 'results:me_preview' %}">내 결과</a>
+     href="{% url 'results:me_preview' %}"><span class="ax-nav-icon">◎</span>내 결과</a>
 </nav>

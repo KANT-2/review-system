@@ -299,3 +299,257 @@ tbody.collapse.show {
   border-radius: 10px;
   padding: 10px 12px;
 }
+
+/* ---- sidebar polish: icons + profile footer ---- */
+
+.ax-sidebar .ax-nav-label,
+.ax-sidebar-offcanvas .ax-nav-label {
+  margin: 4px 10px 8px;
+  color: #90a8be;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.ax-sidebar .nav-link,
+.ax-sidebar-offcanvas .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ax-nav-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.ax-sidebar-profile {
+  margin-top: auto;
+  padding: 16px 10px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ax-sidebar-profile strong {
+  display: block;
+  font-size: 13px;
+}
+
+.ax-sidebar-profile span {
+  display: block;
+  color: #9fb2c4;
+  font-size: 12px;
+}
+
+/* ---- summary stat cards ---- */
+
+.ax-summary-card .ax-summary-label {
+  color: var(--ax-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.ax-summary-card .ax-summary-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ax-summary-card .ax-summary-note {
+  color: var(--ax-text-muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+/* ---- status chip (page header) ---- */
+
+.ax-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #c2e0cf;
+  border-radius: 10px;
+  background: #eaf6ef;
+  color: var(--ax-success);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ax-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ax-success);
+}
+
+/* ---- toggle switch (결과 공개 항목) ---- */
+
+.ax-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 23px;
+  flex-shrink: 0;
+}
+
+.ax-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ax-switch .ax-slider {
+  position: absolute;
+  inset: 0;
+  background: #cfd7e3;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.ax-switch .ax-slider::before {
+  content: "";
+  position: absolute;
+  height: 17px;
+  width: 17px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.ax-switch input:checked + .ax-slider {
+  background: var(--ax-primary);
+}
+
+.ax-switch input:checked + .ax-slider::before {
+  transform: translateX(19px);
+}
+
+.ax-switch input:focus-visible + .ax-slider {
+  outline: 3px solid rgba(23, 105, 224, 0.35);
+  outline-offset: 2px;
+}
+
+.ax-publish-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--ax-outline);
+  border-radius: 12px;
+  background: var(--ax-surface-subtle);
+}
+
+.ax-publish-item-text strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.ax-publish-item-text span {
+  color: var(--ax-text-muted);
+  font-size: 12px;
+}
+
+/* ---- rank badge + tie note ---- */
+
+.ax-rank-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ax-primary-container);
+  color: var(--ax-primary);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.ax-tie-note {
+  margin-left: 6px;
+  color: var(--ax-text-muted);
+  font-size: 11px;
+}
+
+/* ---- score math breakdown chips ---- */
+
+.ax-math-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ax-score-part {
+  background: #f0f4f8;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ax-text);
+  border: 1px solid var(--ax-outline);
+  white-space: nowrap;
+}
+
+.ax-score-part .ax-weight {
+  color: var(--ax-text-muted);
+  font-size: 11px;
+  margin-left: 3px;
+}
+
+.ax-math-sign {
+  color: #94a3b8;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+/* ---- expand footer (matches card bottom radius) ---- */
+
+.ax-expand-wrapper {
+  text-align: center;
+  padding: 4px;
+  margin: 12px -24px -24px;
+  border-top: 1px solid var(--ax-outline);
+  background: var(--ax-surface-subtle);
+  border-radius: 0 0 14px 14px;
+}
+
+.ax-expand-wrapper .ax-toggle-rest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.ax-expand-wrapper .ax-toggle-rest:hover {
+  background: var(--ax-outline);
+}
+
+/* ---- toast notification ---- */
+
+.ax-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1080;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--ax-navigation);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.2);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: 0.2s ease;
+}
+
+.ax-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}

@@ -32,7 +32,8 @@ class TeamRow:
     team_score: Decimal | None
     data_status: str
     coverage: Decimal | None
-    rank: int | None
+    rank: int | None = None
+    is_tied: bool = False
 
 
 @dataclass
@@ -46,7 +47,8 @@ class StudentRow:
     team_score: Decimal | None
     peer_score: Decimal | None
     final_score: Decimal | None
-    rank: int | None
+    rank: int | None = None
+    is_tied: bool = False
 
 
 # 4개 항목 독립 공개 데모용: 팀1위/전체팀순위/본인최종점수는 공개, 본인개인순위는 아직 비공개.
@@ -126,8 +128,10 @@ def build_scenario():
         reverse=True,
     )
     team_display_scores = [round_to_display(t.team_score) for t in ranked_teams]
-    for team, rank in zip(ranked_teams, competition_rank(team_display_scores), strict=True):
+    team_ranks = competition_rank(team_display_scores)
+    for team, rank in zip(ranked_teams, team_ranks, strict=True):
         team.rank = rank
+        team.is_tied = team_ranks.count(rank) > 1
 
     ranked_students = sorted(
         (s for s in students if s.final_score is not None),
@@ -135,10 +139,10 @@ def build_scenario():
         reverse=True,
     )
     student_display_scores = [round_to_display(s.final_score) for s in ranked_students]
-    for student, rank in zip(
-        ranked_students, competition_rank(student_display_scores), strict=True
-    ):
+    student_ranks = competition_rank(student_display_scores)
+    for student, rank in zip(ranked_students, student_ranks, strict=True):
         student.rank = rank
+        student.is_tied = student_ranks.count(rank) > 1
 
     # ---- Seed 데모: 과거 회차 최종점수 예시(가상) -> 다음 회차 자동편성용 ----
     seed_examples = [
@@ -189,6 +193,12 @@ def build_scenario():
         ),
     }
 
+    no_data_count = sum(
+        1
+        for s in students
+        if s.peer_data_status in {"NO_DATA", "NOT_APPLICABLE"} or s.final_score is None
+    )
+
     return {
         "round_name": "3회차",
         "teams": sorted(teams.values(), key=lambda t: t.number),
@@ -201,6 +211,11 @@ def build_scenario():
         "seeds": seeds,
         "winner_team": next((t for t in ranked_teams if t.rank == 1), None),
         "tutor_example": tutor_example,
+        "student_count": len(students),
+        "team_count": len(teams),
+        "no_data_count": no_data_count,
+        "top_student": ranked_students[0] if ranked_students else None,
+        "top_team": ranked_teams[0] if ranked_teams else None,
     }
 
 

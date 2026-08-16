@@ -7,12 +7,25 @@ from results.fake_data import PUBLISHED_AT, build_scenario
 from results.services import reveal_if_published
 
 PUBLISH_ITEMS = [
-    ("team_winner", "팀 1위"),
-    ("team_ranking", "전체 팀 순위"),
-    ("my_score", "내 최종 점수"),
-    ("peer_ranking", "내 개인 순위"),
+    {"key": "team_winner", "label": "팀 1위", "hint": "이번 회차 1위 팀 이름을 전체 학생에게 공개"},
+    {
+        "key": "team_ranking",
+        "label": "전체 팀 순위",
+        "hint": "모든 팀의 순위와 점수를 학생에게 공개",
+    },
+    {
+        "key": "my_score",
+        "label": "내 최종 점수",
+        "hint": "학생 본인의 최종점수를 본인에게만 공개",
+    },
+    {
+        "key": "peer_ranking",
+        "label": "내 개인 순위",
+        "hint": "전체 학생 중 본인 순위를 본인에게만 공개",
+    },
 ]
-PUBLISH_KEYS = {key for key, _ in PUBLISH_ITEMS}
+PUBLISH_LABELS = {item["key"]: item["label"] for item in PUBLISH_ITEMS}
+PUBLISH_KEYS = set(PUBLISH_LABELS)
 
 
 def _get_publish_state(request):
@@ -83,7 +96,7 @@ def toggle_publish(request, item_key):
         publish_state[item_key] = turning_on
         request.session["publish_state"] = publish_state
         request.session.pop("pending_confirm", None)
-        label = dict(PUBLISH_ITEMS)[item_key]
+        label = PUBLISH_LABELS[item_key]
         messages.success(
             request, f"'{label}' 항목을 {'공개' if turning_on else '비공개'}로 전환했습니다."
         )
