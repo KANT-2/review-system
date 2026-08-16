@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}이메일 확인 - AX Evaluation Console{% endblock %}
+{% block auth_content %}
+  <div class="card-custom p-4 p-sm-5 shadow-sm">
+    <h4 class="fw-bold mb-3">이메일 소유 확인</h4>
+    {% if address %}
+      <p class="text-muted small"><strong>{{ address.email }}</strong> 주소의 소유 확인을 완료합니다.</p>
+      <form method="post">
+        {% csrf_token %}
+        {% if needs_password %}
+          <div class="alert alert-info small">확인 후 사용할 새 비밀번호를 설정해 주세요. 최소 12자이며 흔한 비밀번호와 숫자 전용 비밀번호는 사용할 수 없습니다.</div>
+          {% for field in form %}
+            <div class="mb-3">
+              <label class="form-label small fw-bold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+          {% for error in form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endfor %}
+        {% endif %}
+        <button type="submit" class="btn btn-ax-primary w-100">소유 확인 완료</button>
+      </form>
+    {% else %}
+      <div class="alert alert-warning small">확인 링크가 만료되었거나 이미 사용되었습니다.</div>
+      <a href="{% url 'accounts:login' %}" class="btn btn-ax-secondary w-100">로그인으로 돌아가기</a>
+    {% endif %}
+  </div>
+{% endblock %}

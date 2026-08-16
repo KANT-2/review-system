@@ -1,90 +1,106 @@
+import logging
+import time
+
+from allauth.account.adapter import DefaultAccountAdapter
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib import messages
+from django.db import transaction
 from django.shortcuts import redirect
+from django.urls import reverse
 
-from accounts.models import User, WhitelistEmail
+from accounts.models import User, WhitelistEmail, canonicalize_email
+from accounts.services import lock_canonical_email
+
+security_logger = logging.getLogger("accounts.security")
+
+
+class CustomAccountAdapter(DefaultAccountAdapter):
+    def get_email_confirmation_url(self, request, emailconfirmation):
+        return request.build_absolute_uri(
+            reverse("accounts:email_confirm_key", kwargs={"key": emailconfirmation.key})
+        )
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
-    """소셜 로그인 처리 및 대시보드 직행 어댑터"""
-
-    def populate_user(self, request, sociallogin, data):
-        user = super().populate_user(request, sociallogin, data)
-        user.is_social_account = True
-        extra_data = sociallogin.account.extra_data
-
-        kakao_nickname = extra_data.get("properties", {}).get("nickname") or extra_data.get(
-            "kakao_account", {}
-        ).get("profile", {}).get("nickname")
-        google_name = (
-            f"{data.get('last_name', '')}{data.get('first_name', '')}".strip()
-            or data.get("name", "")
-        )
-        full_name = kakao_nickname or google_name
-        if full_name:
-            user.first_name = full_name
-
-        kakao_email = extra_data.get("kakao_account", {}).get("email")
-        if kakao_email and not user.email:
-            user.email = kakao_email
-
-        return user
+    def _verified_email(self, request, sociallogin):
+        provider = sociallogin.account.provider
+        data = sociallogin.account.extra_data
+        if provider == "google":
+            nonces = request.session.get("google_oidc_nonces", {})
+            nonce = data.get("nonce")
+            issued_at = nonces.pop(nonce, None)
+            request.session["google_oidc_nonces"] = nonces
+            nonce_is_valid = issued_at is not None and time.time() - issued_at <= 300
+            verified = nonce_is_valid and (
+                data.get("email_verified") is True or data.get("verified_email") is True
+            )
+            email = data.get("email")
+        elif provider == "kakao":
+            account = data.get("kakao_account", {})
+            verified = (
+                account.get("has_email") is True
+                and account.get("email_needs_agreement") is False
+                and account.get("is_email_valid") is True
+                and account.get("is_email_verified") is True
+            )
+            email = account.get("email")
+        else:
+            return None
+        return canonicalize_email(email) if verified and email else None
 
     def pre_social_login(self, request, sociallogin):
-        extra_data = sociallogin.account.extra_data
-        email = (
-            sociallogin.user.email
-            or extra_data.get("email")
-            or extra_data.get("kakao_account", {}).get("email")
-        )
+        verified_email = self._verified_email(request, sociallogin)
+        if not verified_email:
+            messages.error(request, "공급자가 확인한 이메일이 없어 로그인할 수 없습니다.")
+            raise ImmediateHttpResponse(redirect("accounts:login"))
 
-        if not email:
-            provider = sociallogin.account.provider
-            uid = sociallogin.account.uid
-            email = f"{provider}_{uid}@social.ax-eval.internal"
-            sociallogin.user.email = email
+        with transaction.atomic():
+            lock_canonical_email(verified_email)
+            if sociallogin.is_existing:
+                user = User.objects.select_for_update().get(pk=sociallogin.user.pk)
+                if canonicalize_email(user.email) != verified_email:
+                    user.email_needs_review = True
+                    user.save(update_fields=["email_needs_review"])
+                    security_logger.warning("social_email_changed")
+                if not user.is_active or user.approval_status != User.ApprovalStatus.APPROVED:
+                    messages.warning(
+                        request, "승인되었거나 활성 상태인 계정만 로그인할 수 있습니다."
+                    )
+                    raise ImmediateHttpResponse(redirect("accounts:login"))
+                return
 
-        user = User.objects.filter(email=email).first()
-
-        if user:
-            if user.approval_status == User.ApprovalStatus.PENDING:
-                messages.warning(
-                    request, "아직 가입 승인 검토 중입니다. 튜터의 승인을 기다려주세요."
+            user = User.objects.select_for_update().filter(email=verified_email).first()
+            whitelist = (
+                WhitelistEmail.objects.select_for_update().filter(email=verified_email).first()
+            )
+            if user is None:
+                user = User.objects.create_user(
+                    email=verified_email,
+                    password=None,
+                    _email_verified=True,
+                    first_name=(sociallogin.user.first_name or "")[:150],
+                    role=User.Role.STUDENT,
+                    is_social_account=True,
+                    approval_status=(
+                        User.ApprovalStatus.APPROVED if whitelist else User.ApprovalStatus.PENDING
+                    ),
+                    session_info=whitelist.session_info if whitelist else "",
                 )
-                raise ImmediateHttpResponse(redirect("accounts:login"))
-            elif user.approval_status == User.ApprovalStatus.REJECTED:
-                messages.error(request, "승인이 거절된 계정입니다. 관리자에게 문의하세요.")
-                raise ImmediateHttpResponse(redirect("accounts:login"))
-
-            if not sociallogin.is_existing:
-                sociallogin.connect(request, user)
-        else:
-            whitelist_entry = WhitelistEmail.objects.filter(email=email).first()
-            if whitelist_entry:
-                sociallogin.user.approval_status = User.ApprovalStatus.APPROVED
-                sociallogin.user.role = whitelist_entry.role
-                sociallogin.user.session_info = whitelist_entry.session_info
-            else:
-                sociallogin.user.approval_status = User.ApprovalStatus.PENDING
-                sociallogin.user.role = User.Role.STUDENT
-                sociallogin.user.is_social_account = True
-                sociallogin.user.save()
-                sociallogin.save(request)
-
-                messages.warning(
-                    request, "신규 계정으로 가입 신청되었습니다. 튜터 승인 후 이용 가능합니다."
-                )
+            sociallogin.connect(request, user)
+            if user.approval_status != User.ApprovalStatus.APPROVED:
+                messages.warning(request, "가입 신청이 접수되었습니다. 튜터 승인을 기다려주세요.")
                 raise ImmediateHttpResponse(redirect("accounts:login"))
 
     def save_user(self, request, sociallogin, form=None):
-        user = super().save_user(request, sociallogin, form)
-        user.is_social_account = True
-        user.save()
-        return user
+        if sociallogin.user.pk:
+            return sociallogin.user
+        return super().save_user(request, sociallogin, form)
 
     def get_login_redirect_url(self, request):
         user = request.user
-        if user.role in [User.Role.TUTOR, User.Role.ADMIN]:
-            return "/accounts/tutor/dashboard/"
-        return "/accounts/dashboard/"
+        request.session["auth_session_version"] = user.auth_session_version
+        request.session.set_expiry(60 * 60 * 24 * 14)
+        if user.role in {User.Role.TUTOR, User.Role.ADMIN}:
+            return reverse("accounts:tutor_dashboard")
+        return reverse("accounts:dashboard")

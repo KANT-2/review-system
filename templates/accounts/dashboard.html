@@ -1,326 +1,170 @@
 {% extends "base.html" %}
-{% block title %}학생 메인 대시보드 - AX Evaluation Console{% endblock %}
-{% block breadcrumb %}메인 대시보드 (8주차){% endblock %}
+{% block title %}학생 대시보드 - AX Evaluation Console{% endblock %}
+{% block breadcrumb %}학생 대시보드{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
-      <h1 class="page-title">학생 메인 대시보드</h1>
-      <p class="page-desc">현재 8주차(파이널 스프린트) 팀 협업 상태와 최종 평가 목록을 확인하세요.</p>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <h1 class="page-title mb-0">학생 대시보드</h1>
+        {% if portal.is_demo %}<span class="badge text-bg-secondary">DEMO</span>{% endif %}
+      </div>
+      <p class="page-desc">현재 회차에서 해야 할 평가와 내 팀 현황을 확인합니다.</p>
     </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-ax-secondary"
-              onclick="window.showToast('대시보드 데이터가 실시간 동기화되었습니다.')"><i class="bi bi-arrow-clockwise me-1"></i>새로고침</button>
-    </div>
+    {% if portal %}
+      <a href="{% url 'results:me_preview' %}" class="btn btn-ax-secondary"><i class="bi bi-bar-chart-line me-1"></i>최근 결과 보기</a>
+    {% endif %}
   </div>
-  <div class="row g-4">
-    <!-- Left Column (8 Col) -->
-    <div class="col-12 col-lg-8">
-      <!-- Widget 1: 진행률 -->
-      <div class="card-custom">
-        <div class="card-header-custom">
-          <div class="card-title-custom">
-            <i class="bi bi-pie-chart-fill text-primary"></i> 8주차 최종 평가 진행률
+  {% if portal %}
+    <div class="row g-4">
+      <div class="col-12 col-lg-8">
+        <section class="card-custom" aria-labelledby="round-progress-title">
+          <div class="card-header-custom">
+            <div class="card-title-custom" id="round-progress-title">
+              <i class="bi bi-pie-chart-fill text-primary"></i>{{ portal.round.title }} 진행률
+            </div>
+            <span class="badge badge-ax badge-ax-pending">{{ portal.progress.completed }} / {{ portal.progress.expected }} 완료</span>
           </div>
-          <span class="badge badge-ax badge-ax-pending">3 / 4 완료 (75%)</span>
-        </div>
-        <div class="card-body-custom">
-          <div class="d-flex justify-content-between mb-2 small">
-            <span class="text-muted">최종 마감까지 1건 남았습니다.</span>
-            <span class="fw-bold text-primary">75%</span>
-          </div>
-          <div class="progress progress-compact">
-            <div class="progress-bar progress-width-75 bg-primary" role="progressbar"></div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mt-3">
-            <small class="text-muted"><i class="bi bi-info-circle me-1"></i>모든 상호평가를 완료해야 최종 수료 점수에 반영됩니다.</small>
-            <a href="#todo-eval-section" class="btn btn-sm btn-ax-secondary">현황 보기 <i class="bi bi-arrow-down-short"></i></a>
-          </div>
-        </div>
-      </div>
-      <!-- Widget 2: 해야 할 평가 -->
-      <div class="card-custom" id="todo-eval-section">
-        <div class="card-header-custom">
-          <div class="card-title-custom">
-            <i class="bi bi-check2-square text-primary"></i> 해야 할 평가
-            <span class="badge badge-ax badge-ax-danger ms-1">미완료 2건</span>
-          </div>
-          <small class="text-muted">마감 임박순으로 자동 정렬됩니다</small>
-        </div>
-        <div class="card-body-custom">
-          <div class="eval-card pending">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="card-body-custom">
+            <div class="d-flex justify-content-between align-items-end mb-2 small">
               <div>
-                <span class="badge badge-ax badge-ax-danger me-1">🔥 D-1 마감임박</span>
-                <span class="badge badge-ax badge-ax-pending">아직 평가하지 않았어요</span>
-                <h6 class="fw-bold mt-2 mb-1">8주차 파이널 동료 상호 역량평가</h6>
-                <p class="text-muted small mb-0">대상: 3팀(Alpha) 팀원 3명 최종 상호평가</p>
+                <span class="badge badge-ax badge-ax-completed me-1">{{ portal.round.status }}</span>
+                <span class="text-muted">마감 D-{{ portal.round.d_day }}</span>
               </div>
-              <button class="btn btn-ax-primary"
-                      onclick="window.showModernAlert('동료 상호평가', '상호평가 작성 폼으로 이동합니다.')">
-                평가하기 <i class="bi bi-arrow-right-short"></i>
-              </button>
+              <strong class="text-primary">{{ portal.progress.percent }}%</strong>
             </div>
-          </div>
-          <div class="eval-card pending">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <div>
-                <span class="badge badge-ax bg-warning text-dark me-1">D-3</span>
-                <span class="badge badge-ax badge-ax-pending">아직 평가하지 않았어요</span>
-                <h6 class="fw-bold mt-2 mb-1">8주차 파이널 팀 산출물 크로스 평가</h6>
-                <p class="text-muted small mb-0">대상: 2팀(Beta) 최종 프로젝트 결과물</p>
-              </div>
-              <button class="btn btn-ax-primary"
-                      onclick="window.showModernAlert('팀 산출물 평가', '팀 산출물 크로스 평가 폼으로 이동합니다.')">
-                평가하기 <i class="bi bi-arrow-right-short"></i>
-              </button>
+            <div class="progress progress-compact"
+                 role="progressbar"
+                 aria-label="전체 평가 진행률"
+                 aria-valuenow="{{ portal.progress.percent }}"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+              <div class="progress-bar bg-primary"
+                   style="width: {{ portal.progress.percent }}%"></div>
             </div>
-          </div>
-          <div class="eval-card completed">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <span class="badge badge-ax badge-ax-completed me-1">제출 완료</span>
-                <h6 class="fw-bold mt-2 mb-1 text-muted">7주차 동료 상호 역량평가</h6>
-                <p class="text-muted small mb-0">2026.08.08 17:40 제출됨 (수정 불가)</p>
-              </div>
-              <button class="btn btn-sm btn-outline-secondary rounded-2" disabled>제출완료</button>
-            </div>
-          </div>
-          <div class="eval-card expired">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <span class="badge badge-ax badge-ax-expired me-1">평가 마감/미제출</span>
-                <h6 class="fw-bold mt-2 mb-1 text-muted">6주차 중간 역량 진단평가</h6>
-                <p class="text-muted small mb-0">평가 기한이 종료되어 작성이 불가합니다.</p>
-              </div>
-              <button class="btn btn-sm btn-light border rounded-2" disabled>기한마감</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Widget 3: 공지사항 -->
-      <div class="card-custom">
-        <div class="card-header-custom">
-          <div class="card-title-custom"><i class="bi bi-megaphone-fill text-muted"></i> 공지사항</div>
-          <button class="btn btn-sm btn-link text-decoration-none text-muted p-0"
-                  onclick="openAllNoticesModal()">더보기 ></button>
-        </div>
-        <div class="card-body-custom p-0">
-          <div class="list-group list-group-flush small">
-            <div class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 notice-interactive-item"
-                 onclick="openNoticeDetail(1)">
-              <div><span class="badge bg-danger me-2">긴급</span> 8주차 최종 프로젝트 발표 및 상호평가 마감 안내 (금요일 18:00)</div>
-              <span class="text-muted">2시간 전</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 notice-interactive-item"
-                 onclick="openNoticeDetail(2)">
-              <div><span class="badge bg-light text-dark border me-2">공지</span> 8주간의 누적 역량 리포트 최종 수료증 발급 안내</div>
-              <span class="text-muted">어제</span>
-            </div>
-            <div class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 notice-interactive-item"
-                 onclick="openNoticeDetail(3)">
-              <div><span class="badge bg-light text-dark border me-2">안내</span> 최종 프로젝트 데모데이 심사위원 평가 기준표 공개</div>
-              <span class="text-muted">3일 전</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Right Column (4 Col) -->
-    <div class="col-12 col-lg-4">
-      <div class="card-custom">
-        <div class="card-header-custom">
-          <div class="card-title-custom"><i class="bi bi-people-fill text-primary"></i> 내 팀 (8주차)</div>
-          <span class="badge bg-primary text-white rounded-pill px-2">3팀 · Alpha</span>
-        </div>
-        <div class="card-body-custom">
-          <p class="small text-muted mb-3">8주차 파이널 스프린트 매칭 팀입니다.</p>
-          <div class="d-flex flex-column gap-3 mb-3">
-            <div class="d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center gap-2">
-                <div class="member-avatar">{{ user.first_name|default:user.username|slice:":1" }}</div>
-                <div>
-                  <div class="fw-bold small">{{ user.first_name|default:user.username }} <span class="badge bg-light text-dark border ms-1">나</span></div>
-                  <div class="font-size-11 text-muted">풀스택 / 팀장</div>
+            <div class="row g-3 mt-2">
+              <div class="col-sm-6">
+                <div class="p-3 rounded-3 border bg-light">
+                  <div class="d-flex justify-content-between small">
+                    <span>{{ portal.progress.team.label }}</span>
+                    <strong>{{ portal.progress.team.completed }}/{{ portal.progress.team.expected }}</strong>
+                  </div>
                 </div>
               </div>
-              <span class="badge badge-ax badge-ax-completed">평가완료</span>
-            </div>
-            <div class="d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center gap-2">
-                <div class="member-avatar avatar-sky">이</div>
-                <div>
-                  <div class="fw-bold small">이수진</div>
-                  <div class="font-size-11 text-muted">프론트엔드</div>
+              <div class="col-sm-6">
+                <div class="p-3 rounded-3 border bg-light">
+                  <div class="d-flex justify-content-between small">
+                    <span>{{ portal.progress.peer.label }}</span>
+                    <strong>{{ portal.progress.peer.completed }}/{{ portal.progress.peer.expected }}</strong>
+                  </div>
                 </div>
               </div>
-              <span class="badge badge-ax badge-ax-pending">평가대기</span>
             </div>
-            <div class="d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center gap-2">
-                <div class="member-avatar avatar-amber">박</div>
-                <div>
-                  <div class="fw-bold small">박도현</div>
-                  <div class="font-size-11 text-muted">백엔드 / 인프라</div>
+          </div>
+        </section>
+        <section class="card-custom" aria-labelledby="pending-evaluations-title">
+          <div class="card-header-custom">
+            <div class="card-title-custom" id="pending-evaluations-title">
+              <i class="bi bi-check2-square text-primary"></i>해야 할 평가
+            </div>
+            <span class="badge badge-ax badge-ax-danger">미완료 {{ portal.pending_evaluations|length }}건</span>
+          </div>
+          <div class="card-body-custom">
+            {% for evaluation in portal.pending_evaluations %}
+              <div class="eval-card pending">
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <span class="badge badge-ax {% if evaluation.category == 'TEAM' %}badge-ax-warning{% else %}badge-ax-pending{% endif %}">{{ evaluation.label }}</span>
+                    <h6 class="fw-bold mt-2 mb-1">{{ evaluation.target }}</h6>
+                    <p class="text-muted small mb-0">{{ evaluation.description }}</p>
+                  </div>
+                  <button type="button"
+                          class="btn btn-ax-primary"
+                          disabled
+                          title="평가 작성 화면은 아직 통합되지 않았습니다.">평가하기</button>
                 </div>
               </div>
-              <span class="badge badge-ax badge-ax-pending">평가대기</span>
+            {% endfor %}
+          </div>
+        </section>
+        <section class="card-custom" aria-labelledby="latest-result-title">
+          <div class="card-header-custom">
+            <div class="card-title-custom" id="latest-result-title">
+              <i class="bi bi-award-fill text-primary"></i>최근 공개 결과
+            </div>
+            <span class="badge badge-ax badge-ax-completed">{{ portal.latest_result.round_name }}</span>
+          </div>
+          <div class="card-body-custom">
+            <div class="row g-3 text-center">
+              <div class="col-4">
+                <div class="text-muted small">팀 점수</div>
+                <div class="fs-4 fw-bold">{{ portal.latest_result.team_score|default:"N/A" }}</div>
+              </div>
+              <div class="col-4 border-start border-end">
+                <div class="text-muted small">개인 점수</div>
+                <div class="fs-4 fw-bold">{{ portal.latest_result.peer_score|default:"N/A" }}</div>
+              </div>
+              <div class="col-4">
+                <div class="text-muted small">최종 점수</div>
+                <div class="fs-4 fw-bold text-primary">{{ portal.latest_result.final_score|default:"N/A" }}</div>
+              </div>
             </div>
           </div>
-          <button class="btn btn-ax-secondary w-100"
-                  onclick="window.showModernAlert('3팀 상세 정보', '3팀(Alpha): 이수진, 박도현, 김민준 팀원의 최종 산출물 리포지토리가 연결됩니다.')">
-            <i class="bi bi-search me-1"></i> 팀 상세정보 보기
-          </button>
-        </div>
+        </section>
       </div>
-      <div class="card-custom">
-        <div class="card-header-custom">
-          <div class="card-title-custom"><i class="bi bi-calendar-event-fill text-muted"></i> 이번 주 일정</div>
-        </div>
-        <div class="card-body-custom">
-          <div class="border-start border-3 border-primary ps-3 mb-3">
-            <div class="fw-bold small text-primary">8주차 파이널 프로젝트 스프린트</div>
-            <div class="text-muted small">08.10 (월) ~ 08.14 (금)</div>
+      <div class="col-12 col-lg-4">
+        <section class="card-custom" aria-labelledby="my-team-title">
+          <div class="card-header-custom">
+            <div class="card-title-custom" id="my-team-title">
+              <i class="bi bi-people-fill text-primary"></i>내 팀
+            </div>
+            <span class="badge bg-primary">{{ portal.team.name }}</span>
           </div>
-          <div class="border-start border-3 border-danger ps-3">
-            <div class="fw-bold small text-danger">8주차 최종 평가 마감</div>
-            <div class="text-muted small">08.14 (금) 18:00 마감 (D-1)</div>
+          <div class="card-body-custom">
+            <div class="d-flex flex-column gap-3">
+              {% for member in portal.team.members %}
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="member-avatar {% cycle '' 'avatar-sky' 'avatar-amber' %}">{{ member.display_name_snapshot|slice:":1" }}</div>
+                    <div>
+                      <div class="fw-bold small">
+                        {{ member.display_name_snapshot }}
+                        {% if member.is_self %}<span class="badge bg-light text-dark border ms-1">나</span>{% endif %}
+                      </div>
+                      <div class="font-size-11 text-muted">{{ member.student_number_snapshot }}</div>
+                    </div>
+                  </div>
+                  <span class="badge badge-ax {% if member.evaluation_completed %}badge-ax-completed{% else %}badge-ax-pending{% endif %}">{% if member.evaluation_completed %}완료{% else %}대기{% endif %}</span>
+                </div>
+              {% endfor %}
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
-{% endblock %}
-{% block modals %}
-  <!-- 공지사항 상세 모달 -->
-  <div class="modal fade"
-       id="noticeDetailModal"
-       tabindex="-1"
-       aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content rounded-4 border-0 shadow">
-        <div class="modal-header border-bottom px-4 py-3">
-          <div>
-            <span class="badge me-1" id="noticeDetailBadge">공지</span>
-            <h6 class="modal-title fw-bold d-inline" id="noticeDetailTitle">공지 제목</h6>
+        </section>
+        <section class="card-custom" aria-labelledby="round-schedule-title">
+          <div class="card-header-custom">
+            <div class="card-title-custom" id="round-schedule-title">
+              <i class="bi bi-calendar-event-fill text-muted"></i>평가 일정
+            </div>
           </div>
-          <button type="button"
-                  class="btn-close"
-                  data-bs-dismiss="modal"
-                  aria-label="Close"></button>
-        </div>
-        <div class="notice-detail-body modal-body p-4 custom-scroll"
-             id="noticeDetailBody"></div>
-        <div class="modal-footer border-top px-4 py-2 d-flex justify-content-between align-items-center">
-          <small class="text-muted" id="noticeDetailDate">2026.08.15</small>
-          <button type="button"
-                  class="btn btn-ax-secondary px-3"
-                  data-bs-dismiss="modal">닫기</button>
-        </div>
+          <div class="card-body-custom">
+            <div class="border-start border-3 border-primary ps-3 mb-3">
+              <div class="fw-bold small">시작</div>
+              <div class="text-muted small">{{ portal.round.evaluation_start_at|date:"Y.m.d H:i" }}</div>
+            </div>
+            <div class="border-start border-3 border-danger ps-3">
+              <div class="fw-bold small text-danger">마감</div>
+              <div class="text-muted small">{{ portal.round.evaluation_end_at|date:"Y.m.d H:i" }}</div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
-  </div>
-  <!-- 전체 공지사항 목록 모달 -->
-  <div class="modal fade"
-       id="allNoticesModal"
-       tabindex="-1"
-       aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-      <div class="modal-content rounded-4 border-0 shadow">
-        <div class="modal-header border-bottom px-4 py-3">
-          <h6 class="modal-title fw-bold"><i class="bi bi-megaphone-fill text-primary me-2"></i>운영 공지사항 전체 목록</h6>
-          <button type="button"
-                  class="btn-close"
-                  data-bs-dismiss="modal"
-                  aria-label="Close"></button>
-        </div>
-        <div class="modal-body p-0 custom-scroll">
-          <div class="list-group list-group-flush small" id="allNoticesListGroup"></div>
-        </div>
-        <div class="modal-footer border-top-0 px-4 pb-3">
-          <button type="button"
-                  class="btn btn-ax-secondary px-4"
-                  data-bs-dismiss="modal">닫기</button>
-        </div>
+  {% else %}
+    <div class="card-custom">
+      <div class="card-body-custom text-center py-5">
+        <i class="bi bi-calendar2-check fs-1 text-muted"></i>
+        <h5 class="fw-bold mt-3">현재 진행 중인 평가 회차가 없습니다</h5>
+        <p class="text-muted mb-0">새 회차가 시작되면 해야 할 평가와 팀 현황이 이곳에 표시됩니다.</p>
       </div>
     </div>
-  </div>
-{% endblock %}
-{% block extra_js %}
-  <script>
-  const noticesData = {
-    1: {
-      tag: "긴급",
-      tagClass: "bg-danger",
-      title: "8주차 최종 프로젝트 발표 및 상호평가 마감 안내",
-      date: "2026.08.15 14:00 (운영진)",
-      content: `
-        <p>안녕하세요, AX 부트캠프 운영진입니다.</p>
-        <p>8주간 달려온 최종 프로젝트 스프린트가 이번 주 금요일에 종료됩니다.</p>
-        <div class="p-3 bg-light rounded-3 border my-3">
-          <strong>📅 최종 마감 일정:</strong><br>
-          • <strong>프로젝트 산출물 제출:</strong> 08월 14일(금) 16:00<br>
-          • <strong>동료 상호평가 및 팀 평가:</strong> 08월 14일(금) 18:00 (시간 엄수)
-        </div>
-      `
-    },
-    2: {
-      tag: "공지",
-      tagClass: "bg-light text-dark border",
-      title: "8주간의 누적 역량 리포트 최종 수료증 발급 안내",
-      date: "2026.08.14 11:30 (운영진)",
-      content: `<p>수료생 여러분들의 마이페이지 5대 역량 분석 데이터가 수료증에 공식 기재될 예정입니다.</p>`
-    },
-    3: {
-      tag: "안내",
-      tagClass: "bg-light text-dark border",
-      title: "최종 프로젝트 데모데이 심사위원 평가 기준표 공개",
-      date: "2026.08.12 09:00 (교육팀)",
-      content: `<p>데모데이 심사는 아키텍처(30점), 기능 구현(30점), UI/UX(20점), 발표(20점) 기준으로 진행됩니다.</p>`
-    }
-  };
-
-  function openNoticeDetail(id) {
-    const notice = noticesData[id];
-    if (!notice) return;
-
-    document.getElementById('noticeDetailBadge').className = `badge me-1 ${notice.tagClass}`;
-    document.getElementById('noticeDetailBadge').innerText = notice.tag;
-    document.getElementById('noticeDetailTitle').innerText = notice.title;
-    document.getElementById('noticeDetailBody').innerHTML = notice.content;
-    document.getElementById('noticeDetailDate').innerText = notice.date;
-
-    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('noticeDetailModal'));
-    modal.show();
-  }
-
-  function openAllNoticesModal() {
-    const listGroup = document.getElementById('allNoticesListGroup');
-    let html = '';
-    
-    for (const [id, item] of Object.entries(noticesData)) {
-      html += `
-        <div class="list-group-item d-flex justify-content-between align-items-center py-3 px-4 notice-interactive-item" onclick="openNoticeFromList(${id})">
-          <div>
-            <span class="badge me-2 ${item.tagClass}">${item.tag}</span>
-            <span class="fw-semibold text-dark">${item.title}</span>
-          </div>
-          <span class="text-muted small">${item.date.split(' ')[0]}</span>
-        </div>
-      `;
-    }
-    listGroup.innerHTML = html;
-
-    const allModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('allNoticesModal'));
-    allModal.show();
-  }
-
-  function openNoticeFromList(id) {
-    const allModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('allNoticesModal'));
-    allModal.hide();
-
-    setTimeout(() => {
-      openNoticeDetail(id);
-    }, 300);
-  }
-  </script>
+  {% endif %}
 {% endblock %}
