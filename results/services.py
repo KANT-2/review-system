@@ -27,6 +27,14 @@ from decimal import ROUND_HALF_UP, Decimal
 TEAM_WEIGHT = Decimal("0.4")
 PEER_WEIGHT = Decimal("0.6")
 
+# 튜터 평가를 반영하는 회차의 대체 비율 (구축제안서 슬라이드 10 "튜터 평가 반영 시 제안
+# 기본값"). 아직 팀 협의 사항으로 미확정이라(제안서 슬라이드 22, 협의 필요 항목 #2) 값이
+# 바뀔 수 있어 상수로 분리해뒀다. 이 프로토타입은 튜터 평가 "입력" 기능 자체는 만들지 않고,
+# 계산식만 대비해둔다.
+TEAM_WEIGHT_WITH_TUTOR = Decimal("0.3")
+PEER_WEIGHT_WITH_TUTOR = Decimal("0.4")
+TUTOR_WEIGHT = Decimal("0.3")
+
 # results_calculation_run.formula_version - 계산 실행마다 어떤 버전의 공식으로 채점했는지
 # 남긴다 (docs/DATABASE-DESIGN.md 5.10). 계산 공식이 바뀌면 이 문자열도 올린다.
 FORMULA_VERSION = "score-v1"
@@ -74,14 +82,32 @@ def calculate_peer_score(received_answer_sets: list[list[int]]) -> Decimal | Non
     return round_to_raw(sum(percentages) / len(percentages))
 
 
-def calculate_final_score(team_score: Decimal | None, peer_score: Decimal | None) -> Decimal | None:
-    """개인 최종점수 = 팀 점수 40% + 개인 점수 60% (raw 정밀도).
+def calculate_final_score(
+    team_score: Decimal | None,
+    peer_score: Decimal | None,
+    tutor_score: Decimal | None = None,
+) -> Decimal | None:
+    """개인 최종점수 (raw 정밀도).
 
-    두 구성 점수 중 하나라도 N/A(``None``)면 최종점수도 N/A다 (RES-004).
+    ``tutor_score``를 안 주면(기본값) 팀 점수 40% + 개인 점수 60% (RES-004). 이 회차가
+    튜터 평가를 반영하는 회차라 ``tutor_score``가 주어지면 팀 30% + 개인 40% + 튜터 30%로
+    바뀐다 - 정확한 비율은 아직 팀 협의로 확정 전이라 바뀔 수 있다(모듈 상단
+    TEAM_WEIGHT_WITH_TUTOR 등 참고).
+
+    구성 점수 중 하나라도 N/A(``None``)면 최종점수도 N/A다. ``tutor_score``는 다른
+    구성요소와 달리 "이 회차가 튜터 평가를 반영하는지" 자체를 결정하는 파라미터라, None이면
+    2요소 산식으로 그냥 폴백한다 - 튜터 평가를 반영하는 회차인데 특정 학생만 튜터 점수가
+    빠졌을 때도 N/A로 처리해야 하는지는 아직 확정되지 않았다.
     """
     if team_score is None or peer_score is None:
         return None
-    return round_to_raw(team_score * TEAM_WEIGHT + peer_score * PEER_WEIGHT)
+    if tutor_score is None:
+        return round_to_raw(team_score * TEAM_WEIGHT + peer_score * PEER_WEIGHT)
+    return round_to_raw(
+        team_score * TEAM_WEIGHT_WITH_TUTOR
+        + peer_score * PEER_WEIGHT_WITH_TUTOR
+        + tutor_score * TUTOR_WEIGHT
+    )
 
 
 def determine_data_status(expected_count: int, valid_count: int) -> str:

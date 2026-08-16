@@ -173,6 +173,22 @@ def build_scenario():
             row.name if hasattr(row, "name") else "",
         )
 
+    # ---- 튜터 평가 반영 예시 (아직 미확정 - 구축제안서 슬라이드 10/22 참고) ----
+    # 튜터 평가 "입력" 기능은 만들지 않고, 반영됐을 때 최종점수 산식이 어떻게 바뀌는지만
+    # 학생A의 실제 팀/개인 점수에 가상의 튜터 점수를 대입해 나란히 보여준다.
+    tutor_demo_student = students[0]  # 학생A
+    tutor_demo_score = Decimal("80.00")
+    tutor_example = {
+        "student_name": tutor_demo_student.name,
+        "team_score": tutor_demo_student.team_score,
+        "peer_score": tutor_demo_student.peer_score,
+        "tutor_score": tutor_demo_score,
+        "final_without_tutor": tutor_demo_student.final_score,
+        "final_with_tutor": calculate_final_score(
+            tutor_demo_student.team_score, tutor_demo_student.peer_score, tutor_demo_score
+        ),
+    }
+
     return {
         "round_name": "3회차",
         "teams": sorted(teams.values(), key=lambda t: t.number),
@@ -184,6 +200,7 @@ def build_scenario():
         "published_at": PUBLISHED_AT,
         "seeds": seeds,
         "winner_team": next((t for t in ranked_teams if t.rank == 1), None),
+        "tutor_example": tutor_example,
     }
 
 

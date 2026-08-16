@@ -68,6 +68,16 @@ class CalculateFinalScoreTests(SimpleTestCase):
     def test_is_na_when_peer_score_is_na(self):
         self.assertIsNone(calculate_final_score(Decimal("85.00"), None))
 
+    def test_uses_team_30_peer_40_tutor_30_when_tutor_score_given(self):
+        # 85*.3 + 90*.4 + 80*.3 = 25.5 + 36 + 24 = 85.5
+        self.assertEqual(
+            calculate_final_score(Decimal("85.00"), Decimal("90.00"), Decimal("80.00")),
+            Decimal("85.500000"),
+        )
+
+    def test_is_na_when_team_score_is_na_even_with_tutor_score(self):
+        self.assertIsNone(calculate_final_score(None, Decimal("90.00"), Decimal("80.00")))
+
 
 class DetermineDataStatusTests(SimpleTestCase):
     def test_not_applicable_when_nothing_expected(self):

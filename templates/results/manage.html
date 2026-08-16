@@ -171,4 +171,48 @@
       </div>
     </div>
   </section>
+  <section class="ax-section">
+    <div class="ax-card">
+      <h2 class="ax-section-title">튜터 평가 반영 시 계산 예시 (협의 예정)</h2>
+      <p class="text-muted small">
+        튜터 평가를 입력받는 기능은 아직 안 만들었습니다. 도입되면 최종점수 산식이 팀 40%
+        + 개인 60%에서 <strong>팀 30% + 개인 40% + 튜터 30%</strong>로 바뀔 예정이라(정확한
+        비율은 협의 중), 계산식만 미리 대비해두고 {{ scenario.tutor_example.student_name }}의
+        실제 점수로 비교해봤습니다.
+      </p>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">방식</th>
+              <th scope="col" class="text-end">팀 점수</th>
+              <th scope="col" class="text-end">개인 점수</th>
+              <th scope="col" class="text-end">튜터 점수</th>
+              <th scope="col" class="text-end">최종점수</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>지금 (튜터 미반영)</td>
+              <td class="text-end">{{ scenario.tutor_example.team_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.peer_score|as_five_point }}/5</td>
+              <td class="text-end"><span class="ax-na-value">해당없음</span></td>
+              <td class="text-end fw-semibold">
+                {% include "results/_score_cell.html" with value=scenario.tutor_example.final_without_tutor %}
+              </td>
+            </tr>
+            <tr>
+              <td>도입 후 (예시)</td>
+              <td class="text-end">{{ scenario.tutor_example.team_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.peer_score|as_five_point }}/5</td>
+              <td class="text-end">{{ scenario.tutor_example.tutor_score|as_five_point }}/5</td>
+              <td class="text-end fw-semibold">
+                {% include "results/_score_cell.html" with value=scenario.tutor_example.final_with_tutor %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 {% endblock %}
