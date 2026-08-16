@@ -2,30 +2,54 @@
 {% load static %}
 {% block title %}팀 편성 | AX Evaluation Console{% endblock %}
 {% block body_class %}teams-page{% endblock %}
-{% block extra_css %}<link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">{% endblock %}
-{% block app_shell %}
-<div class="teams-shell">
-  <aside class="teams-sidebar">
-    <div class="teams-brand">AX Evaluation Console</div>
-    <div class="teams-nav-label">프로젝트</div>
-    <a href="#">⌂　대시보드</a><a class="active" href="#">♟　팀 편성</a><a href="#">✓　평가 진행</a><a href="#">▤　결과 확인</a>
-  </aside>
-  <div class="teams-content">
-    <header class="teams-topbar"><span>프로젝트 › 팀 편성</span><strong>{% if role == 'tutor' %}튜터{% else %}학생{% endif %}　●</strong></header>
-    <main class="teams-main">
-      <div class="teams-heading"><div><span id="statusBadge" class="teams-status"></span><h1>프로젝트 팀 편성</h1><p id="pageDescription"></p></div></div>
-      <section id="toolbar" class="teams-toolbar" hidden>
-        <label>팀 수 <select id="teamCount" class="form-select form-select-sm"></select> 개</label>
-        <button id="autoButton" class="btn btn-primary btn-sm">자동 배치</button>
-        <span id="seedMetric" class="teams-metric">유효 시드 —</span><span id="balanceMetric" class="teams-metric">팀 균형 편차 —</span><span id="unassignedMetric" class="teams-metric neutral"></span>
-        <span class="teams-spacer"></span><button id="cancelButton" class="btn btn-outline-secondary btn-sm" disabled>변경 취소</button><button id="saveButton" class="btn btn-primary btn-sm" disabled>저장</button>
-      </section>
-      <div id="unassignedArea"></div><section id="board" class="teams-board"><div id="teamRows"></div><p id="legend" class="teams-legend"></p></section>
-      <section id="emptyState" class="teams-empty" hidden><img src="{% static 'teams/img/tutor-team-assignment-empty.png' %}" alt="컴퓨터 앞에서 팀 편성을 고민하는 튜터 캐릭터"><h2 id="emptyTitle"></h2><p id="emptyText"></p></section>
-    </main>
-  </div>
-</div>
-{{ team_data|json_script:"teams-initial-data" }}
-<script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }}};</script>
+{% block extra_css %}
+  <link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">
 {% endblock %}
-{% block extra_js %}<script src="{% static 'teams/js/workspace.js' %}"></script>{% endblock %}
+{% block app_shell %}
+  <div class="teams-shell">
+    <aside class="teams-sidebar">
+      <div class="teams-brand">AX Evaluation Console</div>
+      <div class="teams-nav-label">프로젝트</div>
+      <a href="#">⌂　대시보드</a><a class="active" href="#">♟　팀 편성</a><a href="#">✓　평가 진행</a><a href="#">▤　결과 확인</a>
+    </aside>
+    <div class="teams-content">
+      <header class="teams-topbar"><span>프로젝트 › 팀 편성</span><strong>{% if role == 'tutor' %}튜터{% else %}학생{% endif %}　●</strong></header>
+      <main class="teams-main">
+        <div class="teams-heading">
+          <div>
+            <span id="statusBadge" class="teams-status"></span>
+            <h1>프로젝트 팀 편성</h1>
+            <p id="pageDescription"></p>
+          </div>
+        </div>
+        <section id="toolbar" class="teams-toolbar" hidden>
+          <label>
+            팀 수
+            <select id="teamCount" class="form-select form-select-sm"></select>
+            개
+          </label>
+          <button id="autoButton" class="btn btn-primary btn-sm">자동 배치</button>
+          <span id="seedMetric" class="teams-metric">유효 시드 —</span><span id="balanceMetric" class="teams-metric">팀 균형 편차 —</span><span id="unassignedMetric" class="teams-metric neutral"></span>
+          <span class="teams-spacer"></span>
+          <button id="cancelButton" class="btn btn-outline-secondary btn-sm" disabled>변경 취소</button><button id="saveButton" class="btn btn-primary btn-sm" disabled>저장</button>
+        </section>
+        <div id="unassignedArea"></div>
+        <section id="board" class="teams-board">
+          <div id="teamRows"></div>
+          <p id="legend" class="teams-legend"></p>
+        </section>
+        <section id="emptyState" class="teams-empty" hidden>
+          <img src="{% static 'teams/img/tutor-team-assignment-empty.png' %}"
+               alt="컴퓨터 앞에서 팀 편성을 고민하는 튜터 캐릭터">
+          <h2 id="emptyTitle"></h2>
+          <p id="emptyText"></p>
+        </section>
+      </main>
+    </div>
+  </div>
+  {{ team_data|json_script:"teams-initial-data" }}
+  <script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }}};</script>
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'teams/js/workspace.js' %}"></script>
+{% endblock %}

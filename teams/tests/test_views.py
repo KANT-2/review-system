@@ -104,7 +104,7 @@ class TeamsHttpViewTests(TestCase):
 
     def test_student_can_get_own_team(self):
         request = self.factory.get("/student/team/")
-        request.user = FakeUser(1, "STUDENT")
+        request.user = FakeUser(1, "student")
 
         response = student_team_view(request)
 
@@ -116,7 +116,7 @@ class TeamsHttpViewTests(TestCase):
 
     def test_student_page_renders_all_team_workspace(self):
         request = self.factory.get("/teams/student/")
-        request.user = FakeUser(1, "STUDENT")
+        request.user = FakeUser(1, "student")
 
         response = student_team_page(request)
 
@@ -127,7 +127,7 @@ class TeamsHttpViewTests(TestCase):
 
     def test_tutor_page_renders_management_workspace(self):
         request = self.factory.get("/teams/manage/rounds/10/")
-        request.user = FakeUser(2, "TUTOR")
+        request.user = FakeUser(2, "tutor")
 
         response = management_team_page(request, 10)
 
@@ -149,7 +149,7 @@ class TeamsHttpViewTests(TestCase):
 
     def test_student_cannot_open_management_team_view(self):
         request = self.factory.get("/manage/rounds/10/teams/")
-        request.user = FakeUser(1, "STUDENT")
+        request.user = FakeUser(1, "student")
 
         response = management_team_view(request, 10)
 
@@ -170,7 +170,7 @@ class TeamsHttpViewTests(TestCase):
             data=json.dumps({"team_count": 2, "lock_version": 4}),
             content_type="application/json",
         )
-        request.user = FakeUser(2, "TUTOR")
+        request.user = FakeUser(2, "tutor")
 
         response = auto_assignment_view(request, 10)
 
@@ -184,7 +184,7 @@ class TeamsHttpViewTests(TestCase):
             data="{invalid",
             content_type="application/json",
         )
-        request.user = FakeUser(2, "TUTOR")
+        request.user = FakeUser(2, "tutor")
 
         response = auto_assignment_view(request, 10)
 
@@ -198,7 +198,7 @@ class TeamsHttpViewTests(TestCase):
             data=json.dumps({"team_count": 2, "lock_version": 3}),
             content_type="application/json",
         )
-        request.user = FakeUser(2, "TUTOR")
+        request.user = FakeUser(2, "tutor")
 
         response = auto_assignment_view(request, 10)
 
@@ -244,7 +244,7 @@ class TeamsHttpViewTests(TestCase):
 
     def test_staff_can_open_management_view_without_tutor_role(self):
         request = self.factory.get("/manage/rounds/10/teams/")
-        request.user = FakeUser(3, "STUDENT", is_staff=True)
+        request.user = FakeUser(3, "student", is_staff=True)
 
         response = management_team_view(request, 10)
 
@@ -264,5 +264,22 @@ class TeamsHttpViewTests(TestCase):
             ),
             content_type="application/json",
         )
-        request.user = FakeUser(2, "TUTOR")
+        request.user = FakeUser(2, "tutor")
         return request
+
+
+class TeamsBackendConfigurationTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_unconfigured_backend_returns_service_unavailable(self):
+        request = self.factory.get("/teams/student/team/")
+        request.user = FakeUser(1, "student")
+
+        response = student_team_view(request)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            json.loads(response.content)["error"]["code"],
+            "teams_backend_not_configured",
+        )
