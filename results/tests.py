@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
 from results.services import (
     calculate_coverage,
@@ -16,6 +17,20 @@ from results.services import (
     round_to_raw,
     score_from_answers,
 )
+
+
+class ResultsPreviewViewTests(TestCase):
+    def test_manage_preview_renders(self):
+        response = self.client.get(reverse("results:manage_preview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "결과·공개")
+
+    def test_me_preview_renders(self):
+        response = self.client.get(reverse("results:me_preview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "내 결과")
 
 
 class ScoreFromAnswersTests(SimpleTestCase):

@@ -1,3 +1,4 @@
+{% firstof user.first_name user.username "사용자" as display_name %}
 <header id="topbar">
   <div class="topbar-breadcrumb d-flex align-items-center gap-2 small text-muted">
     <i class="bi bi-house"></i> AX Console
@@ -17,8 +18,8 @@
     <div class="dropdown">
       <button class="btn btn-sm d-flex align-items-center gap-2 p-1 pe-2 rounded-pill border"
               data-bs-toggle="dropdown">
-        <div class="member-avatar avatar-xs">{{ user.first_name|default:user.username|slice:":1" }}</div>
-        <span class="fw-semibold small">{{ user.first_name|default:user.username }} ({{ user.session_info|default:"기수미지정" }})</span>
+        <div class="member-avatar avatar-xs">{{ display_name|slice:":1" }}</div>
+        <span class="fw-semibold small">{{ display_name }} ({{ user.session_info|default:"기수미지정" }})</span>
         <i class="font-size-11 bi bi-chevron-down text-muted"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm">
