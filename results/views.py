@@ -16,6 +16,7 @@ def manage_preview(request):
         "results/manage.html",
         {
             "scenario": scenario,
+            "active_nav": "manage",
         },
     )
 
@@ -38,5 +39,6 @@ def me_preview(request):
         "my_score": reveal(me, "my_score"),
         "my_rank": reveal(me.rank, "peer_ranking"),
         "published_at": published_at,
+        "active_nav": "me",
     }
     return render(request, "results/me.html", context)

@@ -2,7 +2,6 @@
 {% load results_extras %}
 {% block title %}결과·공개 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}회차 관리 / 결과·공개{% endblock %}
-{% block nav_manage %}active{% endblock %}
 {% block content %}
   <div class="ax-page-header">
     <div>
@@ -18,12 +17,12 @@
         <table class="table align-middle mb-2">
           <thead>
             <tr>
-              <th scope="col">순위</th>
+              <th scope="col" class="text-end">순위</th>
               <th scope="col">팀</th>
               <th scope="col">구성원</th>
-              <th scope="col">팀 점수 (5점 만점)</th>
-              <th scope="col">제출 현황</th>
-              <th scope="col">응답률</th>
+              <th scope="col" class="text-end">팀 점수 (5점 만점)</th>
+              <th scope="col" class="text-center">제출 현황</th>
+              <th scope="col" class="text-end">응답률</th>
             </tr>
           </thead>
           <tbody>
@@ -48,10 +47,11 @@
                   class="btn btn-sm btn-link ax-toggle-rest ps-0"
                   data-bs-toggle="collapse"
                   data-bs-target="#teamRestRows"
+                  data-more-text="나머지 {{ rest|length }}개 팀 더보기"
                   aria-expanded="false"
                   aria-controls="teamRestRows">
             <i class="bi bi-chevron-down ax-toggle-icon"></i>
-            나머지 {{ rest|length }}개 팀 더보기
+            <span class="ax-toggle-label">나머지 {{ rest|length }}개 팀 더보기</span>
           </button>
         {% endif %}
       {% endwith %}
@@ -64,13 +64,13 @@
         <table class="table align-middle mb-2">
           <thead>
             <tr>
-              <th scope="col">순위</th>
+              <th scope="col" class="text-end">순위</th>
               <th scope="col">이름</th>
               <th scope="col">팀</th>
-              <th scope="col">팀 점수</th>
-              <th scope="col">개인 점수</th>
-              <th scope="col">최종점수 (5점 만점)</th>
-              <th scope="col">개인 평가 제출 현황</th>
+              <th scope="col" class="text-end">팀 점수</th>
+              <th scope="col" class="text-end">개인 점수</th>
+              <th scope="col" class="text-end">최종점수 (5점 만점)</th>
+              <th scope="col" class="text-center">개인 평가 제출 현황</th>
             </tr>
           </thead>
           <tbody>
@@ -95,10 +95,11 @@
                   class="btn btn-sm btn-link ax-toggle-rest ps-0"
                   data-bs-toggle="collapse"
                   data-bs-target="#studentRestRows"
+                  data-more-text="나머지 {{ rest|length }}명 더보기"
                   aria-expanded="false"
                   aria-controls="studentRestRows">
             <i class="bi bi-chevron-down ax-toggle-icon"></i>
-            나머지 {{ rest|length }}명 더보기
+            <span class="ax-toggle-label">나머지 {{ rest|length }}명 더보기</span>
           </button>
         {% endif %}
       {% endwith %}
@@ -171,7 +172,7 @@
             <tr>
               <th scope="col">이름</th>
               <th scope="col">과거 최종점수 (오래된 순, 5점 만점)</th>
-              <th scope="col">다음 팀 편성 기준 점수</th>
+              <th scope="col" class="text-end">다음 팀 편성 기준 점수</th>
             </tr>
           </thead>
           <tbody>
@@ -183,18 +184,19 @@
                     {% for value in row.history %}
                       {{ value|as_five_point }}{% if not forloop.last %}, {% endif %}
                     {% endfor %}
+                    {% if row.trend == "up" %}
+                      <i class="bi bi-arrow-up-short ax-trend-up" title="최근 회차에서 상승"></i>
+                    {% elif row.trend == "down" %}
+                      <i class="bi bi-arrow-down-short ax-trend-down" title="최근 회차에서 하락"></i>
+                    {% elif row.trend == "flat" %}
+                      <i class="bi bi-arrow-right-short ax-trend-flat" title="변화 없음"></i>
+                    {% endif %}
                   {% else %}
                     <span class="ax-na-value">이력 없음</span>
                   {% endif %}
                 </td>
-                <td class="fw-semibold">
-                  {% with seed=row.seed|as_five_point %}
-                    {% if seed is not None %}
-                      {{ seed }}
-                    {% else %}
-                      <span class="ax-na-value">기준 점수 없음 (신규)</span>
-                    {% endif %}
-                  {% endwith %}
+                <td class="text-end fw-semibold">
+                  {% include "results/_score_cell.html" with value=row.seed empty_message="기준 점수 없음 (신규)" %}
                 </td>
               </tr>
             {% endfor %}

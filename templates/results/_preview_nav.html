@@ -1,0 +1,7 @@
+<nav class="nav flex-column">
+  <a class="nav-link" href="{% url 'home' %}">홈</a>
+  <a class="nav-link {% if active_nav == 'manage' %}active{% endif %}"
+     href="{% url 'results:manage_preview' %}">결과·공개 (관리자)</a>
+  <a class="nav-link {% if active_nav == 'me' %}active{% endif %}"
+     href="{% url 'results:me_preview' %}">내 결과</a>
+</nav>

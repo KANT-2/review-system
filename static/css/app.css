@@ -138,6 +138,9 @@ body {
   border: 1px solid var(--ax-outline);
   border-radius: 14px;
   padding: 24px;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 32, 0.04),
+    0 1px 1px rgba(16, 24, 32, 0.03);
 }
 
 .ax-section + .ax-section {
@@ -207,4 +210,83 @@ tbody.collapse.show {
 
 .ax-toggle-rest[aria-expanded="true"] .ax-toggle-icon {
   transform: rotate(180deg);
+}
+
+/* ---- score bar: quick visual read of a 1~5 scale value ---- */
+
+.ax-score-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 72px;
+}
+
+.ax-score-value {
+  white-space: nowrap;
+}
+
+.ax-score-value .ax-score-suffix {
+  color: var(--ax-text-muted);
+  font-weight: 400;
+}
+
+.ax-score-bar {
+  width: 100%;
+  max-width: 72px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ax-outline);
+  overflow: hidden;
+}
+
+.ax-score-bar-fill {
+  height: 100%;
+  background: var(--ax-primary);
+  border-radius: 2px;
+}
+
+/* ---- mobile offcanvas sidebar (LAYOUT.md 17: 데스크톱 사이드바와 같은 네비게이션) ---- */
+
+.ax-sidebar-offcanvas {
+  background: var(--ax-navigation);
+  color: #ffffff;
+  width: var(--ax-sidebar-width);
+}
+
+.ax-sidebar-offcanvas .offcanvas-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ax-sidebar-offcanvas .nav-link {
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ax-sidebar-offcanvas .nav-link:hover {
+  color: #ffffff;
+  background: var(--ax-navigation-hover);
+}
+
+.ax-sidebar-offcanvas .nav-link.active {
+  color: #ffffff;
+  background: var(--ax-primary);
+}
+
+/* ---- seed trend arrows ---- */
+
+.ax-trend-up {
+  color: var(--ax-success);
+}
+
+.ax-trend-down {
+  color: var(--ax-error);
+}
+
+.ax-trend-flat {
+  color: var(--ax-text-muted);
 }

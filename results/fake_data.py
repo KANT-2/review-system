@@ -146,8 +146,23 @@ def build_scenario():
         ("학생D", [Decimal("70.000000"), Decimal("76.500000")]),  # 2개, 뒤에서부터 30/50 재정규화
         ("학생I", []),  # 유효 이력 없음 -> 무시드(N/A)
     ]
+
+    def _trend(history):
+        """마지막 두 회차를 비교해 상승/하강/유지를 판단한다 (표시용, 순수 장식이 아니라
+        '최근 성적이 어느 방향인지'를 바로 읽게 해주는 정보)."""
+        if len(history) < 2:
+            return None
+        return (
+            "up" if history[-1] > history[-2] else "down" if history[-1] < history[-2] else "flat"
+        )
+
     seeds = [
-        {"name": name, "history": history, "seed": calculate_seed(history)}
+        {
+            "name": name,
+            "history": history,
+            "seed": calculate_seed(history),
+            "trend": _trend(history),
+        }
         for name, history in seed_examples
     ]
 
