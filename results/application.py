@@ -6,7 +6,7 @@ from django.db.models import Max
 from django.utils import timezone
 
 from audit.services import record_event
-from results.models import CalculationRun, EvaluationResult
+from results.models import CalculationRun, EvaluationResult, TutorNote
 from results.services import (
     FORMULA_VERSION,
     calculate_coverage,
@@ -19,7 +19,13 @@ from results.services import (
     round_to_display,
 )
 from reviews.models import ReviewSubmission
-from rounds.models import EvaluationRound
+from rounds.models import EvaluationRound, RoundParticipant
+
+# toggle_publication이 "한 번 더 확인이 필요하다"고 알릴 때 쓰는 ValidationError code.
+PARTIAL_CONFIRMATION_REQUIRED = "partial_confirmation_required"
+
+# results_tutor_note.body 컬럼과 같은 상한.
+TUTOR_NOTE_MAX_LENGTH = 1000
 
 PUBLICATION_FIELDS = {
     "team_winner": "winner_published_at",
@@ -169,11 +175,7 @@ def calculate_round(*, round_id, actor):
         raise
 
 
-@transaction.atomic
-def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
-    field = PUBLICATION_FIELDS.get(item_key)
-    if not field:
-        raise ValidationError("알 수 없는 공개 항목입니다.")
+def _active_run_for_update(round_id):
     run = (
         CalculationRun.objects.select_for_update()
         .filter(round_id=round_id, is_active=True, status=CalculationRun.Status.SUCCEEDED)
@@ -181,10 +183,28 @@ def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
     )
     if not run:
         raise ValidationError("먼저 채점을 실행해 주세요.")
+    return run
+
+
+def _guard_partial_publication(run, *, turning_on, partial_confirmed):
+    if not turning_on or partial_confirmed:
+        return
+    if run.results.filter(data_status=EvaluationResult.DataStatus.PARTIAL).exists():
+        # 화면에서 이 code를 보고 에러 메시지 대신 "그래도 공개할까요?" 확인 배너를 띄운다.
+        raise ValidationError(
+            "일부 제출 결과 공개에는 추가 확인이 필요합니다.",
+            code=PARTIAL_CONFIRMATION_REQUIRED,
+        )
+
+
+@transaction.atomic
+def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
+    field = PUBLICATION_FIELDS.get(item_key)
+    if not field:
+        raise ValidationError("알 수 없는 공개 항목입니다.")
+    run = _active_run_for_update(round_id)
     turning_on = getattr(run, field) is None
-    has_partial = run.results.filter(data_status=EvaluationResult.DataStatus.PARTIAL).exists()
-    if turning_on and has_partial and not partial_confirmed:
-        raise ValidationError("일부 제출 결과 공개에는 추가 확인이 필요합니다.")
+    _guard_partial_publication(run, turning_on=turning_on, partial_confirmed=partial_confirmed)
     setattr(run, field, timezone.now() if turning_on else None)
     run.save(update_fields=(field,))
     record_event(
@@ -195,3 +215,89 @@ def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
         summary={"item": item_key, "published": turning_on, "partial_confirmed": partial_confirmed},
     )
     return run
+
+
+@transaction.atomic
+def toggle_all_publications(*, round_id, actor, partial_confirmed=False):
+    """4개 공개 항목을 한 번에 켜고 끈다.
+
+    하나라도 비공개면 전체 공개, 이미 전부 공개면 전체 비공개다. 일부 제출 데이터가 있을 때
+    추가 확인을 요구하는 규칙은 개별 토글과 같다 (RES-011).
+    """
+    run = _active_run_for_update(round_id)
+    fields = tuple(PUBLICATION_FIELDS.values())
+    turning_on = any(getattr(run, field) is None for field in fields)
+    _guard_partial_publication(run, turning_on=turning_on, partial_confirmed=partial_confirmed)
+    published_at = timezone.now() if turning_on else None
+    for field in fields:
+        setattr(run, field, published_at)
+    run.save(update_fields=fields)
+    record_event(
+        action="PUBLICATION_CHANGED",
+        target=run,
+        actor=actor,
+        round_obj=run.round,
+        summary={"item": "ALL", "published": turning_on, "partial_confirmed": partial_confirmed},
+    )
+    return run
+
+
+@transaction.atomic
+def save_tutor_note(*, round_id, participant_id, body, actor):
+    """수강생 한 명에 대한 튜터 전용 메모를 저장한다. 빈 내용으로 저장하면 메모를 지운다.
+
+    감사 로그에는 메모 원문을 남기지 않는다 (audit.services.record_event 규칙).
+    """
+    participant = RoundParticipant.objects.filter(pk=participant_id, round_id=round_id).first()
+    if not participant:
+        raise ValidationError("이 회차의 수강생이 아닙니다.")
+    body = (body or "").strip()
+    if len(body) > TUTOR_NOTE_MAX_LENGTH:
+        raise ValidationError(f"메모는 {TUTOR_NOTE_MAX_LENGTH}자까지 저장할 수 있습니다.")
+    if body:
+        note, _ = TutorNote.objects.update_or_create(
+            participant=participant, defaults={"body": body, "author": actor}
+        )
+        cleared = False
+    else:
+        note = TutorNote.objects.filter(participant=participant).first()
+        if not note:
+            return None
+        TutorNote.objects.filter(pk=note.pk).delete()
+        cleared = True
+    record_event(
+        action="TUTOR_NOTE_CHANGED",
+        target=participant,
+        actor=actor,
+        round_obj=participant.round,
+        summary={"participant_id": participant.pk, "cleared": cleared, "length": len(body)},
+    )
+    return None if cleared else note
+
+
+def previous_final_scores(round_obj):
+    """직전 회차(이 회차보다 먼저 완료됐고 활성 채점이 있는 가장 최근 회차)의 학생별 최종점수.
+
+    추이 배지("지난 회차 대비 상승/하락")를 그리는 데 쓴다. 회차마다 참가자 행이 새로 생기므로
+    회차를 가로지르는 식별자인 사용자 ID를 키로 돌려준다.
+    """
+    if not round_obj.completed_at:
+        return {}
+    previous_round = (
+        EvaluationRound.objects.filter(
+            status=EvaluationRound.Status.COMPLETED,
+            completed_at__lt=round_obj.completed_at,
+            calculation_runs__is_active=True,
+        )
+        .order_by("-completed_at")
+        .first()
+    )
+    if not previous_round:
+        return {}
+    rows = EvaluationResult.objects.filter(
+        calculation_run__round=previous_round,
+        calculation_run__is_active=True,
+        result_type=EvaluationResult.ResultType.INDIVIDUAL,
+        final_score_raw__isnull=False,
+    ).values_list("participant__user_id", "final_score_raw")
+    return dict(rows)

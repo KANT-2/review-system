@@ -1,7 +1,6 @@
 from decimal import Decimal
 
-from django.test import SimpleTestCase, TestCase
-from django.urls import reverse
+from django.test import SimpleTestCase
 
 from results.services import (
     calculate_coverage,
@@ -17,20 +16,7 @@ from results.services import (
     round_to_raw,
     score_from_answers,
 )
-
-
-class ResultsPreviewViewTests(TestCase):
-    def test_manage_preview_renders(self):
-        response = self.client.get(reverse("results:manage_preview"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "결과·공개")
-
-    def test_me_preview_renders(self):
-        response = self.client.get(reverse("results:me_preview"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "내 결과")
+from results.templatetags.results_extras import as_five_point, five_point_percent
 
 
 class ScoreFromAnswersTests(SimpleTestCase):
@@ -196,3 +182,27 @@ class RoundingTests(SimpleTestCase):
 
     def test_round_to_display_uses_half_up_to_two_decimal_places(self):
         self.assertEqual(round_to_display(Decimal("4.425")), Decimal("4.43"))
+
+
+class ScoreDisplayFilterTests(SimpleTestCase):
+    def test_truncates_to_two_decimal_places_without_rounding(self):
+        self.assertEqual(as_five_point(Decimal("4.666667")), Decimal("4.66"))
+
+    def test_keeps_two_decimal_places_for_whole_score(self):
+        self.assertEqual(as_five_point(Decimal("4")), Decimal("4.00"))
+
+    def test_preserves_missing_score(self):
+        self.assertIsNone(as_five_point(None))
+
+
+class FivePointPercentTests(SimpleTestCase):
+    """점수 막대는 1~5점 값을 0~100% 너비로 환산한다 (5점 = 100%)."""
+
+    def test_full_score_fills_the_bar(self):
+        self.assertEqual(five_point_percent(Decimal("5.00")), 100)
+
+    def test_scales_score_to_bar_width(self):
+        self.assertEqual(five_point_percent(Decimal("4.500000")), 90)
+
+    def test_preserves_missing_score(self):
+        self.assertIsNone(five_point_percent(None))

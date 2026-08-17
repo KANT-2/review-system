@@ -1,0 +1,57 @@
+{% load results_extras %}
+<tr data-status="{{ result.data_status }}">
+  <td class="text-end">{% include "results/_rank_cell.html" with rank=result.primary_rank tied=result.is_tied %}</td>
+  <td class="fw-semibold">
+    {{ result.participant.display_name_snapshot }}
+    <div class="text-muted font-size-115">{{ result.participant.student_number_snapshot }}</div>
+  </td>
+  <td>{{ result.participant.team_membership.team.name|default:"미배정" }}</td>
+  <td class="text-end">
+    <div class="ax-math-cell">
+      {% with team=result.team_score_raw|as_five_point peer=result.peer_score_raw|as_five_point %}
+        <span class="ax-score-part">
+          {% if team is not None %}{{ team }}{% else %}-{% endif %}<span class="ax-weight">×{{ team_weight_percent }}%</span>
+        </span>
+        <span class="ax-math-sign">+</span>
+        <span class="ax-score-part">
+          {% if peer is not None %}{{ peer }}{% else %}-{% endif %}<span class="ax-weight">×{{ peer_weight_percent }}%</span>
+        </span>
+      {% endwith %}
+    </div>
+  </td>
+  <td class="text-end fw-semibold">
+    {% include "results/_score_bar_cell.html" with value=result.final_score_raw %}
+    {% if result.trend_direction == "up" %}
+      <span class="ax-trend-badge ax-trend-up" title="지난 회차 대비 상승">
+        <i class="bi bi-arrow-up-short"></i>{{ result.trend_delta }}
+      </span>
+    {% elif result.trend_direction == "down" %}
+      <span class="ax-trend-badge ax-trend-down" title="지난 회차 대비 하락">
+        <i class="bi bi-arrow-down-short"></i>{{ result.trend_delta }}
+      </span>
+    {% elif result.trend_direction == "flat" %}
+      <span class="ax-trend-badge ax-trend-flat" title="지난 회차와 동일">
+        <i class="bi bi-arrow-right-short"></i>변화없음
+      </span>
+    {% endif %}
+  </td>
+  <td class="text-center">
+    <span class="badge {{ result.data_status|status_badge_class }}">{{ result.data_status|status_label }}</span>
+    <span class="text-muted font-size-115">({{ result.valid_count }}/{{ result.expected_count }})</span>
+  </td>
+  <td class="text-center">
+    {% with note=notes|get_item:result.participant_id %}
+      <button type="button"
+              class="ax-note-btn {% if note %}ax-note-btn--filled{% endif %}"
+              data-bs-toggle="modal"
+              data-bs-target="#studentNoteModal"
+              data-student-name="{{ result.participant.display_name_snapshot }}"
+              data-student-note="{{ note|default:'' }}"
+              data-note-action="{% url 'rounds:save-student-note' round_obj.pk result.participant_id %}"
+              title="{% if note %}메모 보기{% else %}메모 남기기{% endif %}"
+              aria-label="{{ result.participant.display_name_snapshot }} 메모">
+        <i class="bi {% if note %}bi-sticky-fill{% else %}bi-sticky{% endif %}"></i>
+      </button>
+    {% endwith %}
+  </td>
+</tr>

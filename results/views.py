@@ -1,16 +1,31 @@
+from collections import Counter
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import F
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from accounts.permissions import is_operations_user, is_student_user
-from results.application import PUBLICATION_FIELDS, calculate_round, toggle_publication
-from results.fake_data import PUBLISHED_AT, build_scenario
-from results.models import CalculationRun, EvaluationResult
-from results.services import reveal_if_published
+from results.application import (
+    PARTIAL_CONFIRMATION_REQUIRED,
+    PUBLICATION_FIELDS,
+    calculate_round,
+    previous_final_scores,
+    save_tutor_note,
+    toggle_all_publications,
+    toggle_publication,
+)
+from results.models import CalculationRun, EvaluationResult, TutorNote
+from results.services import PEER_WEIGHT, TEAM_WEIGHT, reveal_if_published, round_to_display
 from rounds.models import EvaluationRound, RoundParticipant
+
+# 상위 몇 개까지 펼친 채로 접을지 (팀 순위 / 개인 결과 공통).
+VISIBLE_ROW_COUNT = 3
+# 마스터 스위치(전체 공개)를 개별 항목과 구분하기 위한 확인 배너 키.
+PUBLISH_ALL_KEY = "ALL"
 
 PUBLISH_ITEMS = [
     {"key": "team_winner", "label": "팀 1위", "hint": "이번 회차 1위 팀 이름을 전체 학생에게 공개"},
@@ -41,44 +56,125 @@ def manage_results(request, round_id):
     round_obj = EvaluationRound.objects.filter(pk=round_id).first()
     if not round_obj:
         raise PermissionDenied
-    run = (
-        CalculationRun.objects.filter(round=round_obj, is_active=True)
-        .prefetch_related(
-            "results__team__memberships__participant",
-            "results__participant__team_membership__team",
-        )
-        .first()
-    )
+    run = CalculationRun.objects.filter(round=round_obj, is_active=True).first()
     team_results = []
     individual_results = []
     if run:
-        team_results = run.results.filter(result_type=EvaluationResult.ResultType.TEAM).order_by(
-            "primary_rank", "team__team_number"
+        # 순위가 없는 행(N/A)은 어느 DB에서든 항상 맨 뒤로 - SQLite와 PostgreSQL은
+        # NULL 정렬 기본값이 서로 반대다.
+        team_results = _mark_ties(
+            list(
+                run.results.filter(result_type=EvaluationResult.ResultType.TEAM)
+                .select_related("team")
+                .prefetch_related("team__memberships__participant")
+                .order_by(F("primary_rank").asc(nulls_last=True), "team__team_number")
+            )
         )
-        individual_results = run.results.filter(
-            result_type=EvaluationResult.ResultType.INDIVIDUAL
-        ).order_by("primary_rank", "participant__display_name_snapshot")
+        individual_results = _mark_ties(
+            list(
+                run.results.filter(result_type=EvaluationResult.ResultType.INDIVIDUAL)
+                .select_related("participant", "participant__team_membership__team")
+                .order_by(
+                    F("primary_rank").asc(nulls_last=True),
+                    "participant__display_name_snapshot",
+                )
+            )
+        )
+        _attach_trend(individual_results, previous_final_scores(round_obj))
     publication_rows = [
         {
             **item,
             "published": bool(run and getattr(run, PUBLICATION_FIELDS[item["key"]])),
+            "published_at": getattr(run, PUBLICATION_FIELDS[item["key"]]) if run else None,
         }
         for item in PUBLISH_ITEMS
     ]
+    pending_confirm = request.GET.get("confirm")
+    if pending_confirm not in PUBLISH_KEYS | {PUBLISH_ALL_KEY}:
+        pending_confirm = None
     return render(
         request,
         "results/round_manage.html",
         {
             "round_obj": round_obj,
+            "round_options": EvaluationRound.objects.order_by("-created_at").only("id", "title"),
             "run": run,
+            "all_published": bool(run) and all(row["published"] for row in publication_rows),
+            "notes": _notes_by_participant(individual_results),
             "team_results": team_results,
             "individual_results": individual_results,
+            "team_head": team_results[:VISIBLE_ROW_COUNT],
+            "team_rest": team_results[VISIBLE_ROW_COUNT:],
+            "individual_head": individual_results[:VISIBLE_ROW_COUNT],
+            "individual_rest": individual_results[VISIBLE_ROW_COUNT:],
+            "summary": _build_summary(round_obj, team_results, individual_results),
             "publish_items": publication_rows,
-            "has_partial": bool(
-                run and run.results.filter(data_status=EvaluationResult.DataStatus.PARTIAL).exists()
+            "pending_confirm": pending_confirm,
+            "team_weight_percent": int(TEAM_WEIGHT * 100),
+            "peer_weight_percent": int(PEER_WEIGHT * 100),
+            "has_partial": any(
+                result.data_status == EvaluationResult.DataStatus.PARTIAL
+                for result in team_results + individual_results
             ),
         },
     )
+
+
+def _mark_ties(results):
+    """같은 순위를 나눠 가진 행에 ``is_tied``를 달아 화면에서 '공동'으로 표시하게 한다."""
+    counts = Counter(result.primary_rank for result in results if result.primary_rank)
+    for result in results:
+        result.is_tied = counts.get(result.primary_rank, 0) > 1
+    return results
+
+
+def _attach_trend(results, previous_scores):
+    """지난 회차 대비 최종점수 추이(상승/하락/변화없음)를 각 행에 달아 준다.
+
+    두 회차 모두 최종점수가 있는 학생만 대상이다 - 한쪽이 N/A면 비교 자체가 성립하지 않는다.
+    차이는 표시 정밀도(소수 둘째 자리)로 계산한다.
+    """
+    for result in results:
+        result.trend_direction = None
+        result.trend_delta = None
+        previous = previous_scores.get(result.participant.user_id)
+        if previous is None or result.final_score_raw is None:
+            continue
+        delta = round_to_display(result.final_score_raw) - round_to_display(previous)
+        if delta > 0:
+            result.trend_direction, result.trend_delta = "up", delta
+        elif delta < 0:
+            result.trend_direction, result.trend_delta = "down", -delta
+        else:
+            result.trend_direction = "flat"
+    return results
+
+
+def _notes_by_participant(individual_results):
+    """참가자 ID -> 튜터 메모 본문. 운영자 화면에서만 조회한다."""
+    participant_ids = [result.participant_id for result in individual_results]
+    return dict(
+        TutorNote.objects.filter(participant_id__in=participant_ids).values_list(
+            "participant_id", "body"
+        )
+    )
+
+
+def _build_summary(round_obj, team_results, individual_results):
+    """결과 화면 상단 요약 카드 3장에 쓰는 값."""
+    return {
+        "participant_count": round_obj.participants.count(),
+        "team_count": round_obj.teams.count(),
+        "na_count": sum(1 for result in individual_results if result.final_score_raw is None),
+        "top_team": next(
+            (result for result in team_results if result.primary_rank == 1),
+            None,
+        ),
+        "top_student": next(
+            (result for result in individual_results if result.primary_rank == 1),
+            None,
+        ),
+    }
 
 
 @login_required
@@ -102,18 +198,72 @@ def calculate(request, round_id):
 def publish(request, round_id, item_key):
     if not is_operations_user(request.user):
         raise PermissionDenied
+    results_url = reverse("rounds:results", kwargs={"round_id": round_id})
     try:
-        toggle_publication(
+        run = toggle_publication(
             round_id=round_id,
             item_key=item_key,
             actor=request.user,
             partial_confirmed=request.POST.get("partial_confirmed") == "1",
         )
     except ValidationError as error:
+        if getattr(error, "code", None) == PARTIAL_CONFIRMATION_REQUIRED:
+            # 에러가 아니라 한 번 더 묻는 단계다 - 화면에 확인 배너를 띄운다.
+            return redirect(f"{results_url}?confirm={item_key}#publish")
         messages.error(request, " ".join(error.messages))
     else:
-        messages.success(request, "결과 공개 설정을 변경했습니다.")
-    return redirect("rounds:results", round_id=round_id)
+        is_published = getattr(run, PUBLICATION_FIELDS[item_key]) is not None
+        messages.success(
+            request,
+            f"'{PUBLISH_LABELS[item_key]}' 항목을 {'공개' if is_published else '비공개'}로 "
+            "전환했습니다.",
+        )
+    return redirect(f"{results_url}#publish")
+
+
+@login_required
+@require_POST
+def publish_all(request, round_id):
+    """마스터 스위치: 4개 공개 항목을 한 번에 켜고 끈다."""
+    if not is_operations_user(request.user):
+        raise PermissionDenied
+    results_url = reverse("rounds:results", kwargs={"round_id": round_id})
+    try:
+        run = toggle_all_publications(
+            round_id=round_id,
+            actor=request.user,
+            partial_confirmed=request.POST.get("partial_confirmed") == "1",
+        )
+    except ValidationError as error:
+        if getattr(error, "code", None) == PARTIAL_CONFIRMATION_REQUIRED:
+            return redirect(f"{results_url}?confirm={PUBLISH_ALL_KEY}#publish")
+        messages.error(request, " ".join(error.messages))
+    else:
+        is_published = getattr(run, PUBLICATION_FIELDS["team_winner"]) is not None
+        messages.success(
+            request, f"전체 결과를 {'공개' if is_published else '비공개'}로 전환했습니다."
+        )
+    return redirect(f"{results_url}#publish")
+
+
+@login_required
+@require_POST
+def save_note(request, round_id, participant_id):
+    """수강생별 튜터 전용 메모 저장. 학생 화면에는 노출되지 않는다."""
+    if not is_operations_user(request.user):
+        raise PermissionDenied
+    try:
+        save_tutor_note(
+            round_id=round_id,
+            participant_id=participant_id,
+            body=request.POST.get("body", ""),
+            actor=request.user,
+        )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모를 저장했습니다.")
+    return redirect(reverse("rounds:results", kwargs={"round_id": round_id}))
 
 
 @login_required
@@ -137,135 +287,43 @@ def my_results(request):
         result_type=EvaluationResult.ResultType.INDIVIDUAL, participant=participant
     ).first()
     team_results = (
-        run.results.filter(result_type=EvaluationResult.ResultType.TEAM).order_by(
-            "primary_rank", "team__team_number"
+        _mark_ties(
+            list(
+                run.results.filter(result_type=EvaluationResult.ResultType.TEAM)
+                .select_related("team")
+                .order_by(F("primary_rank").asc(nulls_last=True), "team__team_number")
+            )
         )
         if run.team_ranking_published_at
         else []
     )
     winner = (
-        run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1).first()
+        run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1)
+        .select_related("team")
+        .first()
         if run.winner_published_at
         else None
     )
+    my_team = getattr(participant, "team_membership", None)
     return render(
         request,
         "results/student_me.html",
         {
             "participant": participant,
             "run": run,
-            "my_result": my_result if run.my_score_published_at else None,
-            "my_rank": my_result.peer_rank if my_result and run.peer_ranking_published_at else None,
+            # 항목별 공개 게이트(RES-010) - 공개 시각이 없으면 값 자체를 넘기지 않는다.
+            "my_result": reveal_if_published(my_result, run.my_score_published_at),
+            "my_rank": (
+                reveal_if_published(my_result.peer_rank, run.peer_ranking_published_at)
+                if my_result
+                else None
+            ),
             "winner": winner,
             "team_results": team_results,
+            "team_head": team_results[:VISIBLE_ROW_COUNT],
+            "team_rest": team_results[VISIBLE_ROW_COUNT:],
+            "my_team_id": my_team.team_id if my_team else None,
+            "team_weight_percent": int(TEAM_WEIGHT * 100),
+            "peer_weight_percent": int(PEER_WEIGHT * 100),
         },
     )
-
-
-def _get_publish_state(request):
-    """세션에 저장된 항목별 공개 상태(bool). 저장된 모델이 없어서 세션으로 대신하는
-    프로토타입 전용 장치 - 실제 구현에서는 CalculationRun의 *_published_at 컬럼이 된다."""
-    if "publish_state" not in request.session:
-        request.session["publish_state"] = {
-            key: value is not None for key, value in PUBLISHED_AT.items()
-        }
-    return request.session["publish_state"]
-
-
-def _reveal(request, value, key):
-    is_published = _get_publish_state(request).get(key, False)
-    return reveal_if_published(value, True if is_published else None)
-
-
-def manage_preview(request):
-    """PG-25 '결과·공개' 화면 프로토타입 (튜터/관리자용).
-
-    가짜 데이터를 results/services.py의 실제 계산 함수에 통과시켜 만든 화면이다. accounts와
-    rounds 모델이 아직 없어서 실제 권한 검사·회차 조회는 하지 않는다 - 나중에 그 모델들이
-    생기면 이 뷰는 실제 CalculationRun/EvaluationResult 조회로 바뀐다.
-    """
-    scenario = build_scenario()
-    publish_state = _get_publish_state(request)
-    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
-        student.peer_data_status == "PARTIAL" for student in scenario["students"]
-    )
-    return render(
-        request,
-        "results/manage.html",
-        {
-            "scenario": scenario,
-            "active_nav": "manage",
-            "publish_items": PUBLISH_ITEMS,
-            "publish_state": publish_state,
-            "pending_confirm": request.session.get("pending_confirm"),
-            "has_partial_data": has_partial_data,
-        },
-    )
-
-
-@require_POST
-def toggle_publish(request, item_key):
-    """RES-010/011 프로토타입: 항목별 공개를 켜고 끈다.
-
-    켜려는 항목이 있고(off->on) 이번 회차에 PARTIAL 데이터가 있으면, 바로 공개하지 않고
-    한 번 더 확인을 요구한다(세션에 pending_confirm만 표시하고 실제 상태는 안 바꿈).
-    이미 확인을 거쳤으면(POST에 confirm=1) 그대로 진행한다. 끄는 것(on->off)은 확인 없이
-    바로 처리한다.
-    """
-    if item_key not in PUBLISH_KEYS:
-        return redirect("results:manage_preview")
-
-    publish_state = _get_publish_state(request)
-    turning_on = not publish_state.get(item_key, False)
-    confirmed = request.POST.get("confirm") == "1"
-
-    scenario = build_scenario()
-    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
-        student.peer_data_status == "PARTIAL" for student in scenario["students"]
-    )
-
-    if turning_on and has_partial_data and not confirmed:
-        request.session["pending_confirm"] = item_key
-    else:
-        publish_state[item_key] = turning_on
-        request.session["publish_state"] = publish_state
-        request.session.pop("pending_confirm", None)
-        label = PUBLISH_LABELS[item_key]
-        messages.success(
-            request, f"'{label}' 항목을 {'공개' if turning_on else '비공개'}로 전환했습니다."
-        )
-
-    request.session.modified = True
-    return redirect(reverse("results:manage_preview") + "#publish")
-
-
-@require_POST
-def cancel_publish_confirm(request):
-    request.session.pop("pending_confirm", None)
-    request.session.modified = True
-    return redirect(reverse("results:manage_preview") + "#publish")
-
-
-def me_preview(request):
-    """PG-16 '내 결과' 화면 프로토타입 (수강생용, 학생A 시점).
-
-    항목별 독립 공개(RES-010)를 실제로 시연한다 - 관리 화면에서 토글한 상태가 그대로
-    반영된다(같은 세션 기준).
-    """
-    scenario = build_scenario()
-    me = next(s for s in scenario["students"] if s.name == "학생A")
-    winner_team = scenario["winner_team"]
-
-    context = {
-        "round_name": scenario["round_name"],
-        "me": me,
-        "team_winner_number": _reveal(
-            request, winner_team.number if winner_team else None, "team_winner"
-        ),
-        "team_ranking": _reveal(request, scenario["teams_by_rank"], "team_ranking"),
-        "my_score": _reveal(request, me, "my_score"),
-        "my_rank": _reveal(request, me.rank, "peer_ranking"),
-        "publish_state": _get_publish_state(request),
-        "active_nav": "me",
-    }
-    return render(request, "results/me.html", context)

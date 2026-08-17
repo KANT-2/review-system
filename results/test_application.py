@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -6,8 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from results.application import calculate_round, toggle_publication
-from results.models import CalculationRun, EvaluationResult
+from results.application import PUBLICATION_FIELDS, calculate_round, toggle_publication
+from results.models import CalculationRun, EvaluationResult, TutorNote
 from reviews.models import ReviewAnswer, ReviewSubmission
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from teams.models import Team, TeamMembership
@@ -135,11 +136,11 @@ class ResultWorkflowTests(TestCase):
         )
         public_page = self.client.get(reverse("results:me"))
         self.assertContains(public_page, "내 점수 구성")
-        self.assertContains(public_page, "4.0/5")
+        self.assertContains(public_page, "4.00/5")
 
         mypage = self.client.get(reverse("accounts:mypage"))
         self.assertContains(mypage, "팀 40% + 개인 60%")
-        self.assertContains(mypage, '4.0<small class="fs-6">/5</small>', html=True)
+        self.assertContains(mypage, '4.00<small class="fs-6">/5</small>', html=True)
         self.assertNotContains(mypage, "다음 회차 편성 기준 점수")
 
     def test_recalculation_replaces_active_run_and_resets_publication(self):
@@ -167,3 +168,255 @@ class ResultWorkflowTests(TestCase):
                 item_key="my_score",
                 actor=self.tutor,
             )
+
+    def test_manage_screen_renders_ranking_and_publish_controls(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:results", kwargs={"round_id": self.round.pk}))
+
+        self.assertContains(response, "ax-rank-badge")  # 순위 배지
+        self.assertContains(response, "ax-filter-chip")  # 데이터 상태 필터
+        self.assertContains(response, "ax-switch")  # 항목별 공개 토글
+        self.assertContains(response, "round-switcher")  # 회차 전환
+        self.assertEqual(response.context["summary"]["team_count"], 2)
+        self.assertEqual(response.context["summary"]["participant_count"], 4)
+        # 화면에 노출되는 가중치는 실제 계산식(RES-004)에서 가져온다.
+        self.assertEqual(response.context["team_weight_percent"], 40)
+        self.assertEqual(response.context["peer_weight_percent"], 60)
+
+    def test_results_without_rank_sort_after_ranked_rows(self):
+        # 개인 평가를 한 건도 못 받은 학생은 N/A라 순위가 없고, 표 맨 뒤에 와야 한다.
+        ReviewSubmission.objects.filter(
+            review_type="PEER", target_participant=self.participants[0]
+        ).delete()
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:results", kwargs={"round_id": self.round.pk}))
+
+        ranks = [result.primary_rank for result in response.context["individual_results"]]
+        self.assertIsNone(ranks[-1])
+        self.assertTrue(all(rank is not None for rank in ranks[:-1]))
+        self.assertEqual(response.context["summary"]["na_count"], 1)
+
+    def test_publishing_partial_data_asks_for_confirmation_before_publishing(self):
+        ReviewSubmission.objects.filter(review_type="TEAM").first().delete()
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+        results_url = reverse("rounds:results", kwargs={"round_id": self.round.pk})
+        publish_url = reverse(
+            "rounds:publish-results", kwargs={"round_id": self.round.pk, "item_key": "my_score"}
+        )
+
+        first_attempt = self.client.post(publish_url)
+
+        self.assertRedirects(
+            first_attempt, f"{results_url}?confirm=my_score#publish", fetch_redirect_response=False
+        )
+        run.refresh_from_db()
+        self.assertIsNone(run.my_score_published_at)
+
+        confirm_page = self.client.get(f"{results_url}?confirm=my_score")
+        self.assertContains(confirm_page, "예, 공개합니다")
+        self.assertEqual(confirm_page.context["pending_confirm"], "my_score")
+
+        confirmed = self.client.post(publish_url, {"partial_confirmed": "1"})
+
+        self.assertRedirects(confirmed, f"{results_url}#publish", fetch_redirect_response=False)
+        run.refresh_from_db()
+        self.assertIsNotNone(run.my_score_published_at)
+
+    def test_unknown_confirm_query_is_ignored(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(
+            reverse("rounds:results", kwargs={"round_id": self.round.pk}),
+            {"confirm": "<script>"},
+        )
+
+        self.assertIsNone(response.context["pending_confirm"])
+
+    def _previous_round_with_scores(self, scores_by_user):
+        """이 회차보다 먼저 완료된 회차의 채점 결과를 만들어 둔다 (추이 배지 비교 대상)."""
+        now = timezone.now()
+        previous_round = EvaluationRound.objects.create(
+            title="지난 회차",
+            status=EvaluationRound.Status.COMPLETED,
+            evaluation_start_at=now - timedelta(days=20),
+            evaluation_end_at=now - timedelta(days=15),
+            target_team_count=2,
+            created_by=self.tutor,
+            started_at=now - timedelta(days=20),
+            completed_at=now - timedelta(days=15),
+        )
+        run = CalculationRun.objects.create(
+            round=previous_round,
+            version=1,
+            formula_version="score-v1",
+            executed_by=self.tutor,
+            status=CalculationRun.Status.SUCCEEDED,
+            is_active=True,
+            finished_at=now - timedelta(days=15),
+        )
+        for user, score in scores_by_user.items():
+            participant = RoundParticipant.objects.create(
+                round=previous_round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            EvaluationResult.objects.create(
+                calculation_run=run,
+                result_type=EvaluationResult.ResultType.INDIVIDUAL,
+                participant=participant,
+                final_score_raw=score,
+                display_score=score,
+                expected_count=1,
+                valid_count=1,
+                data_status=EvaluationResult.DataStatus.COMPLETE,
+            )
+        return previous_round
+
+    def test_trend_badge_compares_against_the_previous_round(self):
+        # 이번 회차 최종점수: 1팀 4.00, 2팀 4.40 - 지난 회차 점수에 따라 방향이 갈린다.
+        self._previous_round_with_scores(
+            {
+                self.students[0]: Decimal("3.50"),  # 1팀 4.00 <- 3.50, 상승
+                self.students[1]: Decimal("4.50"),  # 1팀 4.00 <- 4.50, 하락
+                self.students[2]: Decimal("4.40"),  # 2팀 4.40 <- 4.40, 변화없음
+                # students[3]은 지난 회차 결과가 없어 비교 대상이 아니다.
+            }
+        )
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:results", kwargs={"round_id": self.round.pk}))
+
+        trends = {
+            result.participant.user_id: (result.trend_direction, result.trend_delta)
+            for result in response.context["individual_results"]
+        }
+        self.assertEqual(trends[self.students[0].pk], ("up", Decimal("0.50")))
+        self.assertEqual(trends[self.students[1].pk], ("down", Decimal("0.50")))
+        self.assertEqual(trends[self.students[2].pk][0], "flat")
+        self.assertIsNone(trends[self.students[3].pk][0])
+
+    def test_master_switch_publishes_and_unpublishes_every_item(self):
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+        url = reverse("rounds:publish-all-results", kwargs={"round_id": self.round.pk})
+
+        self.client.post(url)
+
+        run.refresh_from_db()
+        published = [getattr(run, field) for field in PUBLICATION_FIELDS.values()]
+        self.assertTrue(all(published))
+
+        self.client.post(url)
+
+        run.refresh_from_db()
+        self.assertTrue(all(getattr(run, field) is None for field in PUBLICATION_FIELDS.values()))
+
+    def test_master_switch_asks_for_confirmation_on_partial_data(self):
+        ReviewSubmission.objects.filter(review_type="TEAM").first().delete()
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+        results_url = reverse("rounds:results", kwargs={"round_id": self.round.pk})
+        url = reverse("rounds:publish-all-results", kwargs={"round_id": self.round.pk})
+
+        first_attempt = self.client.post(url)
+
+        self.assertRedirects(
+            first_attempt, f"{results_url}?confirm=ALL#publish", fetch_redirect_response=False
+        )
+        run.refresh_from_db()
+        self.assertIsNone(run.winner_published_at)
+
+        confirm_page = self.client.get(f"{results_url}?confirm=ALL")
+        self.assertContains(confirm_page, "예, 전체 공개합니다")
+
+        self.client.post(url, {"partial_confirmed": "1"})
+
+        run.refresh_from_db()
+        self.assertTrue(all(getattr(run, field) for field in PUBLICATION_FIELDS.values()))
+
+    def test_tutor_note_is_saved_updated_and_cleared(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+        url = reverse(
+            "rounds:save-student-note",
+            kwargs={"round_id": self.round.pk, "participant_id": self.participants[0].pk},
+        )
+
+        self.client.post(url, {"body": " 개인 사정으로 일부만 제출 "})
+
+        note = TutorNote.objects.get(participant=self.participants[0])
+        self.assertEqual(note.body, "개인 사정으로 일부만 제출")
+        self.assertEqual(note.author, self.tutor)
+
+        self.client.post(url, {"body": "다음 회차에 재확인"})
+
+        self.assertEqual(TutorNote.objects.count(), 1)
+        note.refresh_from_db()
+        self.assertEqual(note.body, "다음 회차에 재확인")
+
+        self.client.post(url, {"body": "   "})
+
+        self.assertFalse(TutorNote.objects.exists())
+
+    def test_tutor_note_never_reaches_the_student_page(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        TutorNote.objects.create(
+            participant=self.participants[0], body="학생에게 보이면 안 되는 메모", author=self.tutor
+        )
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+        self.client.force_login(self.students[0])
+
+        response = self.client.get(reverse("results:me"))
+
+        self.assertNotContains(response, "학생에게 보이면 안 되는 메모")
+
+    def test_students_cannot_write_tutor_notes(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.students[0])
+
+        response = self.client.post(
+            reverse(
+                "rounds:save-student-note",
+                kwargs={"round_id": self.round.pk, "participant_id": self.participants[0].pk},
+            ),
+            {"body": "내가 쓰면 안 되는 메모"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorNote.objects.exists())
+
+    def test_note_for_another_round_participant_is_rejected(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        other_round = self._previous_round_with_scores({self.students[0]: Decimal("3.50")})
+        outsider = RoundParticipant.objects.get(round=other_round, user=self.students[0])
+        self.client.force_login(self.tutor)
+
+        self.client.post(
+            reverse(
+                "rounds:save-student-note",
+                kwargs={"round_id": self.round.pk, "participant_id": outsider.pk},
+            ),
+            {"body": "다른 회차 참가자"},
+        )
+
+        self.assertFalse(TutorNote.objects.exists())
+
+    def test_student_page_marks_own_team_and_hides_unpublished_items(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="team_ranking", actor=self.tutor)
+        self.client.force_login(self.students[0])
+
+        response = self.client.get(reverse("results:me"))
+
+        self.assertContains(response, "ax-my-team-row")  # 내 팀 강조
+        self.assertContains(response, "내 팀")
+        self.assertContains(response, "비공개")  # 내 최종점수는 아직 비공개
+        self.assertEqual(response.context["my_team_id"], self.teams[0].pk)

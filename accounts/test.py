@@ -10,7 +10,7 @@ from django.core import mail
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, connection, connections, transaction
 from django.test import Client, TestCase, TransactionTestCase, override_settings
-from django.urls import resolve, reverse
+from django.urls import reverse
 
 from accounts.adapters import CustomSocialAccountAdapter
 from accounts.middleware import TrustedProxyMiddleware
@@ -170,7 +170,6 @@ class AccountsTests(TestCase):
         self.assertNotContains(dashboard, "데이터 연결 준비 중")
         self.assertContains(mypage, "공개된 평가 결과가 없습니다")
 
-    @override_settings(ENABLE_DEV_PREVIEWS=False)
     def test_student_pages_use_business_empty_states_without_demo_data(self):
         self.client.force_login(self.approved_student)
 
@@ -395,9 +394,6 @@ class AccountsTests(TestCase):
 
     def test_allauth_token_storage_is_disabled(self):
         self.assertFalse(settings.SOCIALACCOUNT_STORE_TOKENS)
-
-    def test_results_preview_is_registered_only_as_dev_route(self):
-        self.assertEqual(resolve("/results/preview/manage/").view_name, "results:manage_preview")
 
 
 class CsrfProtectionTests(TestCase):

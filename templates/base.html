@@ -22,7 +22,18 @@
       <div id="app-shell">
         {% include "includes/sidebar.html" %}
         <div id="content-area">
-          {% include "includes/topbar.html" %}
+          {% comment %}탑바는 각 화면이 {% templatetag openblock %} block breadcrumb {% templatetag closeblock %}로
+          현재 위치를 채울 수 있어야 해서 include가 아니라 여기에 직접 둔다 - include 안의 block은
+          자식 템플릿이 덮을 수 없다.{% endcomment %}
+          {% firstof user.first_name user.username "사용자" as display_name %}
+          <header id="topbar">
+            <div class="topbar-breadcrumb d-flex align-items-center gap-2 small text-muted">
+              <i class="bi bi-house"></i> AX Console
+              <i class="font-size-11 bi bi-chevron-right"></i>
+              <span class="current text-dark fw-semibold">{% block breadcrumb %}포털{% endblock %}</span>
+            </div>
+            {% include "includes/topbar_actions.html" %}
+          </header>
           <main>
             {% include "includes/messages.html" %}
             {% block content %}{% endblock %}

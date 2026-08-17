@@ -26,4 +26,14 @@ urlpatterns = [
         result_views.publish,
         name="publish-results",
     ),
+    path(
+        "rounds/<int:round_id>/results/publish-all/",
+        result_views.publish_all,
+        name="publish-all-results",
+    ),
+    path(
+        "rounds/<int:round_id>/results/notes/<int:participant_id>/",
+        result_views.save_note,
+        name="save-student-note",
+    ),
 ]
