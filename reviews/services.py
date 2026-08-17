@@ -30,6 +30,42 @@ def current_participation(user):
     )
 
 
+# 아래 조회 경로는 시작된 회차 전체를 다룬다. 제출(쓰기)은 여전히 진행 중 회차에서만 열린다.
+REVIEWABLE_STATUSES = (
+    EvaluationRound.Status.IN_PROGRESS,
+    EvaluationRound.Status.COMPLETED,
+)
+
+
+def started_participations(user):
+    """학생이 참가한 시작된 회차들 - 최신 회차가 앞에 온다."""
+    return list(
+        RoundParticipant.objects.select_related("round", "team_membership__team")
+        .filter(user=user, round__status__in=REVIEWABLE_STATUSES)
+        .order_by("-round__started_at", "-round_id")
+    )
+
+
+def participation_for_round(user, round_id):
+    return (
+        RoundParticipant.objects.select_related("round", "team_membership__team")
+        .filter(user=user, round__status__in=REVIEWABLE_STATUSES, round_id=round_id)
+        .first()
+    )
+
+
+def own_submission(user, submission_id):
+    """본인이 제출한 응답만 돌려준다(PR-008). 회차는 가리지 않는다."""
+    return (
+        ReviewSubmission.objects.select_related(
+            "round", "evaluator", "target_team", "target_participant"
+        )
+        .prefetch_related("answers__question")
+        .filter(pk=submission_id, evaluator__user=user)
+        .first()
+    )
+
+
 def team_targets(participant):
     if not participant or not hasattr(participant, "team_membership"):
         return []

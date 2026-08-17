@@ -10,4 +10,9 @@ urlpatterns = [
     path("peers/", views.peer_review_list, name="peer-list"),
     path("peers/<int:target_id>/", views.peer_review_form, name="peer-form"),
     path("status/", views.review_status, name="status"),
+    path(
+        "submissions/<int:submission_id>/",
+        views.submission_detail,
+        name="submission-detail",
+    ),
 ]

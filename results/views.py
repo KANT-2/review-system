@@ -270,7 +270,8 @@ def save_note(request, round_id, participant_id):
 def my_results(request):
     if not is_student_user(request.user):
         raise PermissionDenied
-    participant = (
+    # 채점이 끝난 회차는 모두 열어 둔다 - 최신 회차만 보이면 지난 결과를 다시 볼 수 없다.
+    available = list(
         RoundParticipant.objects.filter(
             user=request.user,
             round__status=EvaluationRound.Status.COMPLETED,
@@ -278,10 +279,17 @@ def my_results(request):
         )
         .select_related("round", "team_membership__team")
         .order_by("-round__completed_at")
-        .first()
     )
-    if not participant:
-        return render(request, "results/student_me.html", {"participant": None})
+    if not available:
+        return render(
+            request, "results/student_me.html", {"participant": None, "available_rounds": []}
+        )
+    requested = request.GET.get("round")
+    participant = None
+    if requested and requested.isdigit():
+        participant = next((row for row in available if row.round_id == int(requested)), None)
+    if participant is None:
+        participant = available[0]
     run = CalculationRun.objects.get(round=participant.round, is_active=True)
     my_result = run.results.filter(
         result_type=EvaluationResult.ResultType.INDIVIDUAL, participant=participant
@@ -310,6 +318,8 @@ def my_results(request):
         "results/student_me.html",
         {
             "participant": participant,
+            "available_rounds": available,
+            "selected_round_id": participant.round_id,
             "run": run,
             # 항목별 공개 게이트(RES-010) - 공개 시각이 없으면 값 자체를 넘기지 않는다.
             "my_result": reveal_if_published(my_result, run.my_score_published_at),

@@ -121,3 +121,152 @@ class ReviewPageTests(TestCase):
         status = self.client.get(reverse("reviews:status"))
         self.assertContains(status, "1/1")
         self.assertContains(status, "학생2")
+
+
+class PastRoundAccessTests(TestCase):
+    """지난 회차 조회 - 읽기는 시작된 회차 전체, 쓰기는 여전히 진행 중 회차만."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="past-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"past-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"P{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
+            )
+            for index in range(1, 5)
+        ]
+        self.team_template = QuestionTemplate.objects.create(
+            name="팀", category=QuestionTemplate.Category.TEAM, created_by=self.tutor
+        )
+        self.team_question = TemplateQuestion.objects.create(
+            template=self.team_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="완성도는?",
+            display_order=1,
+        )
+        self.peer_template = QuestionTemplate.objects.create(
+            name="개인", category=QuestionTemplate.Category.PEER, created_by=self.tutor
+        )
+        self.peer_question = TemplateQuestion.objects.create(
+            template=self.peer_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="기여도는?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.past_round = self._build_round("지난 회차", now - timedelta(days=30))
+        self.past_round.status = EvaluationRound.Status.COMPLETED
+        self.past_round.completed_at = now - timedelta(days=20)
+        self.past_round.save()
+        self.current_round = self._build_round("이번 회차", now - timedelta(hours=1))
+        self.current_round.status = EvaluationRound.Status.IN_PROGRESS
+        self.current_round.save()
+        self.client.force_login(self.students[0])
+
+    def _build_round(self, title, started_at):
+        evaluation_round = EvaluationRound.objects.create(
+            title=title,
+            status=EvaluationRound.Status.DRAFT,
+            evaluation_start_at=started_at,
+            evaluation_end_at=started_at + timedelta(days=7),
+            target_team_count=2,
+            team_template=self.team_template,
+            peer_template=self.peer_template,
+            created_by=self.tutor,
+            started_at=started_at,
+        )
+        participants = [
+            RoundParticipant.objects.create(
+                round=evaluation_round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        team_one = Team.objects.create(round=evaluation_round, team_number=1, name="1팀")
+        team_two = Team.objects.create(round=evaluation_round, team_number=2, name="2팀")
+        for participant in participants[:2]:
+            TeamMembership.objects.create(team=team_one, participant=participant)
+        for participant in participants[2:]:
+            TeamMembership.objects.create(team=team_two, participant=participant)
+        return evaluation_round
+
+    def _submit_past_peer_review(self):
+        evaluator = RoundParticipant.objects.get(round=self.past_round, user=self.students[0])
+        target = RoundParticipant.objects.get(round=self.past_round, user=self.students[1])
+        submission = ReviewSubmission.objects.create(
+            round=self.past_round,
+            evaluator=evaluator,
+            review_type=ReviewSubmission.ReviewType.PEER,
+            target_participant=target,
+        )
+        ReviewAnswer.objects.create(
+            submission=submission, question=self.peer_question, rating_value=4
+        )
+        return submission
+
+    def test_status_page_lets_the_student_switch_to_a_past_round(self):
+        response = self.client.get(reverse("reviews:status"), {"round": self.past_round.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["participant"].round_id, self.past_round.pk)
+        self.assertFalse(response.context["is_current_round"])
+
+    def test_status_page_defaults_to_the_round_in_progress(self):
+        response = self.client.get(reverse("reviews:status"))
+
+        self.assertEqual(response.context["participant"].round_id, self.current_round.pk)
+        self.assertTrue(response.context["is_current_round"])
+
+    def test_past_round_offers_no_write_link(self):
+        """지난 회차는 조회만 - 미제출 대상에 작성 링크가 나오면 안 된다."""
+        past = self.client.get(reverse("reviews:status"), {"round": self.past_round.pk})
+        current = self.client.get(reverse("reviews:status"))
+
+        self.assertNotContains(past, ">작성</a>")
+        self.assertContains(past, "미제출")
+        # 진행 중 회차에서는 그대로 작성할 수 있어야 한다.
+        self.assertContains(current, ">작성</a>")
+
+    def test_student_reads_own_past_submission(self):
+        submission = self._submit_past_peer_review()
+
+        response = self.client.get(reverse("reviews:submission-detail", args=(submission.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "기여도는?")
+        self.assertContains(response, "지난 회차")
+        # 제출 시각이 비어 보이지 않아야 한다(필드명을 잘못 쓰면 조용히 빈칸이 된다).
+        # 화면은 TIME_ZONE(Asia/Seoul) 기준으로 찍으므로 저장값(UTC)을 그대로 비교하면 안 된다.
+        local_submitted_at = timezone.localtime(submission.submitted_at)
+        self.assertContains(response, local_submitted_at.strftime("%Y.%m.%d"))
+
+    def test_student_cannot_read_someone_elses_submission(self):
+        submission = self._submit_past_peer_review()
+        self.client.force_login(self.students[2])
+
+        response = self.client.get(reverse("reviews:submission-detail", args=(submission.pk,)))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_past_round_write_path_stays_closed(self):
+        """조회를 열어도 지난 회차 제출은 계속 막혀 있어야 한다."""
+        target = RoundParticipant.objects.get(round=self.past_round, user=self.students[1])
+
+        response = self.client.post(
+            reverse("reviews:peer-form", args=(target.pk,)),
+            {f"question_{self.peer_question.pk}": "5"},
+        )
+
+        self.assertEqual(response.status_code, 403)
