@@ -111,6 +111,41 @@ class ReviewPageTests(TestCase):
         self.assertEqual(field.value(), 4)
         self.assertContains(response, "수정 저장")
 
+    def test_rating_scale_is_laid_out_horizontally_with_anchors(self):
+        """1~5는 세로로 쌓지 않고 한 줄에 놓고, 양 끝에 의미를 적어 준다."""
+        response = self.client.get(reverse("reviews:team-form", args=(self.team_two.pk,)))
+
+        self.assertContains(response, 'class="ax-rating"')
+        self.assertContains(response, "전혀 아니다")
+        self.assertContains(response, "매우 그렇다")
+        self.assertContains(response, "중 하나를 고르세요")
+
+    def test_free_text_question_gets_its_own_hint(self):
+        # 시작된 회차의 템플릿은 잠기므로(RND-008) 새 템플릿을 만들어 갈아 끼운다.
+        mixed = QuestionTemplate.objects.create(
+            name="혼합", category=QuestionTemplate.Category.TEAM, created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=mixed,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="완성도는?",
+            display_order=1,
+        )
+        TemplateQuestion.objects.create(
+            template=mixed,
+            response_type=TemplateQuestion.ResponseType.TEXT,
+            prompt="한마디 남겨 주세요.",
+            display_order=2,
+            is_required=False,
+        )
+        EvaluationRound.objects.filter(pk=self.round.pk).update(team_template=mixed)
+
+        response = self.client.get(reverse("reviews:team-form", args=(self.team_two.pk,)))
+
+        self.assertContains(response, "최대 2,000자까지")
+        # 선택 문항은 별표 대신 배지로 알린다.
+        self.assertContains(response, "선택</span>")
+
     def test_peer_form_rejects_self_and_other_team(self):
         self.assertEqual(
             self.client.get(

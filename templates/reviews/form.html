@@ -54,11 +54,25 @@
           {{ form.non_field_errors }}
           {% for field in form %}
             <fieldset class="mb-4">
-              <legend class="fs-6 fw-semibold">
+              <legend class="fs-6 fw-semibold mb-1">
                 {{ forloop.counter }}. {{ field.label }}
-                {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                {% if field.field.required %}
+                  <span class="text-danger" aria-hidden="true">*</span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-expired ms-1">선택</span>
+                {% endif %}
               </legend>
-              {{ field }}
+              {% if field.field.widget.input_type == 'radio' %}
+                <p class="text-muted small mb-2">1(전혀 아니다)부터 5(매우 그렇다) 중 하나를 고르세요.</p>
+                <div class="ax-rating">
+                  <span class="ax-rating-anchor">전혀 아니다</span>
+                  {{ field }}
+                  <span class="ax-rating-anchor">매우 그렇다</span>
+                </div>
+              {% else %}
+                <p class="text-muted small mb-2">최대 2,000자까지 쓸 수 있습니다.</p>
+                {{ field }}
+              {% endif %}
               {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
             </fieldset>
           {% endfor %}
