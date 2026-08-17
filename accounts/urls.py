@@ -13,7 +13,7 @@ urlpatterns = [
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("mypage/", views.mypage_view, name="mypage"),
     # 튜터 승인 관리 콘솔
-    path("tutor/dashboard/", views.tutor_dashboard, name="tutor_dashboard"),
+    path("tutor/admin/", views.tutor_dashboard, name="tutor_admin"),
     path("tutor/approve/<int:user_id>/", views.approve_user, name="approve_user"),
     path("tutor/reject/<int:user_id>/", views.reject_user, name="reject_user"),
     # 비동기(AJAX) API 엔드포인트

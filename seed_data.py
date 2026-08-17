@@ -14,25 +14,21 @@ def seed():
     whitelists = [
         {
             "email": "student1@ax.com",
-            "name": "김민준",
             "session_info": "4기 풀스택 트랙",
             "role": User.Role.STUDENT,
         },
         {
             "email": "student2@ax.com",
-            "name": "이수진",
             "session_info": "4기 프론트엔드 트랙",
             "role": User.Role.STUDENT,
         },
         {
             "email": "student3@ax.com",
-            "name": "박도현",
             "session_info": "4기 백엔드 트랙",
             "role": User.Role.STUDENT,
         },
         {
             "email": "tutor.park@ax.com",
-            "name": "박교수",
             "session_info": "전담 튜터진",
             "role": User.Role.TUTOR,
         },
@@ -46,14 +42,13 @@ def seed():
     tutor, _ = User.objects.update_or_create(
         email="tutor@ax.com",
         defaults={
-            "username": "tutor@ax.com",
             "first_name": "박교수",
             "role": User.Role.TUTOR,
             "approval_status": User.ApprovalStatus.APPROVED,
             "is_onboarded": True,
             "is_staff": True,
             "session_info": "메인 튜터",
-            "phone": "010-9999-8888",
+            "phone_number": "010-9999-8888",
         },
     )
     tutor.set_password("password123")
@@ -63,13 +58,12 @@ def seed():
     main_student, _ = User.objects.update_or_create(
         email="student@ax.com",
         defaults={
-            "username": "student@ax.com",
             "first_name": "김민준",
             "role": User.Role.STUDENT,
             "approval_status": User.ApprovalStatus.APPROVED,
             "is_onboarded": True,
             "session_info": "4기 풀스택 트랙",
-            "phone": "010-1234-5678",
+            "phone_number": "010-1234-5678",
         },
     )
     main_student.set_password("password123")
@@ -90,13 +84,12 @@ def seed():
         st, _ = User.objects.update_or_create(
             email=email,
             defaults={
-                "username": email,
                 "first_name": name,
                 "role": User.Role.STUDENT,
                 "approval_status": User.ApprovalStatus.APPROVED,
                 "is_onboarded": True,
                 "session_info": "4기 풀스택 트랙",
-                "phone": phone,
+                "phone_number": phone,
             },
         )
         st.set_password("password123")
@@ -113,13 +106,12 @@ def seed():
         pu, _ = User.objects.update_or_create(
             email=email,
             defaults={
-                "username": email,
                 "first_name": name,
                 "role": User.Role.STUDENT,
                 "approval_status": User.ApprovalStatus.PENDING,
                 "is_onboarded": False,
                 "session_info": "4기 신청자",
-                "phone": phone,
+                "phone_number": phone,
             },
         )
         pu.set_password("password123")

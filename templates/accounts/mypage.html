@@ -94,7 +94,7 @@
           <div class="card-title-custom"><i class="bi bi-chat-quote-fill text-primary"></i> 최근 받은 피드백</div>
           <button class="btn btn-sm btn-ax-secondary"
                   data-bs-toggle="modal"
-                  data-bs-target="#feedbackModal">전체 12건 보기 ></button>
+                  data-bs-target="#feedbackModal">전체 {{ total_feedback_count|default:0 }}건 보기 ></button>
         </div>
         <div class="card-body-custom p-0">
           <div class="list-group list-group-flush small">

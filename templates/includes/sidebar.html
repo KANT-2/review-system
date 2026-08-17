@@ -35,14 +35,14 @@
         </a>
       </li>
     </ul>
-    {% if user.role == 'TUTOR' or user.role == 'ADMIN' or user.is_staff %}
+    {% if user.is_staff or user.approval_status == 'approved' and user.role == 'tutor' or user.approval_status == 'approved' and user.role == 'admin' %}
       <div class="nav-section-title">관리 및 운영 (Tutor)</div>
       <ul class="sidebar-nav">
         <li class="sidebar-nav-item">
           <a href="{% url 'accounts:tutor_admin' %}"
              class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_admin' %}active{% endif %}">
             <i class="bi bi-shield-check"></i>
-            <span class="nav-text">튜터 관리 / 승인</span>
+            <span class="nav-text">튜터 관리 콘솔</span>
           </a>
         </li>
       </ul>

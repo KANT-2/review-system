@@ -323,4 +323,99 @@
     }, 300);
   }
   </script>
+  {% if not user.is_onboarded %}
+<!-- 온보딩 모달 (미완료 유저에게 자동 표시) -->
+<div class="modal fade show" id="onboardingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" style="display: block; background: rgba(0,0,0,0.6);" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold">👋 환영합니다! 추가 정보를 입력해주세요</h5>
+      </div>
+      <div class="modal-body p-4">
+        <p class="text-muted small mb-3">서비스 이용을 위해 기본 프로필 정보를 입력해야 합니다.</p>
+        
+        <form id="onboardingForm">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="onboardName" class="form-label fw-bold">이름</label>
+            <input type="text" class="form-control" id="onboardName" placeholder="예: 홍길동" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="onboardSession" class="form-label fw-bold">소속 기수</label>
+            <input type="text" class="form-control" id="onboardSession" placeholder="예: 3기" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="onboardPhone" class="form-label fw-bold">연락처</label>
+            <input type="tel" class="form-control" id="onboardPhone" placeholder="예: 010-1234-5678" required>
+          </div>
+          
+          <div id="onboardError" class="alert alert-danger d-none py-2 small"></div>
+          
+          <button type="submit" class="btn btn-primary w-100 py-2 fw-bold mt-2" id="onboardSubmitBtn">
+            시작하기
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const form = document.getElementById("onboardingForm");
+  if (!form) return;
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const name = document.getElementById("onboardName").value.trim();
+    const session = document.getElementById("onboardSession").value.trim();
+    const phone = document.getElementById("onboardPhone").value.trim();
+    const errorBox = document.getElementById("onboardError");
+    const submitBtn = document.getElementById("onboardSubmitBtn");
+
+    errorBox.classList.add("d-none");
+    submitBtn.disabled = true;
+    submitBtn.innerText = "저장 중...";
+
+    try {
+      // CSRF 토큰 가져오기
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+      const response = await fetch("{% url 'accounts:api_onboarding' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify({
+          first_name: name,
+          session_info: session,
+          phone_number: phone
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert("온보딩이 완료되었습니다!");
+        window.location.reload();
+      } else {
+        errorBox.textContent = result.message || "저장 중 오류가 발생했습니다.";
+        errorBox.classList.remove("d-none");
+        submitBtn.disabled = false;
+        submitBtn.innerText = "시작하기";
+      }
+    } catch (err) {
+      errorBox.textContent = "서버 통신 오류가 발생했습니다.";
+      errorBox.classList.remove("d-none");
+      submitBtn.disabled = false;
+      submitBtn.innerText = "시작하기";
+    }
+  });
+});
+</script>
+{% endif %}
 {% endblock %}
