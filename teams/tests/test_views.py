@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from unittest import TestCase
@@ -146,6 +147,19 @@ class TeamsHttpViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("teams-initial-data", content)
         self.assertIn("previewMode:true", content)
+
+    def test_management_page_hands_csrf_token_to_script(self):
+        """CSRF 쿠키가 HttpOnly라 스크립트는 쿠키를 읽을 수 없다 - 서버가 페이지로
+        토큰을 내려줘야 자동 배치·저장 요청이 403으로 막히지 않는다."""
+        request = self.factory.get("/teams/manage/rounds/10/")
+        request.user = FakeUser(2, "tutor")
+
+        response = management_team_page(request, 10)
+
+        content = response.content.decode()
+        token = re.search(r'csrfToken:"([^"]*)"', content)
+        self.assertIsNotNone(token, "페이지가 스크립트에 CSRF 토큰을 넘기지 않았습니다")
+        self.assertGreaterEqual(len(token.group(1)), 32)
 
     def test_student_cannot_open_management_team_view(self):
         request = self.factory.get("/manage/rounds/10/teams/")
