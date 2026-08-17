@@ -49,6 +49,18 @@ def _reveal(request, value, key):
     return reveal_if_published(value, True if is_published else None)
 
 
+def _get_student_notes(request):
+    """세션에 저장된 학생별 튜터 전용 메모. 실제 모델이 없어서 세션으로 대신하는
+    프로토타입 전용 장치 - 다른 세션(예: 학생 화면)에는 절대 노출하지 않는다."""
+    return request.session.get("student_notes", {})
+
+
+def _has_partial_data(scenario):
+    return any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
+        student.peer_data_status == "PARTIAL" for student in scenario["students"]
+    )
+
+
 def manage_preview(request):
     """PG-25 '결과·공개' 화면 프로토타입 (튜터/관리자용).
 
@@ -73,9 +85,6 @@ def manage_preview(request):
 
     scenario = build_scenario()
     publish_state = _get_publish_state(request)
-    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
-        student.peer_data_status == "PARTIAL" for student in scenario["students"]
-    )
     return render(
         request,
         "results/manage.html",
@@ -84,8 +93,10 @@ def manage_preview(request):
             "scenario": scenario,
             "publish_items": PUBLISH_ITEMS,
             "publish_state": publish_state,
+            "all_published": all(publish_state.get(key, False) for key in PUBLISH_KEYS),
             "pending_confirm": request.session.get("pending_confirm"),
-            "has_partial_data": has_partial_data,
+            "has_partial_data": _has_partial_data(scenario),
+            "student_notes": _get_student_notes(request),
         },
     )
 
@@ -107,11 +118,8 @@ def toggle_publish(request, item_key):
     confirmed = request.POST.get("confirm") == "1"
 
     scenario = build_scenario()
-    has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
-        student.peer_data_status == "PARTIAL" for student in scenario["students"]
-    )
 
-    if turning_on and has_partial_data and not confirmed:
+    if turning_on and _has_partial_data(scenario) and not confirmed:
         request.session["pending_confirm"] = item_key
     else:
         publish_state[item_key] = turning_on
@@ -127,10 +135,58 @@ def toggle_publish(request, item_key):
 
 
 @require_POST
+def toggle_publish_all(request):
+    """4개 공개 항목을 한 번에 켜고 끄는 마스터 스위치.
+
+    개별 토글과 동일하게, 켜려는 상황이고(하나라도 off) PARTIAL 데이터가 있으면 한 번 더
+    확인을 요구한다 - pending_confirm에는 개별 item_key 대신 "ALL"을 표시해 구분한다.
+    """
+    publish_state = _get_publish_state(request)
+    turning_on = not all(publish_state.get(key, False) for key in PUBLISH_KEYS)
+    confirmed = request.POST.get("confirm") == "1"
+
+    scenario = build_scenario()
+
+    if turning_on and _has_partial_data(scenario) and not confirmed:
+        request.session["pending_confirm"] = "ALL"
+    else:
+        for key in PUBLISH_KEYS:
+            publish_state[key] = turning_on
+        request.session["publish_state"] = publish_state
+        request.session.pop("pending_confirm", None)
+        messages.success(
+            request, f"전체 결과를 {'공개' if turning_on else '비공개'}로 전환했습니다."
+        )
+
+    request.session.modified = True
+    return redirect(reverse("results:manage_preview") + "#publish")
+
+
+@require_POST
 def cancel_publish_confirm(request):
     request.session.pop("pending_confirm", None)
     request.session.modified = True
     return redirect(reverse("results:manage_preview") + "#publish")
+
+
+@require_POST
+def save_student_note(request):
+    """RES-005 화면 개선 요청: 튜터 전용 학생별 메모. 세션에만 저장되는 프로토타입
+    전용 데이터로, 학생 화면(me_preview)에는 절대 전달하지 않는다."""
+    name = request.POST.get("student_name", "").strip()
+    if not name:
+        return redirect(reverse("results:manage_preview"))
+
+    note = request.POST.get("note", "").strip()
+    notes = _get_student_notes(request)
+    if note:
+        notes[name] = note
+        messages.success(request, f"{name} 메모를 저장했습니다.")
+    elif notes.pop(name, None) is not None:
+        messages.success(request, f"{name} 메모를 삭제했습니다.")
+    request.session["student_notes"] = notes
+    request.session.modified = True
+    return redirect("results:manage_preview")
 
 
 def me_preview(request):

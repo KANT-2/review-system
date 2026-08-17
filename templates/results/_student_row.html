@@ -27,9 +27,35 @@
       {% endwith %}
     </div>
   </td>
-  <td class="text-end fw-semibold">{% include "results/_score_cell.html" with value=student.final_score %}</td>
+  <td class="text-end fw-semibold">
+    {% include "results/_score_cell.html" with value=student.final_score %}
+    {% if student.trend_direction == "up" %}
+      <span class="ax-trend-badge ax-trend-up" title="지난 회차 대비 상승">
+        <i class="bi bi-arrow-up-short"></i>{{ student.trend_delta }}
+      </span>
+    {% elif student.trend_direction == "down" %}
+      <span class="ax-trend-badge ax-trend-down" title="지난 회차 대비 하락">
+        <i class="bi bi-arrow-down-short"></i>{{ student.trend_delta }}
+      </span>
+    {% elif student.trend_direction == "flat" %}
+      <span class="ax-trend-badge ax-trend-flat" title="지난 회차와 동일">
+        <i class="bi bi-arrow-right-short"></i>변화없음
+      </span>
+    {% endif %}
+  </td>
   <td class="text-center">
     <span class="badge {{ student.peer_data_status|status_badge_class }}">{{ student.peer_data_status|status_label }}</span>
     <span class="text-muted small">({{ student.valid_peer_reviews }}/{{ student.expected_peer_reviews }})</span>
+  </td>
+  <td class="text-center">
+    <button type="button"
+            class="ax-note-btn {% if student_notes|get_item:student.name %}ax-note-btn--filled{% endif %}"
+            data-bs-toggle="modal"
+            data-bs-target="#studentNoteModal"
+            data-student-name="{{ student.name }}"
+            data-student-note="{{ student_notes|get_item:student.name|default:'' }}"
+            title="메모">
+      <i class="bi {% if student_notes|get_item:student.name %}bi-sticky-fill{% else %}bi-sticky{% endif %}"></i>
+    </button>
   </td>
 </tr>

@@ -8,7 +8,7 @@ away and views will pull the same shape of data from the database instead.
 """
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from results.services import (
     calculate_coverage,
@@ -50,6 +50,8 @@ class StudentRow:
     final_score: Decimal | None
     rank: int | None = None
     is_tied: bool = False
+    trend_direction: str | None = None
+    trend_delta: Decimal | None = None
 
 
 # 4개 항목 독립 공개 데모용: 팀1위/전체팀순위/본인최종점수는 공개, 본인개인순위는 아직 비공개.
@@ -86,6 +88,20 @@ def build_scenario():
             rank=None,
         )
 
+    # ---- Seed: 과거 회차 최종점수(가상) -> 다음 회차 자동편성용, 지난 회차 대비 추이 계산에도 사용 ----
+    seed_examples = [
+        ("학생A", [Decimal("82.00"), Decimal("88.00"), Decimal("94.00")]),  # 3개, 20/30/50
+        ("학생B", [Decimal("84.00"), Decimal("87.00"), Decimal("91.00")]),
+        ("학생C", [Decimal("78.00"), Decimal("74.00"), Decimal("70.00")]),
+        ("학생D", [Decimal("70.000000"), Decimal("76.500000")]),  # 2개, 뒤에서부터 30/50 재정규화
+        ("학생E", [Decimal("75.00"), Decimal("79.00"), Decimal("83.00")]),
+        ("학생F", [Decimal("80.00"), Decimal("76.00"), Decimal("72.00")]),
+        ("학생G", [Decimal("77.00"), Decimal("77.00")]),
+        ("학생H", [Decimal("68.00")]),  # 1개뿐이라 추세 없음
+        ("학생I", []),  # 유효 이력 없음 -> 무시드(N/A)
+    ]
+    seed_history_by_name = dict(seed_examples)
+
     # ---- 학생·개인 평가 ----
     # (이름, 소속 팀, 기대 개인평가 수, 받은 답변 목록, 튜터 평가 점수)
     # 튜터 평가는 도입이 확정된 기능이라 모든 학생의 최종점수 계산에 항상 반영한다
@@ -111,6 +127,23 @@ def build_scenario():
         peer_score = calculate_peer_score(received)
         final_score = calculate_final_score(team_score, peer_score, tutor_score)
         valid_peer = len(received)
+
+        # 지난 회차(가상 이력의 가장 최근 값) 대비 이번 회차 최종점수 추이.
+        previous_history = seed_history_by_name.get(name, [])
+        previous_final_score = previous_history[-1] if previous_history else None
+        trend_direction = None
+        trend_delta = None
+        if final_score is not None and previous_final_score is not None:
+            diff = ((final_score - previous_final_score) / Decimal("20")).quantize(
+                Decimal("0.1"), rounding=ROUND_HALF_UP
+            )
+            if diff > 0:
+                trend_direction, trend_delta = "up", diff
+            elif diff < 0:
+                trend_direction, trend_delta = "down", -diff
+            else:
+                trend_direction, trend_delta = "flat", Decimal("0.0")
+
         students.append(
             StudentRow(
                 name=name,
@@ -124,6 +157,8 @@ def build_scenario():
                 tutor_score=tutor_score,
                 final_score=final_score,
                 rank=None,
+                trend_direction=trend_direction,
+                trend_delta=trend_delta,
             )
         )
         teams[team_number].member_names.append(name)
@@ -150,19 +185,6 @@ def build_scenario():
     for student, rank in zip(ranked_students, student_ranks, strict=True):
         student.rank = rank
         student.is_tied = student_ranks.count(rank) > 1
-
-    # ---- Seed: 과거 회차 최종점수(가상) -> 다음 회차 자동편성용, 전체 학생 대상 ----
-    seed_examples = [
-        ("학생A", [Decimal("82.00"), Decimal("88.00"), Decimal("94.00")]),  # 3개, 20/30/50
-        ("학생B", [Decimal("84.00"), Decimal("87.00"), Decimal("91.00")]),
-        ("학생C", [Decimal("78.00"), Decimal("74.00"), Decimal("70.00")]),
-        ("학생D", [Decimal("70.000000"), Decimal("76.500000")]),  # 2개, 뒤에서부터 30/50 재정규화
-        ("학생E", [Decimal("75.00"), Decimal("79.00"), Decimal("83.00")]),
-        ("학생F", [Decimal("80.00"), Decimal("76.00"), Decimal("72.00")]),
-        ("학생G", [Decimal("77.00"), Decimal("77.00")]),
-        ("학생H", [Decimal("68.00")]),  # 1개뿐이라 추세 없음
-        ("학생I", []),  # 유효 이력 없음 -> 무시드(N/A)
-    ]
 
     def _trend(history):
         """마지막 두 회차를 비교해 상승/하강/유지를 판단한다 (표시용, 순수 장식이 아니라

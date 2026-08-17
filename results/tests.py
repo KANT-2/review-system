@@ -33,6 +33,54 @@ class ResultsPreviewViewTests(TestCase):
         self.assertContains(response, "내 결과")
 
 
+class TogglePublishAllTests(TestCase):
+    """마스터 스위치(RES-010 4개 항목 일괄 전환)가 개별 항목 토글 라우트
+    (preview/publish/<item_key>/toggle/)에 가려지지 않고 제 라우트로 도착하는지도
+    같이 검증한다 - urls.py에서 순서가 바뀌면 "all"이 item_key로 오인식된다."""
+
+    def test_turning_on_with_partial_data_requires_confirmation(self):
+        response = self.client.post(reverse("results:toggle_publish_all"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.session.get("pending_confirm"), "ALL")
+        self.assertFalse(all(self.client.session.get("publish_state", {}).values()))
+
+    def test_confirmed_turns_on_all_four_items(self):
+        self.client.post(reverse("results:toggle_publish_all"), {"confirm": "1"})
+
+        publish_state = self.client.session.get("publish_state")
+        self.assertTrue(all(publish_state.values()))
+        self.assertIsNone(self.client.session.get("pending_confirm"))
+
+    def test_turning_off_does_not_require_confirmation(self):
+        self.client.post(reverse("results:toggle_publish_all"), {"confirm": "1"})
+
+        response = self.client.post(reverse("results:toggle_publish_all"))
+
+        self.assertEqual(response.status_code, 302)
+        publish_state = self.client.session.get("publish_state")
+        self.assertFalse(any(publish_state.values()))
+
+
+class SaveStudentNoteTests(TestCase):
+    def test_saves_note_in_session(self):
+        self.client.post(
+            reverse("results:save_student_note"), {"student_name": "학생C", "note": "테스트 메모"}
+        )
+
+        self.assertEqual(self.client.session.get("student_notes"), {"학생C": "테스트 메모"})
+
+    def test_empty_note_removes_existing_entry(self):
+        self.client.post(
+            reverse("results:save_student_note"), {"student_name": "학생C", "note": "메모"}
+        )
+        self.client.post(
+            reverse("results:save_student_note"), {"student_name": "학생C", "note": ""}
+        )
+
+        self.assertNotIn("학생C", self.client.session.get("student_notes", {}))
+
+
 class ScoreFromAnswersTests(SimpleTestCase):
     def test_matches_requirements_worked_example(self):
         # docs/REQUIREMENTS.md 예시: [5,4,4,5,4] -> 평균 4.4 -> 88점

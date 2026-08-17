@@ -654,6 +654,39 @@ tbody.collapse.show {
   cursor: help;
 }
 
+/* ---- 지난 회차 대비 추이 배지 (개인 결과 표) ---- */
+
+.ax-trend-badge {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ---- 튜터 전용 메모 버튼 ---- */
+
+.ax-note-btn {
+  background: transparent;
+  border: none;
+  color: var(--ax-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.ax-note-btn:hover {
+  background: var(--ax-surface-subtle);
+  color: var(--ax-primary);
+}
+
+.ax-note-btn--filled {
+  color: var(--ax-warning);
+}
+
 /* ---- score math breakdown chips ---- */
 
 .ax-math-cell {
