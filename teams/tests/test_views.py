@@ -136,6 +136,7 @@ class TeamsHttpViewTests(TestCase):
             "/teams/manage/rounds/10/teams/auto/",
             response.content.decode(),
         )
+        self.assertIn("myParticipantId:null", response.content.decode())
 
     def test_preview_renders_without_database_backend(self):
         request = self.factory.get("/teams/preview/?role=tutor&state=unassigned")

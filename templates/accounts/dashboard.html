@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load results_extras %}
 {% block title %}학생 대시보드 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}학생 대시보드{% endblock %}
 {% block content %}
@@ -96,15 +97,15 @@
               <div class="row g-3 text-center">
                 <div class="col-4">
                   <div class="text-muted small">팀 점수</div>
-                  <div class="fs-4 fw-bold">{{ portal.latest_result.team_score|default:"N/A" }}</div>
+                  <div class="fs-4 fw-bold">{{ portal.latest_result.team_score|as_five_point|default:"N/A" }}</div>
                 </div>
                 <div class="col-4 border-start border-end">
                   <div class="text-muted small">개인 점수</div>
-                  <div class="fs-4 fw-bold">{{ portal.latest_result.peer_score|default:"N/A" }}</div>
+                  <div class="fs-4 fw-bold">{{ portal.latest_result.peer_score|as_five_point|default:"N/A" }}</div>
                 </div>
                 <div class="col-4">
                   <div class="text-muted small">최종 점수</div>
-                  <div class="fs-4 fw-bold text-primary">{{ portal.latest_result.final_score|default:"N/A" }}</div>
+                  <div class="fs-4 fw-bold text-primary">{{ portal.latest_result.final_score|as_five_point|default:"N/A" }}</div>
                 </div>
               </div>
             </div>

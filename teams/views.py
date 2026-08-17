@@ -193,8 +193,10 @@ def management_team_page(request: HttpRequest, round_id: int) -> HttpResponse:
         {
             "role": "tutor",
             "team_data": management_team_response(view),
+            "my_participant_id": None,
             "auto_url": f"/teams/manage/rounds/{round_id}/teams/auto/",
             "save_url": f"/teams/manage/rounds/{round_id}/teams/save/",
+            "preview_mode": False,
         },
     )
 
