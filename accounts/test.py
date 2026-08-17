@@ -16,6 +16,7 @@ from accounts.adapters import CustomSocialAccountAdapter
 from accounts.middleware import TrustedProxyMiddleware
 from accounts.models import User, WhitelistEmail
 from accounts.services import InvalidAccountTransition, set_account_active
+from audit.models import AuditEvent
 
 STRONG_PASSWORD = "Correct-Horse-Battery-2026!"
 NEW_STRONG_PASSWORD = "Another-Correct-Battery-2026!"
@@ -781,6 +782,37 @@ class SocialClaimTests(TestCase):
 
         self.assertIsNone(email)
 
+    def test_first_social_link_is_audited_without_oauth_secrets(self):
+        """AUD-001: 최초 연결을 남기되 AUD-002에 따라 token·nonce는 넣지 않는다."""
+        nonce = "one-time-nonce"
+        WhitelistEmail.objects.create(email="social@ax.com", session_info="5기")
+        connected = []
+        request = SimpleNamespace(
+            session={"google_oidc_nonces": {nonce: time.time()}},
+            _messages=None,
+        )
+        sociallogin = SimpleNamespace(
+            is_existing=False,
+            user=SimpleNamespace(pk=None, first_name="소셜"),
+            account=SimpleNamespace(
+                provider="google",
+                extra_data={
+                    "email": "social@ax.com",
+                    "email_verified": True,
+                    "nonce": nonce,
+                },
+            ),
+            connect=lambda req, user: connected.append(user),
+        )
+
+        CustomSocialAccountAdapter().pre_social_login(request, sociallogin)
+
+        self.assertEqual(len(connected), 1)
+        event = AuditEvent.objects.get(action="SOCIAL_ACCOUNT_LINKED")
+        self.assertEqual(event.summary["provider"], "google")
+        self.assertTrue(event.summary["account_created"])
+        self.assertNotIn(nonce, str(event.summary))
+
 
 class AuthorityConstraintTests(TransactionTestCase):
     def test_admin_role_requires_staff_flag(self):
@@ -1107,3 +1139,90 @@ class StudentDashboardTests(TestCase):
         if not remaining_team:
             self.assertContains(response, "제출할 평가를 모두 끝냈습니다")
             self.assertFalse(portal["round"]["is_urgent"])
+
+
+class AccountProfileEditTests(TestCase):
+    """계정 관리에서 이름·식별번호를 다룬다(ACC-001)."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="profile-tutor@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="profile-student@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.url = reverse("accounts:account_profile_update", args=(self.student.pk,))
+        self.client.force_login(self.tutor)
+
+    def test_tutor_sets_name_and_student_number(self):
+        response = self.client.post(
+            self.url,
+            {"first_name": " 김민준 ", "student_number": "AX2026", "session_info": "5기"},
+        )
+
+        self.assertRedirects(response, reverse("accounts:account_admin"))
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.first_name, "김민준")
+        self.assertEqual(self.student.student_number, "AX2026")
+        self.assertEqual(self.student.session_info, "5기")
+
+    def test_duplicate_student_number_is_rejected(self):
+        User.objects.create_user(
+            email="taken@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            student_number="AX2026",
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+
+        self.client.post(
+            self.url,
+            {"first_name": "김민준", "student_number": "AX2026", "session_info": ""},
+        )
+
+        self.student.refresh_from_db()
+        self.assertIsNone(self.student.student_number)
+
+    def test_blank_student_number_is_stored_as_null_not_empty(self):
+        """빈 문자열이 여러 건이면 unique 제약에 걸리므로 NULL로 비운다."""
+        self.client.post(
+            self.url, {"first_name": "김민준", "student_number": "  ", "session_info": ""}
+        )
+
+        self.student.refresh_from_db()
+        self.assertIsNone(self.student.student_number)
+
+    def test_edit_is_audited_without_storing_the_values(self):
+        self.client.post(
+            self.url,
+            {"first_name": "김민준", "student_number": "AX9999", "session_info": ""},
+        )
+
+        event = AuditEvent.objects.get(action="ACCOUNT_PROFILE_UPDATED")
+        self.assertEqual(event.actor, self.tutor)
+        self.assertEqual(event.summary, {"fields": ["first_name", "student_number"]})
+        self.assertNotIn("김민준", str(event.summary))
+
+    def test_students_cannot_edit_accounts(self):
+        self.client.force_login(self.student)
+
+        response = self.client.post(
+            self.url, {"first_name": "해킹", "student_number": "", "session_info": ""}
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_screen_shows_the_edit_form(self):
+        response = self.client.get(reverse("accounts:account_admin"))
+
+        self.assertContains(response, 'name="student_number"')
+        self.assertContains(response, "식별번호")

@@ -15,6 +15,11 @@ urlpatterns = [
     path("tutor/dashboard/", views.tutor_dashboard, name="tutor_dashboard"),
     path("tutor/accounts/", views.account_admin, name="account_admin"),
     path(
+        "tutor/accounts/<int:user_id>/profile/",
+        views.account_profile_update,
+        name="account_profile_update",
+    ),
+    path(
         "tutor/accounts/<int:user_id>/<str:action>/",
         views.account_action,
         name="account_action",

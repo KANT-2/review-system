@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from accounts.models import User, WhitelistEmail, canonicalize_email
 from accounts.services import lock_canonical_email
+from audit.services import record_event
 
 security_logger = logging.getLogger("accounts.security")
 
@@ -66,7 +67,8 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             whitelist = (
                 WhitelistEmail.objects.select_for_update().filter(email=verified_email).first()
             )
-            if user is None:
+            created = user is None
+            if created:
                 user = User.objects.create_user(
                     email=verified_email,
                     password=None,
@@ -82,6 +84,18 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                     is_onboarded=False,
                 )
             sociallogin.connect(request, user)
+            # AUD-001: 소셜 계정 최초 연결을 남긴다. AUD-002에 따라 code·token·state·nonce는
+            # 기록하지 않고 공급자 이름과 계정 생성 여부만 남긴다.
+            record_event(
+                action="SOCIAL_ACCOUNT_LINKED",
+                target=user,
+                actor=user,
+                summary={
+                    "provider": sociallogin.account.provider,
+                    "account_created": created,
+                    "approval_status": user.approval_status,
+                },
+            )
             if user.approval_status != User.ApprovalStatus.APPROVED:
                 messages.warning(request, "가입 신청이 접수되었습니다. 튜터 승인을 기다려주세요.")
                 raise ImmediateHttpResponse(redirect("accounts:login"))

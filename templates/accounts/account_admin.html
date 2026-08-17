@@ -58,7 +58,40 @@
               <td>
                 <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
                 <div class="text-muted font-size-115">{{ account.email }}</div>
-                {% if account.session_info %}<div class="text-muted font-size-115">{{ account.session_info }}</div>{% endif %}
+                <div class="text-muted font-size-115">
+                  식별번호 {{ account.student_number|default:"미등록" }}
+                  {% if account.session_info %}· {{ account.session_info }}{% endif %}
+                </div>
+                <form method="post"
+                      class="ax-inline-profile-form mt-2"
+                      action="{% url 'accounts:account_profile_update' account.pk %}">
+                  {% csrf_token %}
+                  <label class="visually-hidden" for="name-{{ account.pk }}">이름</label>
+                  <input type="text"
+                         class="form-control form-control-sm"
+                         id="name-{{ account.pk }}"
+                         name="first_name"
+                         maxlength="150"
+                         placeholder="이름"
+                         value="{{ account.first_name }}">
+                  <label class="visually-hidden" for="number-{{ account.pk }}">식별번호</label>
+                  <input type="text"
+                         class="form-control form-control-sm"
+                         id="number-{{ account.pk }}"
+                         name="student_number"
+                         maxlength="32"
+                         placeholder="식별번호"
+                         value="{{ account.student_number|default:'' }}">
+                  <label class="visually-hidden" for="session-{{ account.pk }}">기수</label>
+                  <input type="text"
+                         class="form-control form-control-sm"
+                         id="session-{{ account.pk }}"
+                         name="session_info"
+                         maxlength="50"
+                         placeholder="기수"
+                         value="{{ account.session_info }}">
+                  <button type="submit" class="btn btn-sm btn-ax-secondary flex-shrink-0">저장</button>
+                </form>
               </td>
               <td>{{ account.get_role_display }}</td>
               <td class="text-center">

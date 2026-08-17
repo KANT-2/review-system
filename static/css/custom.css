@@ -898,3 +898,15 @@ tbody.collapse.show { display: table-row-group; }
   outline: 3px solid rgba(23, 105, 224, 0.35);
   outline-offset: 2px;
 }
+
+/* 계정 관리 - 이름·식별번호·기수를 줄 안에서 바로 고친다(ACC-001). */
+.ax-inline-profile-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ax-inline-profile-form input {
+  width: 120px;
+}

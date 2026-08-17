@@ -432,3 +432,37 @@ def account_rows(*, role=None, status=None, query=None):
     if query:
         users = users.filter(email__icontains=query) | users.filter(first_name__icontains=query)
     return users
+
+
+@transaction.atomic
+def update_account_profile(*, actor, target_id, first_name, student_number, session_info):
+    """계정 관리 화면에서 이름·식별번호·기수를 고친다(ACC-001).
+
+    식별번호는 회차 시작 때 참가자 스냅샷으로 동결되므로, 여기서 바꿔도 이미 시작된
+    회차의 명단은 그대로다(ACC-003).
+    """
+    target = User.objects.select_for_update().get(pk=target_id)
+    _require_account_authority(actor, target)
+    number = (student_number or "").strip() or None
+    if number and User.objects.filter(student_number=number).exclude(pk=target.pk).exists():
+        raise InvalidAccountTransition("이미 다른 계정이 쓰는 식별번호입니다.")
+    changed = {}
+    for field, value in (
+        ("first_name", (first_name or "").strip()),
+        ("student_number", number),
+        ("session_info", (session_info or "").strip()),
+    ):
+        if getattr(target, field) != value:
+            changed[field] = value
+            setattr(target, field, value)
+    if not changed:
+        return target
+    target.save(update_fields=tuple(changed))
+    record_event(
+        action="ACCOUNT_PROFILE_UPDATED",
+        target=target,
+        actor=actor,
+        # 값 자체가 아니라 어떤 항목을 건드렸는지만 남긴다.
+        summary={"fields": sorted(changed)},
+    )
+    return target
