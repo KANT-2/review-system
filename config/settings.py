@@ -140,11 +140,10 @@ SITE_ID = 1
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*"]
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
-ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
+# 확인 메일을 보낼 수 없는 환경이라(발신 도메인 PTR 미설정) 소유 확인 단계를 두지 않는다.
+# 소셜 로그인은 공급자가 확인한 이메일만 받으므로(CustomSocialAccountAdapter) 영향이 없다.
+ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_ADAPTER = "accounts.adapters.CustomAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "accounts.adapters.CustomSocialAccountAdapter"
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_LOGIN_TIMEOUT = 300

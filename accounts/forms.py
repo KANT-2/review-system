@@ -33,7 +33,10 @@ class LoginForm(forms.Form):
 
 
 class SignUpForm(forms.Form):
-    """가입 신청은 이메일만 받는다.
+    """가입 신청은 이메일과 비밀번호만 받는다.
+
+    확인 메일을 보낼 수 없는 환경이라(발신 도메인 PTR 미설정) 이메일 소유 확인 단계 없이
+    바로 계정을 만든다. 명단(WhitelistEmail)에 없는 계정은 튜터 승인을 기다린다.
 
     이름·소속 기수·연락처는 승인 뒤 온보딩(OnboardingForm)에서 본인이 직접 입력한다 -
     승인 전에 개인정보를 미리 받아두지 않는다.
@@ -42,15 +45,12 @@ class SignUpForm(forms.Form):
     email = forms.EmailField(
         label="이메일", widget=forms.EmailInput(attrs={"class": "form-control"})
     )
-
-
-class ConfirmationPasswordForm(forms.Form):
     password = forms.CharField(
-        label="새 비밀번호",
+        label="비밀번호",
         widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
     )
     password_confirm = forms.CharField(
-        label="새 비밀번호 확인",
+        label="비밀번호 확인",
         widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "new-password"}),
     )
 

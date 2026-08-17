@@ -44,9 +44,6 @@ class AccountAccessMiddleware:
     ALLOWED_WHILE_RESTRICTED = {
         "accounts:login",
         "accounts:logout",
-        "accounts:email_confirm",
-        "accounts:email_confirm_key",
-        "accounts:email_resend",
         "accounts:password_change",
     }
 

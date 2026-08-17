@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from accounts.models import AuthThrottleBucket, EmailResendCooldown, User, WhitelistEmail
+from accounts.models import AuthThrottleBucket, User, WhitelistEmail
 
 
 @admin.register(User)
@@ -81,7 +81,7 @@ class WhitelistEmailAdmin(admin.ModelAdmin):
         return self._allowed(request) and super().has_delete_permission(request, obj)
 
 
-@admin.register(AuthThrottleBucket, EmailResendCooldown)
+@admin.register(AuthThrottleBucket)
 class SecurityStateAdmin(admin.ModelAdmin):
     def has_module_permission(self, request):
         return request.user.is_superuser and request.user.is_application_admin

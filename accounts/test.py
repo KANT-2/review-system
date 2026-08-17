@@ -4,7 +4,7 @@ import time
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
-from allauth.account.models import EmailAddress, EmailConfirmationHMAC
+from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.core import mail
 from django.core.exceptions import PermissionDenied
@@ -45,45 +45,30 @@ class AccountsTests(TestCase):
             session_info="2기",
         )
 
-    def _signup(self, email):
+    def _signup(self, email, password=STRONG_PASSWORD):
         return self.client.post(
             reverse("accounts:api_signup"),
-            data=json.dumps({"email": email}),
+            data=json.dumps({"email": email, "password": password, "password_confirm": password}),
             content_type="application/json",
         )
 
-    def _confirm(self, user):
-        address = EmailAddress.objects.get(user=user, primary=True)
-        key = EmailConfirmationHMAC.create(address).key
-        self.client.get(reverse("accounts:email_confirm_key", kwargs={"key": key}))
-        return self.client.post(
-            reverse("accounts:email_confirm"),
-            {"password": STRONG_PASSWORD, "password_confirm": STRONG_PASSWORD},
-        )
-
-    def test_whitelist_requires_ownership_before_auto_approval(self):
+    def test_whitelisted_email_is_approved_right_after_signup(self):
+        """명단에 있는 주소는 확인 메일 없이 바로 로그인할 수 있어야 한다."""
         response = self._signup("Whitelist@AX.com")
+
         self.assertEqual(response.status_code, 202)
         user = User.objects.get(email="whitelist@ax.com")
-        self.assertEqual(user.approval_status, User.ApprovalStatus.PENDING)
-        self.assertFalse(user.has_usable_password())
-
-        response = self._confirm(user)
-
-        self.assertRedirects(response, reverse("accounts:login"))
-        user.refresh_from_db()
         self.assertEqual(user.approval_status, User.ApprovalStatus.APPROVED)
+        self.assertEqual(user.session_info, "2기")
         self.assertTrue(user.check_password(STRONG_PASSWORD))
         self.assertTrue(EmailAddress.objects.get(user=user).verified)
 
-    def test_non_whitelist_remains_pending_after_confirmation(self):
+    def test_non_whitelist_signup_waits_for_tutor_approval(self):
         self._signup("newbie@ax.com")
+
         user = User.objects.get(email="newbie@ax.com")
-
-        self._confirm(user)
-
-        user.refresh_from_db()
         self.assertEqual(user.approval_status, User.ApprovalStatus.PENDING)
+        self.assertTrue(user.check_password(STRONG_PASSWORD))
 
     def test_signup_returns_generic_response_for_existing_email(self):
         response = self._signup("STUDENT@ax.com")
@@ -91,16 +76,24 @@ class AccountsTests(TestCase):
         self.assertEqual(response.status_code, 202)
         self.assertNotContains(response, "이미 가입", status_code=202)
         self.assertEqual(User.objects.filter(email="student@ax.com").count(), 1)
+        # 기존 계정의 비밀번호가 덮이면 안 된다.
+        self.approved_student.refresh_from_db()
+        self.assertTrue(self.approved_student.check_password(STRONG_PASSWORD))
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-    def test_signup_sends_korean_confirmation_email(self):
+    def test_signup_does_not_send_any_email(self):
+        """발신 도메인 PTR을 설정할 수 없어 확인 메일 단계를 두지 않는다."""
         with self.captureOnCommitCallbacks(execute=True):
             response = self._signup("mail-check@ax.com")
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("이메일 주소를 확인해 주세요", mail.outbox[0].subject)
-        self.assertIn("/accounts/email/confirm/", mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_signup_rejects_weak_password(self):
+        response = self._signup("weak-password@ax.com", password="1234")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.filter(email="weak-password@ax.com").exists())
 
     def test_signup_rate_limit_returns_retry_after(self):
         for index in range(5):
@@ -112,13 +105,12 @@ class AccountsTests(TestCase):
         self.assertEqual(response.status_code, 429)
         self.assertIn("Retry-After", response)
 
-    def test_login_requires_verified_approved_account(self):
+    def test_login_requires_approved_account(self):
         pending = User.objects.create_user(
             email="pending@ax.com",
             password=STRONG_PASSWORD,
             approval_status=User.ApprovalStatus.PENDING,
         )
-        EmailAddress.objects.filter(user=pending).update(verified=True)
 
         response = self.client.post(
             reverse("accounts:login"),
@@ -141,14 +133,17 @@ class AccountsTests(TestCase):
         self.assertRedirects(response, reverse("accounts:dashboard"))
         self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24 * 13)
 
-    def test_signup_form_asks_for_email_only(self):
-        """가입 신청은 이메일만 받는다 - 개인정보는 승인 뒤 온보딩에서 받는다."""
+    def test_signup_form_asks_for_email_and_password_only(self):
+        """가입 신청은 계정 정보만 받는다 - 개인정보는 승인 뒤 온보딩에서 받는다."""
         page = self.client.get(reverse("accounts:login"), {"signup": "1"})
 
-        self.assertEqual(list(page.context["signup_form"].fields), ["email"])
+        self.assertEqual(
+            list(page.context["signup_form"].fields),
+            ["email", "password", "password_confirm"],
+        )
         self.assertNotContains(page, 'name="phone_number"')
 
-    def test_signup_stores_only_the_email(self):
+    def test_signup_stores_no_personal_details(self):
         self._signup("email-only@ax.com")
 
         user = User.objects.get(email="email-only@ax.com")
@@ -156,74 +151,73 @@ class AccountsTests(TestCase):
         self.assertEqual(user.phone_number, "")
         self.assertFalse(user.is_onboarded)
 
-    def test_student_without_profile_is_sent_to_onboarding(self):
-        rookie = User.objects.create_user(
-            email="rookie@ax.com",
+    def _rookie(self, email):
+        return User.objects.create_user(
+            email=email,
             password=STRONG_PASSWORD,
             _email_verified=True,
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
         )
-        self.client.force_login(rookie)
+
+    def test_student_without_profile_gets_the_onboarding_modal(self):
+        """전용 화면으로 튕겨내지 않고, 어느 화면에 있든 같은 모달로 프로필을 받는다."""
+        self.client.force_login(self._rookie("rookie@ax.com"))
 
         dashboard = self.client.get(reverse("accounts:dashboard"))
         mypage = self.client.get(reverse("accounts:mypage"))
 
-        self.assertRedirects(dashboard, reverse("accounts:onboarding"))
-        self.assertRedirects(mypage, reverse("accounts:onboarding"))
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertContains(dashboard, 'id="onboardingModal"')
+        self.assertContains(dashboard, 'data-bs-backdrop="static"')
+        self.assertContains(mypage, 'id="onboardingModal"')
 
-    def test_onboarding_saves_profile_and_unlocks_dashboard(self):
-        rookie = User.objects.create_user(
-            email="rookie2@ax.com",
-            password=STRONG_PASSWORD,
-            _email_verified=True,
-            role=User.Role.STUDENT,
-            approval_status=User.ApprovalStatus.APPROVED,
-        )
+    def test_onboarding_saves_profile_and_removes_the_modal(self):
+        rookie = self._rookie("rookie2@ax.com")
         self.client.force_login(rookie)
 
         response = self.client.post(
-            reverse("accounts:onboarding"),
-            {
-                "first_name": " 김민준 ",
-                "session_info": "5기 풀스택",
-                "phone_number": "010-1111-2222",
-            },
+            reverse("accounts:api_onboarding"),
+            data=json.dumps(
+                {
+                    "first_name": " 김민준 ",
+                    "session_info": "5기 풀스택",
+                    "phone_number": "010-1111-2222",
+                }
+            ),
+            content_type="application/json",
         )
 
-        self.assertRedirects(response, reverse("accounts:dashboard"))
+        self.assertEqual(response.status_code, 200)
         rookie.refresh_from_db()
         self.assertEqual(rookie.first_name, "김민준")
         self.assertEqual(rookie.session_info, "5기 풀스택")
         self.assertEqual(rookie.phone_number, "010-1111-2222")
         self.assertTrue(rookie.is_onboarded)
-        self.assertEqual(self.client.get(reverse("accounts:dashboard")).status_code, 200)
+        self.assertNotContains(
+            self.client.get(reverse("accounts:dashboard")), 'id="onboardingModal"'
+        )
 
     def test_onboarding_requires_every_field(self):
-        rookie = User.objects.create_user(
-            email="rookie3@ax.com",
-            password=STRONG_PASSWORD,
-            _email_verified=True,
-            role=User.Role.STUDENT,
-            approval_status=User.ApprovalStatus.APPROVED,
-        )
+        rookie = self._rookie("rookie3@ax.com")
         self.client.force_login(rookie)
 
         response = self.client.post(
-            reverse("accounts:onboarding"),
-            {"first_name": "김민준", "session_info": "", "phone_number": ""},
+            reverse("accounts:api_onboarding"),
+            data=json.dumps({"first_name": "김민준", "session_info": "", "phone_number": ""}),
+            content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         rookie.refresh_from_db()
         self.assertFalse(rookie.is_onboarded)
 
-    def test_onboarded_student_is_not_sent_back_to_onboarding(self):
+    def test_onboarded_student_does_not_see_the_modal(self):
         self.client.force_login(self.approved_student)
 
-        response = self.client.get(reverse("accounts:onboarding"))
+        response = self.client.get(reverse("accounts:dashboard"))
 
-        self.assertRedirects(response, reverse("accounts:dashboard"))
+        self.assertNotContains(response, 'id="onboardingModal"')
 
     def test_layout_offers_a_dark_mode_toggle(self):
         self.client.force_login(self.approved_student)
@@ -468,7 +462,7 @@ class AccountsTests(TestCase):
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response["Retry-After"], "900")
 
-    def test_tutor_can_approve_only_verified_pending_student(self):
+    def test_tutor_can_approve_a_pending_student(self):
         target = User.objects.create_user(
             email="target@ax.com",
             password=STRONG_PASSWORD,
@@ -582,10 +576,8 @@ class AccountsTests(TestCase):
         self.assertContains(response, f'action="{reverse("accounts:logout")}"')
         self.assertContains(response, "로그아웃")
 
-    def test_unsafe_reset_and_allauth_account_routes_are_closed(self):
+    def test_allauth_account_routes_are_closed(self):
         closed_paths = [
-            "/accounts/api/password/verify/",
-            "/accounts/api/password/reset/",
             "/accounts/password/reset/",
             "/accounts/email/",
             "/accounts/social/connections/",
@@ -593,6 +585,11 @@ class AccountsTests(TestCase):
         for path in closed_paths:
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_password_reset_endpoints_reject_get(self):
+        for name in ("accounts:api_password_reset_verify", "accounts:api_password_reset"):
+            with self.subTest(name=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 405)
 
     def test_social_login_start_is_post_only(self):
         self.assertEqual(self.client.get(reverse("google_login")).status_code, 405)
@@ -835,3 +832,132 @@ class AuthorityConstraintTests(TransactionTestCase):
 
         self.assertCountEqual(outcomes, ["suspended", "blocked"])
         self.assertEqual(User.objects.filter(is_superuser=True, is_active=True).count(), 1)
+
+
+class PasswordResetTests(TestCase):
+    """메일을 못 쓰는 환경의 자기 확인 재설정 - 지식 기반이라 경계 조건을 촘촘히 본다."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="reset-me@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            first_name="홍길동",
+            phone_number="010-1111-2222",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.verify_url = reverse("accounts:api_password_reset_verify")
+        self.reset_url = reverse("accounts:api_password_reset")
+
+    def _verify(self, email, phone_number, client=None):
+        return (client or self.client).post(
+            self.verify_url,
+            data=json.dumps({"email": email, "phone_number": phone_number}),
+            content_type="application/json",
+        )
+
+    def _reset(self, new_password, client=None):
+        return (client or self.client).post(
+            self.reset_url,
+            data=json.dumps({"new_password": new_password}),
+            content_type="application/json",
+        )
+
+    def test_reset_is_refused_without_passing_verification_first(self):
+        """2단계 단독 호출로는 어떤 계정도 바꿀 수 없어야 한다."""
+        response = self._reset(NEW_STRONG_PASSWORD)
+
+        self.assertEqual(response.status_code, 403)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(STRONG_PASSWORD))
+
+    def test_reset_ignores_any_account_named_in_the_request_body(self):
+        """대상 계정은 세션에서만 읽는다 - 본문에 남의 이메일을 넣어도 소용없어야 한다."""
+        victim = User.objects.create_user(
+            email="victim@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            phone_number="010-9999-8888",
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self._verify("reset-me@ax.com", "010-1111-2222")
+
+        response = self.client.post(
+            self.reset_url,
+            data=json.dumps({"email": victim.email, "new_password": NEW_STRONG_PASSWORD}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        victim.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertTrue(victim.check_password(STRONG_PASSWORD))
+        self.assertTrue(self.user.check_password(NEW_STRONG_PASSWORD))
+
+    def test_wrong_phone_number_does_not_open_the_second_step(self):
+        response = self._verify("reset-me@ax.com", "010-0000-0000")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._reset(NEW_STRONG_PASSWORD).status_code, 403)
+
+    def test_unknown_email_and_missing_phone_look_the_same(self):
+        no_phone = User.objects.create_user(
+            email="no-phone@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+
+        unknown = self._verify("nobody@ax.com", "010-1111-2222")
+        missing = self._verify(no_phone.email, "010-1111-2222")
+
+        self.assertEqual(unknown.status_code, 400)
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(unknown.json()["message"], missing.json()["message"])
+
+    def test_successful_reset_changes_password_and_ends_other_sessions(self):
+        signed_in = Client()
+        signed_in.force_login(self.user)
+        session_version = self.user.auth_session_version
+
+        self.assertEqual(self._verify("Reset-Me@AX.com", "01011112222").status_code, 200)
+        response = self._reset(NEW_STRONG_PASSWORD)
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(NEW_STRONG_PASSWORD))
+        self.assertGreater(self.user.auth_session_version, session_version)
+        # 재설정 전에 열려 있던 세션은 더 이상 대시보드를 열지 못한다.
+        stale = signed_in.get(reverse("accounts:dashboard"))
+        self.assertEqual(stale.status_code, 302)
+        self.assertTrue(stale["Location"].startswith(reverse("accounts:login")))
+
+    def test_grant_is_single_use(self):
+        self._verify("reset-me@ax.com", "010-1111-2222")
+        self._reset(NEW_STRONG_PASSWORD)
+
+        response = self._reset(STRONG_PASSWORD)
+
+        self.assertEqual(response.status_code, 403)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(NEW_STRONG_PASSWORD))
+
+    def test_weak_new_password_is_rejected(self):
+        self._verify("reset-me@ax.com", "010-1111-2222")
+
+        response = self._reset("1234")
+
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(STRONG_PASSWORD))
+
+    def test_verification_attempts_are_rate_limited(self):
+        for _ in range(5):
+            self._verify("reset-me@ax.com", "010-0000-0000")
+
+        response = self._verify("reset-me@ax.com", "010-0000-0000")
+
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("Retry-After", response)

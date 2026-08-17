@@ -1,10 +1,10 @@
 import hashlib
 import hmac
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as datetime_timezone
 
-from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from django.conf import settings
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
@@ -15,7 +15,6 @@ from django.utils import timezone
 
 from accounts.models import (
     AuthThrottleBucket,
-    EmailResendCooldown,
     User,
     WhitelistEmail,
     canonicalize_email,
@@ -92,22 +91,15 @@ def consume_rate_limit(event_kind, scopes, *, limit, window_seconds):
             bucket.save(update_fields=["count", "expires_at"])
 
 
-def enforce_resend_cooldown(email, seconds=60):
-    now = timezone.now()
-    digest = _digest(canonicalize_email(email))
-    with transaction.atomic():
-        cooldown, _ = EmailResendCooldown.objects.select_for_update().get_or_create(
-            key_digest=digest,
-            defaults={"allowed_at": now},
-        )
-        if cooldown.allowed_at > now:
-            raise RateLimitExceeded(max(1, int((cooldown.allowed_at - now).total_seconds())))
-        cooldown.allowed_at = now + timedelta(seconds=seconds)
-        cooldown.save(update_fields=["allowed_at"])
+def request_signup(*, request, email, password):
+    """가입 신청 - 이메일과 비밀번호를 받아 계정을 만든다.
 
+    확인 메일을 보낼 수 없는 환경이라(발신 도메인 PTR 미설정) 이메일 소유 확인 단계를 두지
+    않는다. 대신 명단(WhitelistEmail)에 있는 주소만 자동 승인하고, 나머지는 튜터가 승인 화면
+    에서 직접 확인한다.
 
-def request_signup(*, request, email):
-    """가입 신청은 이메일만 받는다 - 이름·기수·연락처는 승인 뒤 온보딩에서 본인이 채운다."""
+    이름·기수·연락처는 승인 뒤 온보딩에서 본인이 채운다.
+    """
     canonical = canonicalize_email(email)
     consume_rate_limit(
         "signup",
@@ -118,95 +110,89 @@ def request_signup(*, request, email):
     with transaction.atomic():
         lock_canonical_email(canonical)
         if User.objects.filter(email__iexact=canonical).exists():
+            # 가입 여부를 화면에서 알 수 없게 조용히 끝낸다(계정 존재 여부 노출 방지).
             return None
-        user = User.objects.create_user(
+        whitelist = WhitelistEmail.objects.select_for_update().filter(email=canonical).first()
+        return User.objects.create_user(
             email=canonical,
-            password=None,
+            password=password,
+            # 소유 확인 단계가 없으므로 allauth 주소 레코드는 처음부터 확인 완료로 둔다.
+            _email_verified=True,
             role=User.Role.STUDENT,
-            approval_status=User.ApprovalStatus.PENDING,
+            approval_status=(
+                User.ApprovalStatus.APPROVED if whitelist else User.ApprovalStatus.PENDING
+            ),
+            session_info=whitelist.session_info if whitelist else "",
         )
-        address = EmailAddress.objects.select_for_update().get(user=user, primary=True)
-        transaction.on_commit(lambda: address.send_confirmation(request, signup=True))
-        return user
 
 
-def resend_confirmation(*, request, email):
+PASSWORD_RESET_GRANT_TTL_SECONDS = 600
+
+
+def start_password_reset(*, request, email, phone_number):
+    """비밀번호 재설정 1단계 - 등록된 이메일과 연락처가 모두 맞아야 통과한다.
+
+    메일을 보낼 수 없어 토큰 링크 대신 지식 기반으로 본인을 확인한다. 토큰 방식보다 약한
+    수단이라 시도 횟수를 제한하고, 통과 사실은 서버 세션에만 남긴다 - 2단계에서 대상 계정을
+    요청 본문으로 다시 받지 않기 위해서다(받으면 아무 계정이나 바꿀 수 있게 된다).
+
+    성공 여부만 돌려주고 실패 이유는 구분하지 않는다(계정·연락처 존재 여부 노출 방지).
+    """
     canonical = canonicalize_email(email)
     consume_rate_limit(
-        "resend",
+        "password_reset",
         (("ip", request.META.get("REMOTE_ADDR", "unknown")), ("email", canonical)),
-        limit=3,
+        limit=5,
         window_seconds=3600,
     )
-    enforce_resend_cooldown(canonical)
-    address = EmailAddress.objects.filter(email=canonical, primary=True, verified=False).first()
-    if address:
-        address.send_confirmation(request, signup=not address.user.has_usable_password())
-
-
-def store_confirmation_grant(request, key):
-    confirmation = EmailConfirmationHMAC.from_key(key)
-    if confirmation is None:
+    digits = re.sub(r"\D", "", phone_number or "")
+    user = User.objects.filter(email=canonical, is_active=True).first()
+    if (
+        user is None
+        or not digits
+        or not user.has_usable_password()
+        or not user.phone_number
+        or re.sub(r"\D", "", user.phone_number) != digits
+    ):
+        request.session.pop("password_reset_grant", None)
         return False
-    request.session["email_confirmation_grant"] = {
-        "address_id": confirmation.email_address.pk,
-        "expires_at": int((timezone.now() + timedelta(minutes=10)).timestamp()),
+    request.session["password_reset_grant"] = {
+        "user_id": user.pk,
+        "expires_at": int(
+            (timezone.now() + timedelta(seconds=PASSWORD_RESET_GRANT_TTL_SECONDS)).timestamp()
+        ),
     }
     request.session.modified = True
     return True
 
 
-def get_confirmation_address(request):
-    grant = request.session.get("email_confirmation_grant") or {}
+def finish_password_reset(*, request, new_password):
+    """비밀번호 재설정 2단계 - 1단계에서 세션에 남긴 대상 계정에만 적용한다."""
+    grant = request.session.get("password_reset_grant") or {}
     if grant.get("expires_at", 0) < int(timezone.now().timestamp()):
-        request.session.pop("email_confirmation_grant", None)
-        return None
-    return EmailAddress.objects.filter(pk=grant.get("address_id"), primary=True).first()
-
-
-def confirm_email_ownership(request, *, password=None):
-    address = get_confirmation_address(request)
-    if address is None:
-        raise AccountConflictError("확인 요청이 만료되었거나 이미 처리되었습니다.")
-    canonical = canonicalize_email(address.email)
+        request.session.pop("password_reset_grant", None)
+        raise AccountConflictError("본인 확인이 만료되었습니다. 처음부터 다시 진행해 주세요.")
     with transaction.atomic():
-        lock_canonical_email(canonical)
-        user = User.objects.select_for_update().get(pk=address.user_id)
-        address = EmailAddress.objects.select_for_update().get(pk=address.pk, primary=True)
-        whitelist = WhitelistEmail.objects.select_for_update().filter(email=canonical).first()
-        if address.verified:
-            raise AccountConflictError("확인 요청이 만료되었거나 이미 처리되었습니다.")
-        if not user.has_usable_password():
-            if not password:
-                raise ValidationError("새 비밀번호를 입력해 주세요.")
-            validate_password(password, user=user)
-            user.set_password(password)
-        address.verified = True
-        address.save(update_fields=["verified"])
-        if whitelist:
-            user.approval_status = User.ApprovalStatus.APPROVED
-            user.session_info = whitelist.session_info
-        user.email_needs_review = False
+        user = User.objects.select_for_update().filter(pk=grant.get("user_id")).first()
+        if user is None or not user.is_active:
+            request.session.pop("password_reset_grant", None)
+            raise AccountConflictError("본인 확인이 만료되었습니다. 처음부터 다시 진행해 주세요.")
+        validate_password(new_password, user=user)
+        user.set_password(new_password)
+        user.must_rotate_password = False
+        # 재설정 전에 열려 있던 세션은 모두 끊는다.
+        user.auth_session_version = F("auth_session_version") + 1
         user.save()
-    request.session.pop("email_confirmation_grant", None)
+        user.refresh_from_db()
+    request.session.pop("password_reset_grant", None)
+    record_event(action="ACCOUNT_PASSWORD_RESET", target=user, actor_id=None)
     return user
-
-
-def email_is_verified(user):
-    return EmailAddress.objects.filter(
-        user=user,
-        email=canonicalize_email(user.email),
-        primary=True,
-        verified=True,
-    ).exists()
 
 
 def finalize_password_login(request, user, *, remember_session):
     with transaction.atomic():
         locked = User.objects.select_for_update().get(pk=user.pk)
         if not locked.is_active or locked.approval_status != User.ApprovalStatus.APPROVED:
-            raise PermissionDenied
-        if not email_is_verified(locked):
             raise PermissionDenied
         version = locked.auth_session_version
         login(request, locked, backend="django.contrib.auth.backends.ModelBackend")
@@ -233,8 +219,6 @@ def transition_approval(*, actor, target_id, decision):
         if actor_is_tutor and target.role != User.Role.STUDENT:
             raise PermissionDenied
         if target.approval_status != User.ApprovalStatus.PENDING:
-            raise InvalidAccountTransition
-        if not email_is_verified(target):
             raise InvalidAccountTransition
         target.approval_status = decision
         target.auth_session_version = F("auth_session_version") + 1
