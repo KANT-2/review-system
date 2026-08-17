@@ -139,6 +139,18 @@ class TeamsHttpViewTests(TestCase):
         )
         self.assertIn("myParticipantId:null", response.content.decode())
 
+    def test_management_page_offers_the_inline_member_search(self):
+        """검색은 화면을 떠나지 않고 걸린다 - 편성 화면 자체가 입력을 들고 있어야 한다."""
+        request = self.factory.get("/teams/manage/rounds/10/")
+        request.user = FakeUser(2, "tutor")
+
+        response = management_team_page(request, 10)
+
+        content = response.content.decode()
+        self.assertIn('id="memberSearch"', content)
+        self.assertIn('type="search"', content)
+        self.assertIn('id="searchMetric"', content)
+
     def test_preview_renders_without_database_backend(self):
         request = self.factory.get("/teams/preview/?role=tutor&state=unassigned")
 

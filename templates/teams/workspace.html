@@ -16,6 +16,15 @@
         개
       </label>
       <button id="autoButton" class="btn btn-primary btn-sm" type="button">자동 배치</button>
+      <label class="teams-search" for="memberSearch">
+        <span class="visually-hidden">학생 검색</span>
+        <input id="memberSearch"
+               class="form-control form-control-sm"
+               type="search"
+               autocomplete="off"
+               placeholder="학생 이름 검색">
+      </label>
+      <span id="searchMetric" class="teams-metric neutral" hidden></span>
       <span id="seedMetric" class="teams-metric">유효 시드 —</span>
       <span id="balanceMetric" class="teams-metric">팀 균형 편차 —</span>
       <span id="unassignedMetric" class="teams-metric neutral"></span>
