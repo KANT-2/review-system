@@ -176,6 +176,7 @@ main { padding: 28px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
 .badge-ax-completed { background-color: var(--ax-success-bg); color: var(--ax-success); }
 .badge-ax-expired { background-color: #F1F5F9; color: #94A3B8; }
 .badge-ax-danger { background-color: var(--ax-error-bg); color: var(--ax-error); }
+.badge-ax-warning { background-color: var(--ax-warning-bg); color: var(--ax-warning); }
 
 /* 평가 카드 */
 .eval-card {

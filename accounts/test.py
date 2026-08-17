@@ -980,3 +980,130 @@ class PasswordResetTests(TestCase):
 
         self.assertEqual(response.status_code, 429)
         self.assertIn("Retry-After", response)
+
+
+class StudentDashboardTests(TestCase):
+    """대시보드가 실제 회차 데이터를 그대로 비추는지 본다(가짜 데이터를 쓰지 않는다)."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from rounds.models import (
+            EvaluationRound,
+            QuestionTemplate,
+            RoundParticipant,
+            TemplateQuestion,
+        )
+        from teams.models import Team, TeamMembership
+
+        self.tutor = User.objects.create_user(
+            email="dash-tutor@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"dash-student-{index}@ax.com",
+                password=STRONG_PASSWORD,
+                _email_verified=True,
+                first_name=f"학생{index}",
+                student_number=f"D{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
+            )
+            for index in range(1, 5)
+        ]
+        team_template = QuestionTemplate.objects.create(
+            name="팀", category=QuestionTemplate.Category.TEAM, created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=team_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="완성도는?",
+            display_order=1,
+        )
+        peer_template = QuestionTemplate.objects.create(
+            name="개인", category=QuestionTemplate.Category.PEER, created_by=self.tutor
+        )
+        self.peer_question = TemplateQuestion.objects.create(
+            template=peer_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="기여도는?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="1회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            # 마감이 하루 안쪽이라 마감임박으로 잡혀야 한다.
+            evaluation_end_at=now + timedelta(hours=5),
+            target_team_count=2,
+            team_template=team_template,
+            peer_template=peer_template,
+            created_by=self.tutor,
+            started_at=now,
+        )
+        self.participants = [
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        team_one = Team.objects.create(round=self.round, team_number=1, name="1팀")
+        team_two = Team.objects.create(round=self.round, team_number=2, name="2팀")
+        for participant in self.participants[:2]:
+            TeamMembership.objects.create(team=team_one, participant=participant)
+        for participant in self.participants[2:]:
+            TeamMembership.objects.create(team=team_two, participant=participant)
+        self.client.force_login(self.students[0])
+
+    def test_dashboard_marks_an_urgent_deadline_while_work_remains(self):
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        self.assertTrue(response.context["portal"]["round"]["is_urgent"])
+        self.assertContains(response, "마감임박")
+        self.assertContains(response, 'id="todo-eval-section"')
+
+    def test_submitted_evaluations_move_from_pending_to_completed(self):
+        target = self.participants[1]
+
+        self.client.post(
+            reverse("reviews:peer-form", args=(target.pk,)),
+            {f"question_{self.peer_question.pk}": "4"},
+        )
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        portal = response.context["portal"]
+        completed_targets = [row["target"] for row in portal["completed_evaluations"]]
+        pending_targets = [row["target"] for row in portal["pending_evaluations"]]
+        self.assertIn("학생2", " ".join(completed_targets))
+        self.assertNotIn("학생2", " ".join(pending_targets))
+        self.assertContains(response, "제출 완료")
+
+    def test_finishing_everything_clears_the_pending_list(self):
+        from reviews.services import peer_targets, team_targets
+
+        participant = self.participants[0]
+        for row in peer_targets(participant):
+            self.client.post(
+                reverse("reviews:peer-form", args=(row.pk,)),
+                {f"question_{self.peer_question.pk}": "5"},
+            )
+        remaining_team = [row for row in team_targets(participant) if not row.completed]
+
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        portal = response.context["portal"]
+        self.assertEqual(len(portal["pending_evaluations"]), len(remaining_team))
+        if not remaining_team:
+            self.assertContains(response, "제출할 평가를 모두 끝냈습니다")
+            self.assertFalse(portal["round"]["is_urgent"])
