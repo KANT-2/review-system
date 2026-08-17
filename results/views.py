@@ -27,6 +27,12 @@ PUBLISH_ITEMS = [
 PUBLISH_LABELS = {item["key"]: item["label"] for item in PUBLISH_ITEMS}
 PUBLISH_KEYS = set(PUBLISH_LABELS)
 
+# 프로토타입 회차 선택기 - rounds 앱에 실제 모델이 없어서 회차 목록도 하드코딩한다.
+# "3"(현재 회차)만 실제 시나리오 데이터가 있고, 나머지는 준비중 상태를 보여준다.
+LATEST_ROUND = "3"
+ROUND_OPTIONS = [("1", "1회차"), ("2", "2회차"), ("3", "3회차 (현재)")]
+ROUND_LABELS = dict(ROUND_OPTIONS)
+
 
 def _get_publish_state(request):
     """세션에 저장된 항목별 공개 상태(bool). 저장된 모델이 없어서 세션으로 대신하는
@@ -50,6 +56,21 @@ def manage_preview(request):
     rounds 모델이 아직 없어서 실제 권한 검사·회차 조회는 하지 않는다 - 나중에 그 모델들이
     생기면 이 뷰는 실제 CalculationRun/EvaluationResult 조회로 바뀐다.
     """
+    selected_round = request.GET.get("round", LATEST_ROUND)
+    if selected_round not in ROUND_LABELS:
+        selected_round = LATEST_ROUND
+    is_latest_round = selected_round == LATEST_ROUND
+    base_context = {
+        "active_nav": "manage",
+        "round_options": ROUND_OPTIONS,
+        "selected_round": selected_round,
+        "round_label": ROUND_LABELS[selected_round],
+        "is_latest_round": is_latest_round,
+    }
+
+    if not is_latest_round:
+        return render(request, "results/manage.html", base_context)
+
     scenario = build_scenario()
     publish_state = _get_publish_state(request)
     has_partial_data = any(team.data_status == "PARTIAL" for team in scenario["teams"]) or any(
@@ -59,8 +80,8 @@ def manage_preview(request):
         request,
         "results/manage.html",
         {
+            **base_context,
             "scenario": scenario,
-            "active_nav": "manage",
             "publish_items": PUBLISH_ITEMS,
             "publish_state": publish_state,
             "pending_confirm": request.session.get("pending_confirm"),

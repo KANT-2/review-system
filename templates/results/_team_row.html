@@ -1,12 +1,18 @@
 {% load results_extras %}
-<tr>
+<tr data-status="{{ team.data_status }}">
   <td class="text-end">
-    {% if team.rank %}
+    {% if team.rank == 1 %}
+      <span class="ax-rank-badge ax-rank-badge--gold"><i class="bi bi-trophy-fill"></i>1위</span>
+    {% elif team.rank == 2 %}
+      <span class="ax-rank-badge ax-rank-badge--silver"><i class="bi bi-award-fill"></i>2위</span>
+    {% elif team.rank == 3 %}
+      <span class="ax-rank-badge ax-rank-badge--bronze"><i class="bi bi-award-fill"></i>3위</span>
+    {% elif team.rank %}
       <span class="ax-rank-badge">{{ team.rank }}위</span>
-      {% if team.is_tied %}<span class="ax-tie-note">공동</span>{% endif %}
     {% else %}
       <span class="ax-na-value">-</span>
     {% endif %}
+    {% if team.is_tied %}<span class="ax-tie-note">공동</span>{% endif %}
   </td>
   <td class="fw-semibold">{{ team.number }}팀</td>
   <td class="text-muted">{{ team.member_names|join:", " }}</td>
@@ -17,7 +23,10 @@
   <td class="text-end">
     {% with pct=team.coverage|response_rate_percent %}
       {% if pct is not None %}
-        {{ pct }}%
+        <span class="ax-progress-ring-wrap">
+          <span class="ax-progress-ring" style="--pct: {{ pct }};"></span>
+          <span>{{ pct }}%</span>
+        </span>
       {% else %}
         <span class="ax-na-value">-</span>
       {% endif %}

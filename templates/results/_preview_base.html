@@ -15,9 +15,16 @@
   </head>
   <body>
     <div class="ax-shell">
-      <aside class="ax-sidebar d-none d-lg-flex">
+      <aside class="ax-sidebar d-none d-lg-flex" id="axSidebar">
         <div class="ax-sidebar-brand">
-          <span>AX Console</span>
+          <span class="ax-brand-text">AX Console</span>
+          <button type="button"
+                  class="ax-sidebar-collapse-btn"
+                  id="axSidebarCollapseToggle"
+                  aria-label="사이드바 접기/펼치기"
+                  aria-expanded="true">
+            <i class="bi bi-chevron-left"></i>
+          </button>
         </div>
         {% include "results/_preview_nav.html" %}
         <div class="ax-sidebar-profile">

@@ -46,6 +46,7 @@ class StudentRow:
     peer_coverage: Decimal | None
     team_score: Decimal | None
     peer_score: Decimal | None
+    tutor_score: Decimal | None
     final_score: Decimal | None
     rank: int | None = None
     is_tied: bool = False
@@ -86,24 +87,29 @@ def build_scenario():
         )
 
     # ---- 학생·개인 평가 ----
-    # (이름, 소속 팀, 기대 개인평가 수, 받은 답변 목록)
+    # (이름, 소속 팀, 기대 개인평가 수, 받은 답변 목록, 튜터 평가 점수)
+    # 튜터 평가는 도입이 확정된 기능이라 모든 학생의 최종점수 계산에 항상 반영한다
+    # (팀 30% + 개인 40% + 튜터 30%, results/services.py TEAM_WEIGHT_WITH_TUTOR 등 참고).
+    # 튜터가 실제로 점수를 매기는 입력 화면은 아직 안 만들었으므로 여기서는 가짜 튜터 점수를
+    # 대입한다 - 구성 점수(팀/개인) 중 하나라도 N/A인 학생은 튜터 점수가 있어도 최종점수가
+    # N/A인 건 동일하다(calculate_final_score의 기존 규칙).
     student_specs = [
-        ("학생A", 1, 2, [[5, 5, 5, 4, 5], [5, 4, 5, 5, 5]]),  # 2/2 COMPLETE, 높은 점수
-        ("학생B", 1, 2, [[5, 5, 4, 5, 5], [4, 5, 5, 5, 4]]),  # 2/2 COMPLETE, 학생A와 공동 1위 유도
-        ("학생C", 1, 2, [[3, 4, 3, 3, 4]]),  # 1/2 PARTIAL
-        ("학생D", 2, 2, []),  # 0/2 NO_DATA -> 개인점수 N/A -> 최종점수도 N/A
-        ("학생E", 2, 2, [[4, 4, 3, 4, 4], [4, 4, 4, 3, 4]]),  # 2/2 COMPLETE
-        ("학생F", 2, 2, [[3, 3, 4, 3, 3], [4, 3, 3, 4, 3]]),  # 2/2 COMPLETE
-        ("학생G", 3, 1, [[4, 4, 4, 4, 4]]),  # 1/1 COMPLETE, 하지만 팀 자체가 N/A라 최종점수는 N/A
-        ("학생H", 3, 1, []),  # 0/1 NO_DATA, 팀도 N/A
-        ("학생I", 4, 0, []),  # 1인 팀: 평가 대상 없음 -> NOT_APPLICABLE (PR-007)
+        ("학생A", 1, 2, [[5, 5, 5, 4, 5], [5, 4, 5, 5, 5]], Decimal("88.00")),
+        ("학생B", 1, 2, [[5, 5, 4, 5, 5], [4, 5, 5, 5, 4]], Decimal("90.00")),
+        ("학생C", 1, 2, [[3, 4, 3, 3, 4]], Decimal("76.00")),
+        ("학생D", 2, 2, [], Decimal("70.00")),
+        ("학생E", 2, 2, [[4, 4, 3, 4, 4], [4, 4, 4, 3, 4]], Decimal("82.00")),
+        ("학생F", 2, 2, [[3, 3, 4, 3, 3], [4, 3, 3, 4, 3]], Decimal("74.00")),
+        ("학생G", 3, 1, [[4, 4, 4, 4, 4]], Decimal("78.00")),
+        ("학생H", 3, 1, [], Decimal("65.00")),
+        ("학생I", 4, 0, [], Decimal("85.00")),
     ]
 
     students = []
-    for name, team_number, expected_peer, received in student_specs:
+    for name, team_number, expected_peer, received, tutor_score in student_specs:
         team_score = teams[team_number].team_score
         peer_score = calculate_peer_score(received)
-        final_score = calculate_final_score(team_score, peer_score)
+        final_score = calculate_final_score(team_score, peer_score, tutor_score)
         valid_peer = len(received)
         students.append(
             StudentRow(
@@ -115,6 +121,7 @@ def build_scenario():
                 peer_coverage=calculate_coverage(expected_peer, valid_peer),
                 team_score=team_score,
                 peer_score=peer_score,
+                tutor_score=tutor_score,
                 final_score=final_score,
                 rank=None,
             )
@@ -144,10 +151,16 @@ def build_scenario():
         student.rank = rank
         student.is_tied = student_ranks.count(rank) > 1
 
-    # ---- Seed 데모: 과거 회차 최종점수 예시(가상) -> 다음 회차 자동편성용 ----
+    # ---- Seed: 과거 회차 최종점수(가상) -> 다음 회차 자동편성용, 전체 학생 대상 ----
     seed_examples = [
         ("학생A", [Decimal("82.00"), Decimal("88.00"), Decimal("94.00")]),  # 3개, 20/30/50
+        ("학생B", [Decimal("84.00"), Decimal("87.00"), Decimal("91.00")]),
+        ("학생C", [Decimal("78.00"), Decimal("74.00"), Decimal("70.00")]),
         ("학생D", [Decimal("70.000000"), Decimal("76.500000")]),  # 2개, 뒤에서부터 30/50 재정규화
+        ("학생E", [Decimal("75.00"), Decimal("79.00"), Decimal("83.00")]),
+        ("학생F", [Decimal("80.00"), Decimal("76.00"), Decimal("72.00")]),
+        ("학생G", [Decimal("77.00"), Decimal("77.00")]),
+        ("학생H", [Decimal("68.00")]),  # 1개뿐이라 추세 없음
         ("학생I", []),  # 유효 이력 없음 -> 무시드(N/A)
     ]
 
@@ -169,6 +182,7 @@ def build_scenario():
         }
         for name, history in seed_examples
     ]
+    seeds.sort(key=lambda row: (row["seed"] is None, -(row["seed"] or 0)))
 
     def _by_rank_then_name(row):
         return (
@@ -176,22 +190,6 @@ def build_scenario():
             row.rank if row.rank is not None else 0,
             row.name if hasattr(row, "name") else "",
         )
-
-    # ---- 튜터 평가 반영 예시 (아직 미확정 - 구축제안서 슬라이드 10/22 참고) ----
-    # 튜터 평가 "입력" 기능은 만들지 않고, 반영됐을 때 최종점수 산식이 어떻게 바뀌는지만
-    # 학생A의 실제 팀/개인 점수에 가상의 튜터 점수를 대입해 나란히 보여준다.
-    tutor_demo_student = students[0]  # 학생A
-    tutor_demo_score = Decimal("80.00")
-    tutor_example = {
-        "student_name": tutor_demo_student.name,
-        "team_score": tutor_demo_student.team_score,
-        "peer_score": tutor_demo_student.peer_score,
-        "tutor_score": tutor_demo_score,
-        "final_without_tutor": tutor_demo_student.final_score,
-        "final_with_tutor": calculate_final_score(
-            tutor_demo_student.team_score, tutor_demo_student.peer_score, tutor_demo_score
-        ),
-    }
 
     no_data_count = sum(
         1
@@ -210,7 +208,6 @@ def build_scenario():
         "published_at": PUBLISHED_AT,
         "seeds": seeds,
         "winner_team": next((t for t in ranked_teams if t.rank == 1), None),
-        "tutor_example": tutor_example,
         "student_count": len(students),
         "team_count": len(teams),
         "no_data_count": no_data_count,

@@ -47,6 +47,52 @@ body {
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+
+.ax-sidebar-collapse-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ax-sidebar-collapse-btn:hover {
+  color: #ffffff;
+  background: var(--ax-navigation-hover);
+}
+
+.ax-sidebar--collapsed {
+  width: var(--ax-sidebar-collapsed-width);
+}
+
+.ax-sidebar--collapsed .ax-brand-text,
+.ax-sidebar--collapsed .ax-nav-label,
+.ax-sidebar--collapsed .ax-nav-text,
+.ax-sidebar--collapsed .ax-sidebar-profile strong,
+.ax-sidebar--collapsed .ax-sidebar-profile span {
+  display: none;
+}
+
+.ax-sidebar--collapsed .ax-sidebar-brand {
+  justify-content: center;
+}
+
+.ax-sidebar--collapsed .nav-link {
+  display: flex;
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ax-sidebar--collapsed .ax-sidebar-collapse-btn i {
+  transform: rotate(180deg);
 }
 
 .ax-sidebar .ax-sidebar-brand {
@@ -131,6 +177,29 @@ body {
   color: var(--ax-text-muted);
   font-size: 14px;
   margin-bottom: 0;
+}
+
+.ax-round-select {
+  height: 38px;
+  border: 1px solid var(--ax-outline);
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ax-text);
+  background: var(--ax-surface);
+}
+
+.ax-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ax-text-muted);
+}
+
+.ax-empty-state i {
+  font-size: 28px;
+  margin-bottom: 12px;
+  display: inline-block;
 }
 
 .ax-card {
@@ -232,18 +301,85 @@ tbody.collapse.show {
 }
 
 .ax-score-bar {
+  position: relative;
   width: 100%;
   max-width: 72px;
   height: 4px;
   border-radius: 2px;
   background: var(--ax-outline);
-  overflow: hidden;
 }
 
 .ax-score-bar-fill {
   height: 100%;
   background: var(--ax-primary);
   border-radius: 2px;
+}
+
+.ax-score-bar-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: #b6c0cf;
+}
+
+/* ---- response-rate progress ring ---- */
+
+.ax-progress-ring-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ax-progress-ring {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ax-primary) calc(var(--pct) * 1%), var(--ax-outline) 0);
+}
+
+.ax-progress-ring::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--ax-surface);
+}
+
+/* ---- data-status filter chips ---- */
+
+.ax-filter-group {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ax-filter-chip {
+  border: 1px solid var(--ax-outline);
+  background: var(--ax-surface);
+  color: var(--ax-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ax-filter-chip:hover {
+  border-color: var(--ax-primary);
+  color: var(--ax-primary);
+}
+
+.ax-filter-chip.active {
+  background: var(--ax-primary);
+  border-color: var(--ax-primary);
+  color: #fff;
+}
+
+.ax-row-hidden {
+  display: none;
 }
 
 /* ---- mobile offcanvas sidebar (LAYOUT.md 17: 데스크톱 사이드바와 같은 네비게이션) ---- */
@@ -361,6 +497,14 @@ tbody.collapse.show {
   margin-top: 3px;
 }
 
+.ax-summary-card--highlight {
+  border: 2px solid #f0b73a;
+}
+
+.ax-summary-card--highlight .ax-summary-label {
+  color: #a3690a;
+}
+
 /* ---- status chip (page header) ---- */
 
 .ax-status-chip {
@@ -418,7 +562,7 @@ tbody.collapse.show {
   bottom: 3px;
   background: #fff;
   border-radius: 50%;
-  transition: 0.2s;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .ax-switch input:checked + .ax-slider {
@@ -459,7 +603,9 @@ tbody.collapse.show {
 /* ---- rank badge + tie note ---- */
 
 .ax-rank-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   padding: 2px 8px;
   border-radius: 6px;
   background: var(--ax-primary-container);
@@ -468,10 +614,36 @@ tbody.collapse.show {
   font-size: 12px;
 }
 
+.ax-rank-badge--gold {
+  background: #fdf0d8;
+  color: #a3690a;
+}
+
+.ax-rank-badge--silver {
+  background: #eef1f5;
+  color: #5b6472;
+}
+
+.ax-rank-badge--bronze {
+  background: #f7e8de;
+  color: #9a5228;
+}
+
+.ax-rank-badge i {
+  font-size: 12px;
+}
+
 .ax-tie-note {
   margin-left: 6px;
   color: var(--ax-text-muted);
   font-size: 11px;
+}
+
+.ax-info-icon {
+  color: var(--ax-text-muted);
+  font-size: 12px;
+  margin-left: 4px;
+  cursor: help;
 }
 
 /* ---- score math breakdown chips ---- */
