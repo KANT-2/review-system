@@ -20,6 +20,7 @@ from accounts.models import (
     WhitelistEmail,
     canonicalize_email,
 )
+from audit.services import record_event
 
 
 class AccountConflictError(Exception):
@@ -309,3 +310,48 @@ def cleanup_expired_throttles(limit=500):
         .values_list("pk", flat=True)[:limit]
     )
     return AuthThrottleBucket.objects.filter(pk__in=ids).delete()[0]
+
+
+def whitelist_rows():
+    """명단 화면용 - 각 이메일이 이미 가입했는지 함께 보여준다."""
+    entries = list(WhitelistEmail.objects.all())
+    users = {
+        canonicalize_email(user.email): user
+        for user in User.objects.filter(email__in=[entry.email for entry in entries])
+    }
+    for entry in entries:
+        entry.account = users.get(canonicalize_email(entry.email))
+    return entries
+
+
+@transaction.atomic
+def add_whitelist_emails(*, emails, session_info, actor):
+    """명단에 이메일을 등록한다. 이미 있으면 기수만 갱신한다."""
+    added, updated = [], []
+    for email in emails:
+        entry, created = WhitelistEmail.objects.update_or_create(
+            email=email, defaults={"session_info": session_info}
+        )
+        (added if created else updated).append(entry)
+        record_event(
+            action="WHITELIST_ADDED" if created else "WHITELIST_UPDATED",
+            target=entry,
+            actor=actor,
+            summary={"session_info": session_info},
+        )
+    return added, updated
+
+
+@transaction.atomic
+def remove_whitelist_email(*, entry_id, actor):
+    entry = WhitelistEmail.objects.filter(pk=entry_id).first()
+    if not entry:
+        raise InvalidAccountTransition("이미 삭제된 항목입니다.")
+    record_event(
+        action="WHITELIST_REMOVED",
+        target=entry,
+        actor=actor,
+        summary={"session_info": entry.session_info},
+    )
+    entry.delete()
+    return entry

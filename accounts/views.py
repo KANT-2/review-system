@@ -16,6 +16,7 @@ from accounts.forms import (
     OnboardingForm,
     PasswordChangeForm,
     SignUpForm,
+    WhitelistEntryForm,
 )
 from accounts.models import User, WhitelistEmail
 from accounts.portal import build_student_portal, build_student_result_portal
@@ -23,14 +24,17 @@ from accounts.services import (
     AccountConflictError,
     InvalidAccountTransition,
     RateLimitExceeded,
+    add_whitelist_emails,
     change_password,
     confirm_email_ownership,
     finalize_password_login,
     get_confirmation_address,
+    remove_whitelist_email,
     request_signup,
     resend_confirmation,
     store_confirmation_grant,
     transition_approval,
+    whitelist_rows,
 )
 
 GENERIC_SIGNUP_MESSAGE = "요청을 접수했습니다. 해당 주소로 보낸 안내를 확인해 주세요."
@@ -262,6 +266,51 @@ def tutor_dashboard(request):
             "whitelist_count": WhitelistEmail.objects.count(),
         },
     )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def whitelist_view(request):
+    """수강생 명단(화이트리스트) 관리.
+
+    여기에 등록된 이메일로 가입하면 이메일 확인만으로 자동 승인된다 - 운영자가 미리 명단을
+    넣어두면 한 명씩 승인할 필요가 없다.
+    """
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    form = WhitelistEntryForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        added, updated = add_whitelist_emails(
+            emails=form.cleaned_data["emails"],
+            session_info=form.cleaned_data["session_info"],
+            actor=request.user,
+        )
+        parts = []
+        if added:
+            parts.append(f"{len(added)}건 등록")
+        if updated:
+            parts.append(f"{len(updated)}건 기수 갱신")
+        messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
+        return redirect("accounts:whitelist")
+    return render(
+        request,
+        "accounts/whitelist.html",
+        {"form": form, "entries": whitelist_rows()},
+    )
+
+
+@login_required
+@require_POST
+def whitelist_delete(request, entry_id):
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        entry = remove_whitelist_email(entry_id=entry_id, actor=request.user)
+    except InvalidAccountTransition as error:
+        messages.error(request, str(error))
+    else:
+        messages.success(request, f"{entry.email}을 명단에서 지웠습니다.")
+    return redirect("accounts:whitelist")
 
 
 def _html_transition(request, user_id, decision):

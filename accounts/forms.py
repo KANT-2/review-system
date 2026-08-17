@@ -114,3 +114,47 @@ class OnboardingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.required = True
+
+
+class WhitelistEntryForm(forms.Form):
+    """수강생 명단 등록 - 여러 줄 붙여넣기를 그대로 받는다(한 줄에 이메일 하나)."""
+
+    emails = forms.CharField(
+        label="이메일",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 4,
+                "placeholder": "student1@ax.com\nstudent2@ax.com",
+            }
+        ),
+        help_text="한 줄에 하나씩 붙여넣으면 한 번에 등록됩니다.",
+    )
+    session_info = forms.CharField(
+        label="배정 기수",
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "예: 5기 풀스택"}),
+    )
+
+    def clean_emails(self):
+        raw = self.cleaned_data["emails"].replace(",", "\n")
+        field = forms.EmailField()
+        seen, invalid = [], []
+        for line in raw.splitlines():
+            candidate = line.strip()
+            if not candidate:
+                continue
+            try:
+                field.clean(candidate)
+            except ValidationError:
+                invalid.append(candidate)
+                continue
+            canonical = canonicalize_email(candidate)
+            if canonical not in seen:
+                seen.append(canonical)
+        if invalid:
+            raise ValidationError(f"이메일 형식이 아닌 항목이 있습니다: {', '.join(invalid[:3])}")
+        if not seen:
+            raise ValidationError("등록할 이메일을 한 개 이상 입력해 주세요.")
+        return seen
