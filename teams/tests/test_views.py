@@ -125,6 +125,8 @@ class TeamsHttpViewTests(TestCase):
         content = response.content.decode()
         self.assertIn("teams-initial-data", content)
         self.assertIn("팀 편성", content)
+        self.assertIn("page-header", content)
+        self.assertIn("card-custom teams-board", content)
 
     def test_tutor_page_renders_management_workspace(self):
         request = self.factory.get("/teams/manage/rounds/10/")
@@ -133,11 +135,13 @@ class TeamsHttpViewTests(TestCase):
         response = management_team_page(request, 10)
 
         self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
         self.assertIn(
             "/teams/manage/rounds/10/teams/auto/",
-            response.content.decode(),
+            content,
         )
-        self.assertIn("myParticipantId:null", response.content.decode())
+        self.assertIn("btn-ax-primary", content)
+        self.assertIn("myParticipantId:null", content)
 
     def test_preview_renders_without_database_backend(self):
         request = self.factory.get("/teams/preview/?role=tutor&state=unassigned")

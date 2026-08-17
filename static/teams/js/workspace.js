@@ -22,12 +22,26 @@
     return element.innerHTML;
   }
 
+  function setStatusBadge(text, tone = "pending") {
+    const statusBadge = byId("statusBadge");
+    statusBadge.textContent = text;
+    statusBadge.className = `badge-ax badge-ax-${tone}`;
+  }
+
   function layout(teamCount) {
-    const rows = [];
-    let remaining = teamCount;
-    while (remaining > 0) {
-      rows.push(Math.min(5, remaining));
-      remaining -= 5;
+    if (teamCount <= 0) {
+      return { rows: [], width: 280 };
+    }
+    // 4팀 이하는 한 줄, 5팀부터는 최소 2줄로 나눠서 앞쪽 줄부터 균등하게 채운다.
+    // 예: 5팀 -> 3/2, 9팀 -> 5/4, 13팀 -> 5/4/4
+    let rows;
+    if (teamCount <= 4) {
+      rows = [teamCount];
+    } else {
+      const rowCount = Math.max(2, Math.ceil(teamCount / 5));
+      const base = Math.floor(teamCount / rowCount);
+      const extra = teamCount % rowCount;
+      rows = Array.from({ length: rowCount }, (_, index) => base + (index < extra ? 1 : 0));
     }
     const widestRow = Math.max(...rows, 1);
     const width = widestRow <= 2 ? 280 : widestRow === 3 ? 270 : widestRow === 4 ? 240 : 220;
@@ -38,8 +52,7 @@
     byId("toolbar").hidden = true;
     byId("board").hidden = true;
     byId("emptyState").hidden = false;
-    byId("statusBadge").textContent = status;
-    byId("statusBadge").classList.add("closed");
+    setStatusBadge(status, "expired");
     byId("emptyTitle").textContent = title;
     byId("emptyText").textContent = text;
   }
@@ -201,7 +214,7 @@
       people.forEach((person, index) => data.teams[index % teamCount].members.push(person));
       data.unassigned_members = [];
       byId("seedMetric").textContent = "유효 시드 29명";
-      byId("balanceMetric").textContent = "팀 균형 편차 8.42 → 3.18";
+      byId("balanceMetric").textContent = "팀 균형 편차 3.18";
       isDirty = true;
       renderTutorBoard();
       return;
@@ -222,10 +235,8 @@
     }));
     data.unassigned_members = [];
     byId("seedMetric").textContent = `유효 시드 ${result.quality.seeded_participant_count}명`;
-    const initialDeviation = result.quality.initial_standard_deviation ?? "N/A";
     const finalDeviation = result.quality.final_standard_deviation ?? "N/A";
-    byId("balanceMetric").textContent =
-      `팀 균형 편차 ${initialDeviation} → ${finalDeviation}`;
+    byId("balanceMetric").textContent = `팀 균형 편차 ${finalDeviation}`;
     isDirty = true;
     renderTutorBoard();
   }
@@ -283,7 +294,7 @@
 
     if (data.is_read_only) {
       byId("toolbar").hidden = true;
-      byId("statusBadge").textContent = "편성 완료";
+      setStatusBadge("편성 완료", "completed");
       byId("pageDescription").textContent = "종료된 회차의 팀 구성은 조회만 할 수 있습니다.";
       renderUnassignedMembers(false);
       renderBoard();
@@ -291,7 +302,7 @@
     }
 
     byId("toolbar").hidden = false;
-    byId("statusBadge").textContent = "DRAFT · 편집 가능";
+    setStatusBadge("DRAFT · 편집 가능", "pending");
     byId("pageDescription").textContent =
       "자동 배치 결과를 확인하고 필요한 학생만 다른 팀으로 이동하세요.";
     byId("legend").textContent = "학생 이름을 끌어 다른 팀으로 이동할 수 있습니다.";
@@ -318,7 +329,7 @@
       );
       return;
     }
-    byId("statusBadge").textContent = "팀 편성 완료";
+    setStatusBadge("팀 편성 완료", "completed");
     byId("pageDescription").textContent = "현재 프로젝트의 전체 팀과 나의 팀을 확인하세요.";
     byId("legend").textContent = "";
     renderBoard({ showMyTeam: true });

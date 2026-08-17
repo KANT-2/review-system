@@ -1,41 +1,51 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}팀 편성 | AX Evaluation Console{% endblock %}
-{% block content %}
+{% block extra_head %}
   <link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">
+{% endblock %}
+{% block breadcrumb %}팀 편성{% endblock %}
+{% block content %}
   <div class="teams-workspace">
-    <div class="teams-heading">
-      <span id="statusBadge" class="teams-status"></span>
-      <h1>프로젝트 팀 편성</h1>
-      <p id="pageDescription"></p>
+    <div class="page-header teams-page-header">
+      <div>
+        <h1 class="page-title">프로젝트 팀 편성</h1>
+        <p id="pageDescription" class="page-desc"></p>
+      </div>
+      <span id="statusBadge" class="badge-ax badge-ax-pending"></span>
     </div>
-    <section id="toolbar" class="teams-toolbar" hidden>
+    <section id="toolbar" class="card-custom teams-toolbar" hidden>
       <label for="teamCount">
         팀 수
         <select id="teamCount" class="form-select form-select-sm"></select>
         개
       </label>
-      <button id="autoButton" class="btn btn-primary btn-sm" type="button">자동 배치</button>
+      <button id="autoButton" class="btn btn-ax-primary btn-sm" type="button">자동 배치</button>
       <span id="seedMetric" class="teams-metric">유효 시드 —</span>
       <span id="balanceMetric" class="teams-metric">팀 균형 편차 —</span>
       <span id="unassignedMetric" class="teams-metric neutral"></span>
       <span class="teams-spacer"></span>
       <button id="cancelButton"
-              class="btn btn-outline-secondary btn-sm"
+              class="btn btn-ax-secondary btn-sm"
               type="button"
               disabled>변경 취소</button>
-      <button id="saveButton" class="btn btn-primary btn-sm" type="button" disabled>저장</button>
+      <button id="saveButton"
+              class="btn btn-ax-primary btn-sm"
+              type="button"
+              disabled>저장</button>
     </section>
     <div id="unassignedArea"></div>
-    <section id="board" class="teams-board">
+    <section id="board" class="card-custom teams-board">
       <div id="teamRows"></div>
       <p id="legend" class="teams-legend"></p>
     </section>
-    <section id="emptyState" class="teams-empty" hidden>
-      <img src="{% static 'teams/img/tutor-team-assignment-empty.png' %}"
-           alt="컴퓨터 앞에서 팀 편성을 고민하는 튜터 캐릭터">
-      <h2 id="emptyTitle"></h2>
-      <p id="emptyText"></p>
+    <section id="emptyState" class="card-custom" hidden>
+      <div class="card-body-custom ax-empty-state teams-empty">
+        <img src="{% static 'teams/img/tutor-team-assignment-empty.png' %}"
+             alt="컴퓨터 앞에서 팀 편성을 고민하는 튜터 캐릭터">
+        <h2 id="emptyTitle"></h2>
+        <p id="emptyText"></p>
+      </div>
     </section>
   </div>
   {{ team_data|json_script:"teams-initial-data" }}
