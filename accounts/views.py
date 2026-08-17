@@ -11,9 +11,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.forms import (
-    ConfirmationPasswordForm,
     LoginForm,
-    OnboardingForm,
     PasswordChangeForm,
     SignUpForm,
     WhitelistEntryForm,
@@ -28,21 +26,20 @@ from accounts.services import (
     add_whitelist_emails,
     change_password,
     change_user_role,
-    confirm_email_ownership,
     finalize_password_login,
-    get_confirmation_address,
+    finish_password_reset,
     remove_whitelist_email,
     request_signup,
     require_password_rotation,
-    resend_confirmation,
     revert_approval_to_pending,
     set_account_active,
-    store_confirmation_grant,
+    start_password_reset,
     transition_approval,
     whitelist_rows,
 )
 
-GENERIC_SIGNUP_MESSAGE = "요청을 접수했습니다. 해당 주소로 보낸 안내를 확인해 주세요."
+GENERIC_SIGNUP_MESSAGE = "가입 신청을 접수했습니다. 승인 뒤 로그인할 수 있습니다."
+GENERIC_RESET_FAILURE = "이메일과 연락처가 등록된 정보와 일치하지 않습니다."
 
 
 def _safe_json(request):
@@ -100,7 +97,7 @@ def login_view(request):
                 remember_session=request.POST.get("remember_session") == "on",
             )
         except PermissionDenied:
-            messages.error(request, "이메일 확인과 계정 승인 상태를 확인해 주세요.")
+            messages.error(request, "계정 승인 상태를 확인해 주세요.")
         else:
             if user.must_rotate_password:
                 return redirect("accounts:password_change")
@@ -126,7 +123,11 @@ def signup_view(request):
     form = SignUpForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         try:
-            request_signup(request=request, **form.cleaned_data)
+            request_signup(
+                request=request,
+                email=form.cleaned_data["email"],
+                password=form.cleaned_data["password"],
+            )
         except RateLimitExceeded as error:
             response = render(
                 request,
@@ -145,54 +146,43 @@ def signup_view(request):
     )
 
 
-@require_GET
-def email_confirm_key(request, key):
-    store_confirmation_grant(request, key)
-    return redirect("accounts:email_confirm")
-
-
-@require_http_methods(["GET", "POST"])
-def email_confirm(request):
-    address = get_confirmation_address(request)
-    needs_password = bool(address and not address.user.has_usable_password())
-    form = ConfirmationPasswordForm(request.POST or None) if needs_password else None
-    if request.method == "POST":
-        if needs_password and not form.is_valid():
-            return render(
-                request,
-                "accounts/email_confirm.html",
-                {"address": address, "form": form, "needs_password": True},
-            )
-        try:
-            user = confirm_email_ownership(
-                request,
-                password=form.cleaned_data["password"] if needs_password else None,
-            )
-        except (AccountConflictError, ValidationError):
-            messages.error(request, "확인 요청이 만료되었거나 이미 처리되었습니다.")
-        else:
-            if user.approval_status == User.ApprovalStatus.APPROVED:
-                messages.success(request, "이메일 확인과 계정 승인이 완료되었습니다.")
-            else:
-                messages.success(request, "이메일 확인이 완료되었습니다. 승인을 기다려주세요.")
-        return redirect("accounts:login")
-    return render(
-        request,
-        "accounts/email_confirm.html",
-        {"address": address, "form": form, "needs_password": needs_password},
-    )
+@require_POST
+def password_reset_verify_api(request):
+    """재설정 1단계 - 이메일과 연락처가 맞으면 세션에 확인 흔적만 남긴다."""
+    data = _safe_json(request)
+    if data is None:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+    try:
+        verified = start_password_reset(
+            request=request,
+            email=str(data.get("email", "")),
+            phone_number=str(data.get("phone_number", "")),
+        )
+    except RateLimitExceeded as error:
+        response = JsonResponse(
+            {"success": False, "message": "시도가 너무 잦습니다. 잠시 후 다시 시도해 주세요."},
+            status=429,
+        )
+        response["Retry-After"] = str(error.retry_after)
+        return response
+    if not verified:
+        return JsonResponse({"success": False, "message": GENERIC_RESET_FAILURE}, status=400)
+    return JsonResponse({"success": True, "message": "본인 확인이 완료되었습니다."})
 
 
 @require_POST
-def email_resend(request):
-    email = request.POST.get("email", "")
+def password_reset_api(request):
+    """재설정 2단계 - 대상 계정은 세션의 확인 흔적에서만 읽는다(요청 본문에서 받지 않는다)."""
+    data = _safe_json(request)
+    if data is None:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
     try:
-        resend_confirmation(request=request, email=email)
-    except RateLimitExceeded as error:
-        response = JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=429)
-        response["Retry-After"] = str(error.retry_after)
-        return response
-    return JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE})
+        finish_password_reset(request=request, new_password=str(data.get("new_password", "")))
+    except AccountConflictError as error:
+        return JsonResponse({"success": False, "message": str(error)}, status=403)
+    except ValidationError as error:
+        return JsonResponse({"success": False, "message": " ".join(error.messages)}, status=400)
+    return JsonResponse({"success": True, "message": "비밀번호를 변경했습니다. 로그인해 주세요."})
 
 
 @require_POST
@@ -201,36 +191,10 @@ def logout_view(request):
     return redirect("accounts:login")
 
 
-def _needs_onboarding(user):
-    """수강생은 필수 프로필(이름·기수·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
-
-    가입 신청 때는 이메일만 받으므로(SignUpForm), 승인 뒤 본인이 직접 채운다. 소셜 가입도
-    같은 경로를 지난다.
-    """
-    return user.role == User.Role.STUDENT and not user.is_onboarded
-
-
-@login_required
-@require_http_methods(["GET", "POST"])
-def onboarding_view(request):
-    if not _needs_onboarding(request.user):
-        return redirect("accounts:dashboard")
-    form = OnboardingForm(request.POST or None, instance=request.user)
-    if request.method == "POST" and form.is_valid():
-        user = form.save(commit=False)
-        user.is_onboarded = True
-        user.save(update_fields=["first_name", "session_info", "phone_number", "is_onboarded"])
-        messages.success(request, "프로필 등록이 완료되었습니다. 이제 평가에 참여할 수 있습니다.")
-        return redirect("accounts:dashboard")
-    return render(request, "accounts/onboarding.html", {"form": form})
-
-
 @login_required
 def dashboard_view(request):
     if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
         return redirect("rounds:dashboard")
-    if _needs_onboarding(request.user):
-        return redirect("accounts:onboarding")
     return render(
         request,
         "accounts/dashboard.html",
@@ -240,8 +204,6 @@ def dashboard_view(request):
 
 @login_required
 def mypage_view(request):
-    if _needs_onboarding(request.user):
-        return redirect("accounts:onboarding")
     return render(
         request,
         "accounts/mypage.html",
@@ -256,8 +218,6 @@ def tutor_dashboard(request):
     pending_users = User.objects.filter(
         role=User.Role.STUDENT,
         approval_status=User.ApprovalStatus.PENDING,
-        emailaddress__verified=True,
-        emailaddress__primary=True,
     ).order_by("-date_joined")
     return render(
         request,
@@ -468,10 +428,24 @@ def update_profile_api(request):
 @require_POST
 def signup_api(request):
     data = _safe_json(request)
-    if data is None or not data.get("email"):
+    if data is None or not data.get("email") or not data.get("password"):
         return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+    form = SignUpForm(
+        {
+            "email": data["email"],
+            "password": data["password"],
+            "password_confirm": data.get("password_confirm", data["password"]),
+        }
+    )
+    if not form.is_valid():
+        message = next(iter(form.errors.values()))[0]
+        return JsonResponse({"success": False, "message": message}, status=400)
     try:
-        request_signup(request=request, email=data["email"])
+        request_signup(
+            request=request,
+            email=form.cleaned_data["email"],
+            password=form.cleaned_data["password"],
+        )
     except RateLimitExceeded as error:
         response = JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=429)
         response["Retry-After"] = str(error.retry_after)

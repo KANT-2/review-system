@@ -1,7 +1,6 @@
 import logging
 import time
 
-from allauth.account.adapter import DefaultAccountAdapter
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib import messages
@@ -13,13 +12,6 @@ from accounts.models import User, WhitelistEmail, canonicalize_email
 from accounts.services import lock_canonical_email
 
 security_logger = logging.getLogger("accounts.security")
-
-
-class CustomAccountAdapter(DefaultAccountAdapter):
-    def get_email_confirmation_url(self, request, emailconfirmation):
-        return request.build_absolute_uri(
-            reverse("accounts:email_confirm_key", kwargs={"key": emailconfirmation.key})
-        )
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):

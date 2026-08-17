@@ -181,11 +181,3 @@ class AuthThrottleBucket(models.Model):
 
     def __str__(self):
         return f"{self.event_kind}:{self.scope_kind}:{self.window_started_at.isoformat()}"
-
-
-class EmailResendCooldown(models.Model):
-    key_digest = models.CharField(max_length=64, unique=True)
-    allowed_at = models.DateTimeField(db_index=True)
-
-    def __str__(self):
-        return f"resend:{self.allowed_at.isoformat()}"
