@@ -13,6 +13,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.forms import (
     ConfirmationPasswordForm,
     LoginForm,
+    OnboardingForm,
     PasswordChangeForm,
     SignUpForm,
 )
@@ -191,10 +192,36 @@ def logout_view(request):
     return redirect("accounts:login")
 
 
+def _needs_onboarding(user):
+    """수강생은 필수 프로필(이름·기수·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
+
+    가입 신청 때는 이메일만 받으므로(SignUpForm), 승인 뒤 본인이 직접 채운다. 소셜 가입도
+    같은 경로를 지난다.
+    """
+    return user.role == User.Role.STUDENT and not user.is_onboarded
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def onboarding_view(request):
+    if not _needs_onboarding(request.user):
+        return redirect("accounts:dashboard")
+    form = OnboardingForm(request.POST or None, instance=request.user)
+    if request.method == "POST" and form.is_valid():
+        user = form.save(commit=False)
+        user.is_onboarded = True
+        user.save(update_fields=["first_name", "session_info", "phone_number", "is_onboarded"])
+        messages.success(request, "프로필 등록이 완료되었습니다. 이제 평가에 참여할 수 있습니다.")
+        return redirect("accounts:dashboard")
+    return render(request, "accounts/onboarding.html", {"form": form})
+
+
 @login_required
 def dashboard_view(request):
     if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
         return redirect("rounds:dashboard")
+    if _needs_onboarding(request.user):
+        return redirect("accounts:onboarding")
     return render(
         request,
         "accounts/dashboard.html",
@@ -204,6 +231,8 @@ def dashboard_view(request):
 
 @login_required
 def mypage_view(request):
+    if _needs_onboarding(request.user):
+        return redirect("accounts:onboarding")
     return render(
         request,
         "accounts/mypage.html",
@@ -312,12 +341,7 @@ def signup_api(request):
     if data is None or not data.get("email"):
         return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
     try:
-        request_signup(
-            request=request,
-            email=data["email"],
-            first_name=str(data.get("first_name", "")),
-            phone_number=str(data.get("phone_number", "")),
-        )
+        request_signup(request=request, email=data["email"])
     except RateLimitExceeded as error:
         response = JsonResponse({"success": True, "message": GENERIC_SIGNUP_MESSAGE}, status=429)
         response["Retry-After"] = str(error.retry_after)

@@ -9,22 +9,44 @@
       <h4 class="fw-bold mb-1">AX 평가 시스템</h4>
       <p class="text-muted small">승인된 계정으로 로그인하세요.</p>
     </div>
-    <form method="post" action="{% url 'accounts:login' %}">
+    <form method="post" action="{% url 'accounts:login' %}" id="loginForm">
       {% csrf_token %}
-      {% for field in form %}
-        <div class="mb-3">
-          <label class="form-label small fw-bold" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
-          {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      <div class="mb-3">
+        <label class="form-label small fw-bold" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+        <div class="input-group ax-input-group">
+          <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+          {{ form.email }}
         </div>
-      {% endfor %}
+        {% for error in form.email.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-bold"
+               for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        <div class="input-group ax-input-group">
+          <span class="input-group-text"><i class="bi bi-lock"></i></span>
+          {{ form.password }}
+          <button class="btn btn-outline-secondary"
+                  type="button"
+                  id="togglePassword"
+                  aria-label="비밀번호 표시 전환">
+            <i class="bi bi-eye" id="togglePasswordIcon"></i>
+          </button>
+        </div>
+        {% for error in form.password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      </div>
       {% for error in form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endfor %}
-      <div class="form-check mb-3">
-        <input type="checkbox"
-               name="remember_session"
-               class="form-check-input"
-               id="rememberSession">
-        <label class="form-check-label small" for="rememberSession">14일간 로그인 유지</label>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="form-check mb-0">
+          <input type="checkbox" class="form-check-input" id="rememberEmail">
+          <label class="form-check-label small" for="rememberEmail">이메일 저장</label>
+        </div>
+        <div class="form-check mb-0">
+          <input type="checkbox"
+                 name="remember_session"
+                 class="form-check-input"
+                 id="rememberSession">
+          <label class="form-check-label small" for="rememberSession">14일간 로그인 유지</label>
+        </div>
       </div>
       <button type="submit" class="btn btn-ax-primary w-100 py-2">로그인</button>
     </form>
@@ -101,12 +123,42 @@
   </div>
 {% endblock %}
 {% block extra_js %}
-  {% if open_signup_modal %}
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    {% if open_signup_modal %}
       const signupModal = document.getElementById('signupModal');
       if (signupModal) bootstrap.Modal.getOrCreateInstance(signupModal).show();
-    });
-    </script>
-  {% endif %}
+    {% endif %}
+
+    // 비밀번호 표시 전환
+    const toggle = document.getElementById('togglePassword');
+    const password = document.getElementById('{{ form.password.auto_id }}');
+    if (toggle && password) {
+      toggle.addEventListener('click', () => {
+        const shown = password.type === 'text';
+        password.type = shown ? 'password' : 'text';
+        document.getElementById('togglePasswordIcon').className = shown ? 'bi bi-eye' : 'bi bi-eye-slash';
+      });
+    }
+
+    // 이메일 저장 (이 브라우저에만 남는다 - 비밀번호는 저장하지 않는다)
+    const emailField = document.getElementById('{{ form.email.auto_id }}');
+    const rememberEmail = document.getElementById('rememberEmail');
+    const STORAGE_KEY = 'ax_saved_email';
+    if (emailField && rememberEmail) {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && !emailField.value) {
+        emailField.value = saved;
+        rememberEmail.checked = true;
+      }
+      document.getElementById('loginForm').addEventListener('submit', () => {
+        if (rememberEmail.checked) {
+          localStorage.setItem(STORAGE_KEY, emailField.value);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      });
+    }
+  });
+  </script>
 {% endblock %}

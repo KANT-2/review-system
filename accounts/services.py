@@ -105,7 +105,8 @@ def enforce_resend_cooldown(email, seconds=60):
         cooldown.save(update_fields=["allowed_at"])
 
 
-def request_signup(*, request, email, first_name="", phone_number=""):
+def request_signup(*, request, email):
+    """가입 신청은 이메일만 받는다 - 이름·기수·연락처는 승인 뒤 온보딩에서 본인이 채운다."""
     canonical = canonicalize_email(email)
     consume_rate_limit(
         "signup",
@@ -120,8 +121,6 @@ def request_signup(*, request, email, first_name="", phone_number=""):
         user = User.objects.create_user(
             email=canonical,
             password=None,
-            first_name=first_name.strip()[:150],
-            phone_number=phone_number.strip()[:20],
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.PENDING,
         )

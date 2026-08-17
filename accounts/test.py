@@ -30,6 +30,7 @@ class AccountsTests(TestCase):
             first_name="홍길동",
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
         )
         self.tutor_user = User.objects.create_user(
             email="tutor@ax.com",
@@ -47,9 +48,7 @@ class AccountsTests(TestCase):
     def _signup(self, email):
         return self.client.post(
             reverse("accounts:api_signup"),
-            data=json.dumps(
-                {"email": email, "first_name": "신규", "phone_number": "010-3333-4444"}
-            ),
+            data=json.dumps({"email": email}),
             content_type="application/json",
         )
 
@@ -141,6 +140,100 @@ class AccountsTests(TestCase):
 
         self.assertRedirects(response, reverse("accounts:dashboard"))
         self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24 * 13)
+
+    def test_signup_form_asks_for_email_only(self):
+        """가입 신청은 이메일만 받는다 - 개인정보는 승인 뒤 온보딩에서 받는다."""
+        page = self.client.get(reverse("accounts:login"), {"signup": "1"})
+
+        self.assertEqual(list(page.context["signup_form"].fields), ["email"])
+        self.assertNotContains(page, 'name="phone_number"')
+
+    def test_signup_stores_only_the_email(self):
+        self._signup("email-only@ax.com")
+
+        user = User.objects.get(email="email-only@ax.com")
+        self.assertEqual(user.first_name, "")
+        self.assertEqual(user.phone_number, "")
+        self.assertFalse(user.is_onboarded)
+
+    def test_student_without_profile_is_sent_to_onboarding(self):
+        rookie = User.objects.create_user(
+            email="rookie@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(rookie)
+
+        dashboard = self.client.get(reverse("accounts:dashboard"))
+        mypage = self.client.get(reverse("accounts:mypage"))
+
+        self.assertRedirects(dashboard, reverse("accounts:onboarding"))
+        self.assertRedirects(mypage, reverse("accounts:onboarding"))
+
+    def test_onboarding_saves_profile_and_unlocks_dashboard(self):
+        rookie = User.objects.create_user(
+            email="rookie2@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(rookie)
+
+        response = self.client.post(
+            reverse("accounts:onboarding"),
+            {
+                "first_name": " 김민준 ",
+                "session_info": "5기 풀스택",
+                "phone_number": "010-1111-2222",
+            },
+        )
+
+        self.assertRedirects(response, reverse("accounts:dashboard"))
+        rookie.refresh_from_db()
+        self.assertEqual(rookie.first_name, "김민준")
+        self.assertEqual(rookie.session_info, "5기 풀스택")
+        self.assertEqual(rookie.phone_number, "010-1111-2222")
+        self.assertTrue(rookie.is_onboarded)
+        self.assertEqual(self.client.get(reverse("accounts:dashboard")).status_code, 200)
+
+    def test_onboarding_requires_every_field(self):
+        rookie = User.objects.create_user(
+            email="rookie3@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(rookie)
+
+        response = self.client.post(
+            reverse("accounts:onboarding"),
+            {"first_name": "김민준", "session_info": "", "phone_number": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rookie.refresh_from_db()
+        self.assertFalse(rookie.is_onboarded)
+
+    def test_onboarded_student_is_not_sent_back_to_onboarding(self):
+        self.client.force_login(self.approved_student)
+
+        response = self.client.get(reverse("accounts:onboarding"))
+
+        self.assertRedirects(response, reverse("accounts:dashboard"))
+
+    def test_layout_offers_a_dark_mode_toggle(self):
+        self.client.force_login(self.approved_student)
+
+        dashboard = self.client.get(reverse("accounts:dashboard"))
+        login_page = Client().get(reverse("accounts:login"))
+
+        self.assertContains(dashboard, 'id="axThemeToggle"')
+        self.assertContains(dashboard, "ax_theme")
+        self.assertContains(login_page, 'id="axThemeToggle"')
 
     def test_login_keeps_signup_as_modal_and_signup_url_opens_it(self):
         login = self.client.get(reverse("accounts:login"))

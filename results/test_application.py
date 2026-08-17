@@ -36,6 +36,7 @@ class ResultWorkflowTests(TestCase):
                 student_number=f"P{index:03d}",
                 role=User.Role.STUDENT,
                 approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
             )
             for index in range(1, 5)
         ]
