@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.models import ReviewAnswer, ReviewFinalSubmission, ReviewSubmission
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from teams.models import Team, TeamMembership
 
@@ -81,7 +81,8 @@ class ReviewPageTests(TestCase):
             TeamMembership.objects.create(team=self.team_two, participant=participant)
         self.client.force_login(self.students[0])
 
-    def test_team_list_excludes_own_team_and_submission_is_immutable(self):
+    def test_team_list_excludes_own_team_and_submission_is_editable_until_final(self):
+        """제출은 대상별 한 건으로 유지하되, 최종 제출 전까지는 덮어쓸 수 있다."""
         response = self.client.get(reverse("reviews:team-list"))
         self.assertContains(response, "2팀")
         self.assertNotContains(response, "1팀 평가")
@@ -95,8 +96,20 @@ class ReviewPageTests(TestCase):
         self.assertEqual(submission.answers.get().rating_value, 5)
 
         self.client.post(url, {f"question_{self.team_question.pk}": "1"})
+        # 건수는 그대로 한 건, 값만 바뀐다.
         self.assertEqual(ReviewSubmission.objects.count(), 1)
-        self.assertEqual(ReviewAnswer.objects.get().rating_value, 5)
+        self.assertEqual(ReviewAnswer.objects.count(), 1)
+        self.assertEqual(ReviewAnswer.objects.get().rating_value, 1)
+
+    def test_edit_form_is_prefilled_with_the_previous_answer(self):
+        url = reverse("reviews:team-form", args=(self.team_two.pk,))
+        self.client.post(url, {f"question_{self.team_question.pk}": "4"})
+
+        response = self.client.get(url)
+
+        field = response.context["form"][f"question_{self.team_question.pk}"]
+        self.assertEqual(field.value(), 4)
+        self.assertContains(response, "수정 저장")
 
     def test_peer_form_rejects_self_and_other_team(self):
         self.assertEqual(
@@ -270,3 +283,143 @@ class PastRoundAccessTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+class FinalSubmitTests(TestCase):
+    """유형별 최종 제출 - 여기까지 마쳐야 평가가 잠긴다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="final-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"final-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"F{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
+            )
+            for index in range(1, 5)
+        ]
+        team_template = QuestionTemplate.objects.create(
+            name="팀", category=QuestionTemplate.Category.TEAM, created_by=self.tutor
+        )
+        self.team_question = TemplateQuestion.objects.create(
+            template=team_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="완성도는?",
+            display_order=1,
+        )
+        peer_template = QuestionTemplate.objects.create(
+            name="개인", category=QuestionTemplate.Category.PEER, created_by=self.tutor
+        )
+        self.peer_question = TemplateQuestion.objects.create(
+            template=peer_template,
+            response_type=TemplateQuestion.ResponseType.RATING_5,
+            prompt="기여도는?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="최종 제출 회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            evaluation_end_at=now + timedelta(hours=1),
+            target_team_count=2,
+            team_template=team_template,
+            peer_template=peer_template,
+            created_by=self.tutor,
+            started_at=now,
+        )
+        self.participants = [
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        team_one = Team.objects.create(round=self.round, team_number=1, name="1팀")
+        self.team_two = Team.objects.create(round=self.round, team_number=2, name="2팀")
+        for participant in self.participants[:2]:
+            TeamMembership.objects.create(team=team_one, participant=participant)
+        for participant in self.participants[2:]:
+            TeamMembership.objects.create(team=self.team_two, participant=participant)
+        self.client.force_login(self.students[0])
+        self.url = reverse("reviews:final-submit", args=("TEAM",))
+
+    def _submit_team_review(self, rating="4"):
+        return self.client.post(
+            reverse("reviews:team-form", args=(self.team_two.pk,)),
+            {f"question_{self.team_question.pk}": rating},
+        )
+
+    def test_final_submit_is_blocked_until_every_target_is_done(self):
+        response = self.client.post(self.url)
+
+        self.assertRedirects(response, reverse("reviews:team-list"))
+        self.assertFalse(ReviewFinalSubmission.objects.exists())
+
+    def test_final_submit_locks_the_review_type(self):
+        self._submit_team_review("4")
+
+        response = self.client.post(self.url)
+
+        self.assertRedirects(response, reverse("reviews:team-list"))
+        self.assertTrue(
+            ReviewFinalSubmission.objects.filter(
+                round=self.round, evaluator=self.participants[0], review_type="TEAM"
+            ).exists()
+        )
+        # 잠긴 뒤에는 값을 바꿀 수 없다.
+        self._submit_team_review("1")
+        self.assertEqual(ReviewAnswer.objects.get().rating_value, 4)
+
+    def test_locked_form_is_read_only(self):
+        self._submit_team_review("4")
+        self.client.post(self.url)
+
+        response = self.client.get(reverse("reviews:team-form", args=(self.team_two.pk,)))
+
+        self.assertTrue(response.context["finalized"])
+        self.assertNotContains(response, "수정 저장")
+
+    def test_final_submit_only_locks_its_own_type(self):
+        self._submit_team_review("4")
+        self.client.post(self.url)
+
+        peer_url = reverse("reviews:peer-form", args=(self.participants[1].pk,))
+        response = self.client.post(peer_url, {f"question_{self.peer_question.pk}": "5"})
+
+        self.assertRedirects(response, reverse("reviews:peer-list"))
+        self.assertTrue(
+            ReviewSubmission.objects.filter(review_type="PEER", evaluator=self.participants[0])
+            .first()
+            .answers.filter(rating_value=5)
+            .exists()
+        )
+
+    def test_final_submit_cannot_run_twice(self):
+        self._submit_team_review("4")
+        self.client.post(self.url)
+
+        self.client.post(self.url)
+
+        self.assertEqual(ReviewFinalSubmission.objects.count(), 1)
+
+    def test_unknown_review_type_is_not_found(self):
+        response = self.client.post(reverse("reviews:final-submit", args=("BOGUS",)))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_final_submit_is_post_only(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 405)

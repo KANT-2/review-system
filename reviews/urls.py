@@ -11,6 +11,11 @@ urlpatterns = [
     path("peers/<int:target_id>/", views.peer_review_form, name="peer-form"),
     path("status/", views.review_status, name="status"),
     path(
+        "final-submit/<str:review_type>/",
+        views.review_final_submit,
+        name="final-submit",
+    ),
+    path(
         "submissions/<int:submission_id>/",
         views.submission_detail,
         name="submission-detail",

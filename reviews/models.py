@@ -105,3 +105,35 @@ class ReviewAnswer(models.Model):
 
     def __str__(self):
         return f"{self.submission_id}:{self.question_id}"
+
+
+class ReviewFinalSubmission(models.Model):
+    """평가 유형별 최종 제출 기록.
+
+    개별 제출은 최종 제출 전까지 다시 저장할 수 있고, 이 기록이 생기면 해당 유형의
+    평가가 잠긴다. 유형별로 한 번만 남는다.
+    """
+
+    round = models.ForeignKey(
+        "rounds.EvaluationRound",
+        on_delete=models.PROTECT,
+        related_name="review_final_submissions",
+    )
+    evaluator = models.ForeignKey(
+        "rounds.RoundParticipant",
+        on_delete=models.PROTECT,
+        related_name="review_final_submissions",
+    )
+    review_type = models.CharField(max_length=8, choices=ReviewSubmission.ReviewType.choices)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("round", "evaluator", "review_type"),
+                name="reviews_final_submission_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.evaluator_id}:{self.review_type}:final"
