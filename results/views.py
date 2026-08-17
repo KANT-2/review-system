@@ -1,10 +1,16 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from accounts.permissions import is_operations_user, is_student_user
+from results.application import PUBLICATION_FIELDS, calculate_round, toggle_publication
 from results.fake_data import PUBLISHED_AT, build_scenario
+from results.models import CalculationRun, EvaluationResult
 from results.services import reveal_if_published
+from rounds.models import EvaluationRound, RoundParticipant
 
 PUBLISH_ITEMS = [
     {"key": "team_winner", "label": "팀 1위", "hint": "이번 회차 1위 팀 이름을 전체 학생에게 공개"},
@@ -26,6 +32,134 @@ PUBLISH_ITEMS = [
 ]
 PUBLISH_LABELS = {item["key"]: item["label"] for item in PUBLISH_ITEMS}
 PUBLISH_KEYS = set(PUBLISH_LABELS)
+
+
+@login_required
+def manage_results(request, round_id):
+    if not is_operations_user(request.user):
+        raise PermissionDenied
+    round_obj = EvaluationRound.objects.filter(pk=round_id).first()
+    if not round_obj:
+        raise PermissionDenied
+    run = (
+        CalculationRun.objects.filter(round=round_obj, is_active=True)
+        .prefetch_related(
+            "results__team__memberships__participant",
+            "results__participant__team_membership__team",
+        )
+        .first()
+    )
+    team_results = []
+    individual_results = []
+    if run:
+        team_results = run.results.filter(result_type=EvaluationResult.ResultType.TEAM).order_by(
+            "primary_rank", "team__team_number"
+        )
+        individual_results = run.results.filter(
+            result_type=EvaluationResult.ResultType.INDIVIDUAL
+        ).order_by("primary_rank", "participant__display_name_snapshot")
+    publication_rows = [
+        {
+            **item,
+            "published": bool(run and getattr(run, PUBLICATION_FIELDS[item["key"]])),
+        }
+        for item in PUBLISH_ITEMS
+    ]
+    return render(
+        request,
+        "results/round_manage.html",
+        {
+            "round_obj": round_obj,
+            "run": run,
+            "team_results": team_results,
+            "individual_results": individual_results,
+            "publish_items": publication_rows,
+            "has_partial": bool(
+                run and run.results.filter(data_status=EvaluationResult.DataStatus.PARTIAL).exists()
+            ),
+        },
+    )
+
+
+@login_required
+@require_POST
+def calculate(request, round_id):
+    if not is_operations_user(request.user):
+        raise PermissionDenied
+    try:
+        run = calculate_round(round_id=round_id, actor=request.user)
+    except (EvaluationRound.DoesNotExist, ValidationError) as error:
+        messages.error(request, " ".join(getattr(error, "messages", [str(error)])))
+    else:
+        messages.success(
+            request, f"채점 v{run.version}을 완료했습니다. 공개 항목은 초기화됐습니다."
+        )
+    return redirect("rounds:results", round_id=round_id)
+
+
+@login_required
+@require_POST
+def publish(request, round_id, item_key):
+    if not is_operations_user(request.user):
+        raise PermissionDenied
+    try:
+        toggle_publication(
+            round_id=round_id,
+            item_key=item_key,
+            actor=request.user,
+            partial_confirmed=request.POST.get("partial_confirmed") == "1",
+        )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "결과 공개 설정을 변경했습니다.")
+    return redirect("rounds:results", round_id=round_id)
+
+
+@login_required
+def my_results(request):
+    if not is_student_user(request.user):
+        raise PermissionDenied
+    participant = (
+        RoundParticipant.objects.filter(
+            user=request.user,
+            round__status=EvaluationRound.Status.COMPLETED,
+            round__calculation_runs__is_active=True,
+        )
+        .select_related("round", "team_membership__team")
+        .order_by("-round__completed_at")
+        .first()
+    )
+    if not participant:
+        return render(request, "results/student_me.html", {"participant": None})
+    run = CalculationRun.objects.get(round=participant.round, is_active=True)
+    my_result = run.results.filter(
+        result_type=EvaluationResult.ResultType.INDIVIDUAL, participant=participant
+    ).first()
+    team_results = (
+        run.results.filter(result_type=EvaluationResult.ResultType.TEAM).order_by(
+            "primary_rank", "team__team_number"
+        )
+        if run.team_ranking_published_at
+        else []
+    )
+    winner = (
+        run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1).first()
+        if run.winner_published_at
+        else None
+    )
+    return render(
+        request,
+        "results/student_me.html",
+        {
+            "participant": participant,
+            "run": run,
+            "my_result": my_result if run.my_score_published_at else None,
+            "my_rank": my_result.peer_rank if my_result and run.peer_ranking_published_at else None,
+            "winner": winner,
+            "team_results": team_results,
+        },
+    )
 
 
 def _get_publish_state(request):

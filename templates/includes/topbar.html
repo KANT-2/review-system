@@ -6,15 +6,15 @@
     <span class="current text-dark fw-semibold">{% block breadcrumb %}포털{% endblock %}</span>
   </div>
   <div class="topbar-actions d-flex align-items-center gap-3">
-    {% if portal %}
-      <a href="{% url 'results:me_preview' %}"
+    {% if user.is_authenticated and user.role == 'student' %}
+      <a href="{% url 'results:me' %}"
          class="btn btn-sm btn-ax-secondary"
          title="내 결과"><i class="bi bi-bar-chart-line"></i></a>
     {% endif %}
     {% if user.is_authenticated %}
       <div class="dropdown">
         <button type="button"
-                id="user-profile-menu-button"
+                id="{% if user.role == 'tutor' or user.role == 'admin' %}tutor-profile-menu-button{% else %}user-profile-menu-button{% endif %}"
                 class="btn btn-sm d-flex align-items-center gap-2 p-1 pe-2 rounded-pill border"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
@@ -24,7 +24,7 @@
           <i class="font-size-11 bi bi-chevron-down text-muted" aria-hidden="true"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end shadow-sm"
-            aria-labelledby="user-profile-menu-button">
+            aria-labelledby="{% if user.role == 'tutor' or user.role == 'admin' %}tutor-profile-menu-button{% else %}user-profile-menu-button{% endif %}">
           <li>
             <h6 class="dropdown-header mb-0">{{ user.get_role_display }} 계정</h6>
             <span class="dropdown-item-text small text-muted pt-0">{{ user.email }}</span>

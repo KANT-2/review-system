@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ target.label }} 평가 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %} / {{ target.label }}{% endblock %}
+{% block content %}
+  <div class="page-header"><div><h1 class="page-title">{{ target.label }} 평가</h1><p class="page-desc">제출한 평가는 수정하거나 삭제할 수 없습니다.</p></div><a href="{% if review_type == 'TEAM' %}{% url 'reviews:team-list' %}{% else %}{% url 'reviews:peer-list' %}{% endif %}"
+   class="btn btn-ax-secondary">목록</a></div>
+  {% if existing %}
+    <div class="alert alert-success">{{ existing.submitted_at|date:"Y-m-d H:i" }}에 제출한 내 응답입니다.</div>
+    <section class="card-custom"><div class="card-body-custom">{% for answer in readonly_answers %}<div class="mb-4"><div class="fw-semibold mb-2">{{ answer.question.display_order }}. {{ answer.question.prompt }}</div>{% if answer.rating_value %}<span class="badge bg-primary fs-6">{{ answer.rating_value }}점</span>{% else %}<div class="p-3 bg-light border rounded-3">{{ answer.text_value }}</div>{% endif %}</div>{% endfor %}</div></section>
+  {% else %}
+    {% if window_state != 'OPEN' %}<div class="alert alert-warning">현재는 평가를 제출할 수 있는 기간이 아닙니다.</div>{% endif %}
+    <form method="post">{% csrf_token %}<section class="card-custom"><div class="card-body-custom">{{ form.non_field_errors }}{% for field in form %}<fieldset class="mb-4"><legend class="fs-6 fw-semibold">{{ forloop.counter }}. {{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</legend>{{ field }}{% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</fieldset>{% endfor %}</div><div class="card-footer bg-white border-top p-3 text-end"><button class="btn btn-ax-primary"
+        type="submit"
+        {% if window_state != 'OPEN' %}disabled{% endif %}>최종 제출</button></div></section></form>
+  {% endif %}
+{% endblock %}

@@ -62,7 +62,10 @@ INSTALLED_APPS = [
     "axes",
     "accounts.apps.AccountsConfig",
     "teams.apps.TeamsConfig",
+    "rounds.apps.RoundsConfig",
+    "reviews.apps.ReviewsConfig",
     "results.apps.ResultsConfig",
+    "audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [

@@ -1,12 +1,10 @@
 from dataclasses import dataclass
-from datetime import timedelta
-from decimal import Decimal
+from math import ceil
 
-from django.conf import settings
 from django.utils import timezone
 
-from results.fake_data import build_scenario
-from results.services import round_to_display
+from results.models import EvaluationResult
+from reviews.services import current_participation, peer_targets, team_targets
 
 
 @dataclass(frozen=True)
@@ -17,75 +15,122 @@ class EvaluationProgress:
 
     @property
     def percent(self):
-        if self.expected == 0:
-            return 100
-        return round(self.completed / self.expected * 100)
+        return 100 if self.expected == 0 else round(self.completed / self.expected * 100)
 
 
-def _as_five_point(value: Decimal | None):
-    if value is None:
+def _published_result_rows(user):
+    return list(
+        EvaluationResult.objects.filter(
+            result_type=EvaluationResult.ResultType.INDIVIDUAL,
+            participant__user=user,
+            calculation_run__is_active=True,
+            calculation_run__my_score_published_at__isnull=False,
+        )
+        .select_related("calculation_run__round")
+        .order_by("-calculation_run__round__completed_at")[:3]
+    )
+
+
+def _serialize_result(result):
+    run = result.calculation_run
+    return {
+        "round_name": run.round.title,
+        "team_score": result.team_score_raw,
+        "peer_score": result.peer_score_raw,
+        "final_score": result.final_score_raw,
+        "primary_rank": result.primary_rank if run.peer_ranking_published_at else None,
+        "expected_count": result.expected_count,
+        "valid_count": result.valid_count,
+        "coverage": result.coverage,
+        "data_status": result.data_status,
+    }
+
+
+def _latest_result(user):
+    rows = _published_result_rows(user)
+    return _serialize_result(rows[0]) if rows else None
+
+
+def build_student_result_portal(user):
+    rows = _published_result_rows(user)
+    if not rows:
         return None
-    return round_to_display(value / Decimal("20"))
+    serialized = [_serialize_result(result) for result in rows]
+    return {
+        "latest_result": serialized[0],
+        "score_history": serialized,
+    }
 
 
 def build_student_portal(user):
-    """개발 시연용 학생 포털 view model.
-
-    rounds/teams/results ORM이 아직 병합되지 않았기 때문에 개발 미리보기가 켜진 환경에서만
-    문서화된 DB shape를 따라 계산 코어의 대표 시나리오를 화면에 공급한다. 운영 환경에서는
-    임의 데이터를 노출하지 않고 ``None``을 반환해 정상적인 업무 빈 상태를 렌더링한다.
-    """
-
-    if not settings.ENABLE_DEV_PREVIEWS:
+    participant = current_participation(user)
+    if not participant:
         return None
-
-    scenario = build_scenario()
-    current_user_result = scenario["students"][0]
-    current_team = next(
-        team for team in scenario["teams"] if team.number == current_user_result.team_number
+    round_obj = participant.round
+    team_rows = team_targets(participant)
+    peer_rows = peer_targets(participant)
+    team_progress = EvaluationProgress(
+        "팀 평가", sum(row.completed for row in team_rows), len(team_rows)
     )
-    now = timezone.now()
-    start_at = now - timedelta(days=4)
-    end_at = now + timedelta(days=3)
-    team_progress = EvaluationProgress("팀 평가", completed=2, expected=3)
-    peer_progress = EvaluationProgress("개인 평가", completed=1, expected=2)
+    peer_progress = EvaluationProgress(
+        "개인 평가", sum(row.completed for row in peer_rows), len(peer_rows)
+    )
     completed = team_progress.completed + peer_progress.completed
     expected = team_progress.expected + peer_progress.expected
-
-    display_name = user.first_name or user.email
-    member_names = [display_name, "이수진", "박도현"]
-    members = [
+    membership = getattr(participant, "team_membership", None)
+    team = membership.team if membership else None
+    peer_completed_ids = {row.pk for row in peer_rows if row.completed}
+    members = []
+    if team:
+        members = [
+            {
+                "participant_id": member.participant_id,
+                "student_number_snapshot": member.participant.student_number_snapshot,
+                "display_name_snapshot": member.participant.display_name_snapshot,
+                "is_self": member.participant_id == participant.pk,
+                "evaluation_completed": (
+                    member.participant_id == participant.pk
+                    or member.participant_id in peer_completed_ids
+                ),
+            }
+            for member in team.memberships.select_related("participant")
+        ]
+    pending = [
         {
-            "participant_id": index + 1,
-            "student_number_snapshot": f"A{index + 1:03d}",
-            "display_name_snapshot": name,
-            "is_self": index == 0,
-            "evaluation_completed": index == 0,
+            "category": "TEAM",
+            "label": "팀 평가",
+            "target": row.label,
+            "description": row.description,
+            "target_id": row.pk,
+            "url_name": row.url_name,
         }
-        for index, name in enumerate(member_names)
-    ]
-
-    score_history = [
+        for row in team_rows
+        if not row.completed
+    ] + [
         {
-            "round_name": f"{index}회차",
-            "final_score": _as_five_point(score),
-            "data_status": "COMPLETE",
+            "category": "PEER",
+            "label": "개인 평가",
+            "target": row.label,
+            "description": row.description,
+            "target_id": row.pk,
+            "url_name": row.url_name,
         }
-        for index, score in enumerate(scenario["seeds"][0]["history"], start=1)
+        for row in peer_rows
+        if not row.completed
     ]
-
+    remaining = round_obj.evaluation_end_at - timezone.now()
     return {
-        "is_demo": True,
+        "is_demo": False,
         "round": {
-            "title": "3회차 프로젝트 평가",
-            "status": "IN_PROGRESS",
-            "evaluation_start_at": start_at,
-            "evaluation_end_at": end_at,
-            "d_day": 3,
+            "title": round_obj.title,
+            "status": round_obj.get_status_display(),
+            "evaluation_start_at": round_obj.evaluation_start_at,
+            "evaluation_end_at": round_obj.evaluation_end_at,
+            "d_day": max(ceil(remaining.total_seconds() / 86400), 0),
         },
         "team": {
-            "team_number": current_team.number,
-            "name": f"{current_team.number}팀",
+            "team_number": team.team_number if team else None,
+            "name": team.name if team else "팀 편성 전",
             "members": members,
         },
         "progress": {
@@ -93,37 +138,8 @@ def build_student_portal(user):
             "peer": peer_progress,
             "completed": completed,
             "expected": expected,
-            "percent": round(completed / expected * 100),
+            "percent": 100 if expected == 0 else round(completed / expected * 100),
         },
-        "pending_evaluations": [
-            {
-                "category": "PEER",
-                "label": "개인 평가",
-                "target": "박도현",
-                "description": "같은 팀 구성원에 대한 개인 평가",
-            },
-            {
-                "category": "TEAM",
-                "label": "팀 평가",
-                "target": "3팀",
-                "description": "다른 팀의 프로젝트 결과 평가",
-            },
-        ],
-        "latest_result": {
-            "round_name": scenario["round_name"],
-            "team_score": _as_five_point(current_user_result.team_score),
-            "peer_score": _as_five_point(current_user_result.peer_score),
-            "final_score": _as_five_point(current_user_result.final_score),
-            "primary_rank": (
-                current_user_result.rank
-                if scenario["published_at"]["peer_ranking"] is not None
-                else None
-            ),
-            "expected_count": current_user_result.expected_peer_reviews,
-            "valid_count": current_user_result.valid_peer_reviews,
-            "coverage": current_user_result.peer_coverage,
-            "data_status": current_user_result.peer_data_status,
-        },
-        "score_history": score_history,
-        "seed": _as_five_point(scenario["seeds"][0]["seed"]),
+        "pending_evaluations": pending,
+        "latest_result": _latest_result(user),
     }

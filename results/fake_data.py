@@ -146,8 +146,8 @@ def build_scenario():
 
     # ---- Seed 데모: 과거 회차 최종점수 예시(가상) -> 다음 회차 자동편성용 ----
     seed_examples = [
-        ("학생A", [Decimal("82.00"), Decimal("88.00"), Decimal("94.00")]),  # 3개, 20/30/50
-        ("학생D", [Decimal("70.000000"), Decimal("76.500000")]),  # 2개, 뒤에서부터 30/50 재정규화
+        ("학생A", [Decimal("4.10"), Decimal("4.40"), Decimal("4.70")]),  # 3개, 20/30/50
+        ("학생D", [Decimal("3.50"), Decimal("3.825")]),  # 2개, 뒤에서부터 재정규화
         ("학생I", []),  # 유효 이력 없음 -> 무시드(N/A)
     ]
 
@@ -181,7 +181,7 @@ def build_scenario():
     # 튜터 평가 "입력" 기능은 만들지 않고, 반영됐을 때 최종점수 산식이 어떻게 바뀌는지만
     # 학생A의 실제 팀/개인 점수에 가상의 튜터 점수를 대입해 나란히 보여준다.
     tutor_demo_student = students[0]  # 학생A
-    tutor_demo_score = Decimal("80.00")
+    tutor_demo_score = Decimal("4.00")
     tutor_example = {
         "student_name": tutor_demo_student.name,
         "team_score": tutor_demo_student.team_score,

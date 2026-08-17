@@ -54,8 +54,9 @@ class TeamsBackendNotConfiguredError(RuntimeError):
 
 
 def get_teams_backend() -> TeamsHttpBackend:
-    """rounds·results·audit 모델 병합 후 실제 ORM 백엔드로 교체한다."""
-    raise TeamsBackendNotConfiguredError("Teams Django backend is not configured")
+    from teams.django_backend import build_django_teams_backend
+
+    return build_django_teams_backend()
 
 
 @require_GET
@@ -147,8 +148,25 @@ def student_team_page(request: HttpRequest) -> HttpResponse:
         return permission_error
     try:
         view = get_teams_backend().get_student_team(request.user.id)
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
+    except LookupError:
+        return render(
+            request,
+            "teams/workspace.html",
+            {
+                "role": "student",
+                "team_data": {
+                    "round_id": None,
+                    "round_status": "NONE",
+                    "lock_version": 0,
+                    "is_configured": False,
+                    "is_read_only": True,
+                    "teams": [],
+                    "unassigned_members": [],
+                    "my_participant_id": None,
+                },
+                "my_participant_id": None,
+            },
+        )
     return render(
         request,
         "teams/workspace.html",
@@ -167,8 +185,8 @@ def management_team_page(request: HttpRequest, round_id: int) -> HttpResponse:
         return permission_error
     try:
         view = get_teams_backend().get_management_team(round_id)
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
+    except LookupError:
+        return _error_response("not_found", "회차가 없습니다.", 404)
     return render(
         request,
         "teams/workspace.html",
@@ -189,9 +207,9 @@ def student_team_view(request: HttpRequest) -> JsonResponse:
     try:
         view = get_teams_backend().get_student_team(request.user.id)
         return JsonResponse(student_team_response(view))
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
     except RoundParticipantNotFoundError as error:
+        return _error_response("not_found", str(error), 404)
+    except LookupError as error:
         return _error_response("not_found", str(error), 404)
 
 
@@ -203,8 +221,6 @@ def management_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
     try:
         view = get_teams_backend().get_management_team(round_id)
         return JsonResponse(management_team_response(view))
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
     except LookupError as error:
         return _error_response("not_found", str(error), 404)
 
@@ -218,8 +234,6 @@ def auto_assignment_view(request: HttpRequest, round_id: int) -> JsonResponse:
         request_data = AutoAssignmentRequest.from_payload(_json_payload(request))
         result = get_teams_backend().create_auto_assignment(round_id, request_data)
         return JsonResponse(auto_team_board_response(result))
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
     except (TeamContractError, AssignmentValidationError) as error:
         return _error_response("invalid_request", str(error), 400)
     except TeamVersionConflictError as error:
@@ -243,8 +257,6 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
             request_data,
         )
         return JsonResponse(saved_team_board_response(board))
-    except TeamsBackendNotConfiguredError:
-        return _service_unavailable_response()
     except ImbalanceConfirmationRequired as error:
         return _error_response("imbalance_confirmation_required", str(error), 409)
     except TeamVersionConflictError as error:

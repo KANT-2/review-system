@@ -35,14 +35,14 @@ class ResultsPreviewViewTests(TestCase):
 
 class ScoreFromAnswersTests(SimpleTestCase):
     def test_matches_requirements_worked_example(self):
-        # docs/REQUIREMENTS.md 예시: [5,4,4,5,4] -> 평균 4.4 -> 88점
-        self.assertEqual(score_from_answers([5, 4, 4, 5, 4]), Decimal("88.000000"))
+        # docs/REQUIREMENTS.md: 모든 저장 점수는 5점 척도를 유지한다.
+        self.assertEqual(score_from_answers([5, 4, 4, 5, 4]), Decimal("4.400000"))
 
-    def test_all_max_answers_gives_100(self):
-        self.assertEqual(score_from_answers([5, 5, 5, 5, 5]), Decimal("100.000000"))
+    def test_all_max_answers_gives_five(self):
+        self.assertEqual(score_from_answers([5, 5, 5, 5, 5]), Decimal("5.000000"))
 
-    def test_all_min_answers_gives_20_not_zero(self):
-        self.assertEqual(score_from_answers([1, 1, 1, 1, 1]), Decimal("20.000000"))
+    def test_all_min_answers_gives_one_not_zero(self):
+        self.assertEqual(score_from_answers([1, 1, 1, 1, 1]), Decimal("1.000000"))
 
 
 class CalculateTeamScoreTests(SimpleTestCase):
@@ -52,8 +52,8 @@ class CalculateTeamScoreTests(SimpleTestCase):
             [5, 5, 4, 5, 4],
             [4, 4, 3, 4, 4],
             [4, 4, 4, 5, 4],
-        ]  # 88,92,76,84
-        self.assertEqual(calculate_team_score(received), Decimal("85.000000"))
+        ]  # 4.4, 4.6, 3.8, 4.2
+        self.assertEqual(calculate_team_score(received), Decimal("4.250000"))
 
     def test_is_na_when_team_received_no_reviews(self):
         # RES-002 / SUB-006: N/A, not 0.00
@@ -62,8 +62,8 @@ class CalculateTeamScoreTests(SimpleTestCase):
 
 class CalculatePeerScoreTests(SimpleTestCase):
     def test_averages_every_received_peer_review(self):
-        received = [[5, 4, 5, 4], [4, 4, 4, 4, 4], [5, 5, 5, 5, 5]]  # 90, 80, 100
-        self.assertEqual(calculate_peer_score(received), Decimal("90.000000"))
+        received = [[5, 4, 5, 4], [4, 4, 4, 4, 4], [5, 5, 5, 5, 5]]
+        self.assertEqual(calculate_peer_score(received), Decimal("4.500000"))
 
     def test_is_na_when_student_received_no_reviews(self):
         # RES-003 / SUB-006: N/A, not 0.00
@@ -73,25 +73,25 @@ class CalculatePeerScoreTests(SimpleTestCase):
 class CalculateFinalScoreTests(SimpleTestCase):
     def test_uses_team_40_peer_60(self):
         self.assertEqual(
-            calculate_final_score(Decimal("85.000000"), Decimal("90.000000")),
-            Decimal("88.000000"),
+            calculate_final_score(Decimal("4.250000"), Decimal("4.500000")),
+            Decimal("4.400000"),
         )
 
     def test_is_na_when_team_score_is_na(self):
-        self.assertIsNone(calculate_final_score(None, Decimal("90.00")))
+        self.assertIsNone(calculate_final_score(None, Decimal("4.50")))
 
     def test_is_na_when_peer_score_is_na(self):
-        self.assertIsNone(calculate_final_score(Decimal("85.00"), None))
+        self.assertIsNone(calculate_final_score(Decimal("4.25"), None))
 
     def test_uses_team_30_peer_40_tutor_30_when_tutor_score_given(self):
-        # 85*.3 + 90*.4 + 80*.3 = 25.5 + 36 + 24 = 85.5
+        # 4.25*.3 + 4.5*.4 + 4.0*.3 = 4.275
         self.assertEqual(
-            calculate_final_score(Decimal("85.00"), Decimal("90.00"), Decimal("80.00")),
-            Decimal("85.500000"),
+            calculate_final_score(Decimal("4.25"), Decimal("4.50"), Decimal("4.00")),
+            Decimal("4.275000"),
         )
 
     def test_is_na_when_team_score_is_na_even_with_tutor_score(self):
-        self.assertIsNone(calculate_final_score(None, Decimal("90.00"), Decimal("80.00")))
+        self.assertIsNone(calculate_final_score(None, Decimal("4.50"), Decimal("4.00")))
 
 
 class DetermineDataStatusTests(SimpleTestCase):
@@ -118,25 +118,32 @@ class CalculateCoverageTests(SimpleTestCase):
 
 class CompetitionRankTests(SimpleTestCase):
     def test_no_ties_ranks_in_order(self):
-        self.assertEqual(competition_rank([90, 80, 70]), [1, 2, 3])
+        self.assertEqual(
+            competition_rank([Decimal("4.5"), Decimal("4.0"), Decimal("3.5")]), [1, 2, 3]
+        )
 
     def test_tie_at_top_shares_rank_and_skips_next(self):
-        self.assertEqual(competition_rank([90, 90, 85]), [1, 1, 3])
+        self.assertEqual(
+            competition_rank([Decimal("4.5"), Decimal("4.5"), Decimal("4.25")]), [1, 1, 3]
+        )
 
     def test_tie_in_middle_matches_refined_requirements_example(self):
         # RES-006 example: 1,2,2,4
-        self.assertEqual(competition_rank([100, 90, 90, 80]), [1, 2, 2, 4])
+        self.assertEqual(
+            competition_rank([Decimal("5.0"), Decimal("4.5"), Decimal("4.5"), Decimal("4.0")]),
+            [1, 2, 2, 4],
+        )
 
     def test_all_tied_share_first_place(self):
-        self.assertEqual(competition_rank([70, 70, 70]), [1, 1, 1])
+        self.assertEqual(competition_rank([Decimal("3.5")] * 3), [1, 1, 1])
 
 
 class CalculateSeedTests(SimpleTestCase):
     def test_three_rounds_use_20_30_50(self):
-        # 1회차=60, 2회차=80, 3회차=100 -> 60*.2 + 80*.3 + 100*.5 = 86
+        # 1회차=3, 2회차=4, 3회차=5 -> 3*.2 + 4*.3 + 5*.5 = 4.3
         self.assertEqual(
-            calculate_seed([Decimal("60.00"), Decimal("80.00"), Decimal("100.00")]),
-            Decimal("86.000000"),
+            calculate_seed([Decimal("3.00"), Decimal("4.00"), Decimal("5.00")]),
+            Decimal("4.300000"),
         )
 
     def test_two_rounds_renormalize_from_the_back(self):
@@ -145,7 +152,7 @@ class CalculateSeedTests(SimpleTestCase):
         self.assertEqual(calculate_seed([Decimal("4.0"), Decimal("5.0")]), Decimal("4.625000"))
 
     def test_single_round_gets_full_weight(self):
-        self.assertEqual(calculate_seed([Decimal("60.00")]), Decimal("60.000000"))
+        self.assertEqual(calculate_seed([Decimal("3.00")]), Decimal("3.000000"))
 
     def test_no_valid_history_is_na_not_zero(self):
         # TEAM-005 / RES-016: 무시드는 N/A, 0점 대체 금지
@@ -157,28 +164,28 @@ class RevealIfPublishedTests(SimpleTestCase):
     공개되므로, 이 게이트는 회차 단위 bool이 아니라 항목별 공개 시각을 받는다."""
 
     def test_hides_value_when_item_is_not_yet_published(self):
-        self.assertIsNone(reveal_if_published(Decimal("74.00"), published_at=None))
+        self.assertIsNone(reveal_if_published(Decimal("3.70"), published_at=None))
 
     def test_shows_value_when_item_has_a_publish_timestamp(self):
         published_at = "2026-08-15T12:00:00Z"
         self.assertEqual(
-            reveal_if_published(Decimal("74.00"), published_at=published_at), Decimal("74.00")
+            reveal_if_published(Decimal("3.70"), published_at=published_at), Decimal("3.70")
         )
 
 
 class ComputeInputDigestTests(SimpleTestCase):
     def test_is_order_independent(self):
-        forward = compute_input_digest([(1, "88.00"), (2, "92.00")])
-        reversed_order = compute_input_digest([(2, "92.00"), (1, "88.00")])
+        forward = compute_input_digest([(1, "4.40"), (2, "4.60")])
+        reversed_order = compute_input_digest([(2, "4.60"), (1, "4.40")])
         self.assertEqual(forward, reversed_order)
 
     def test_changes_when_a_value_changes(self):
-        original = compute_input_digest([(1, "88.00")])
-        changed = compute_input_digest([(1, "89.00")])
+        original = compute_input_digest([(1, "4.40")])
+        changed = compute_input_digest([(1, "4.45")])
         self.assertNotEqual(original, changed)
 
     def test_is_a_64_character_hex_string(self):
-        digest = compute_input_digest([(1, "88.00")])
+        digest = compute_input_digest([(1, "4.40")])
         self.assertEqual(len(digest), 64)
         int(digest, 16)  # raises ValueError if not valid hex
 
@@ -188,4 +195,4 @@ class RoundingTests(SimpleTestCase):
         self.assertEqual(round_to_raw(Decimal("2.3456789")), Decimal("2.345679"))
 
     def test_round_to_display_uses_half_up_to_two_decimal_places(self):
-        self.assertEqual(round_to_display(Decimal("74.005")), Decimal("74.01"))
+        self.assertEqual(round_to_display(Decimal("4.425")), Decimal("4.43"))
