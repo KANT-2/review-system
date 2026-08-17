@@ -323,6 +323,10 @@ def my_results(request):
             "team_head": team_results[:VISIBLE_ROW_COUNT],
             "team_rest": team_results[VISIBLE_ROW_COUNT:],
             "my_team_id": my_team.team_id if my_team else None,
+            # 공개했는데 값이 N/A인 경우를 "비공개"와 구분해 안내하기 위해 공개 여부도 넘긴다.
+            "published": {
+                key: getattr(run, field) is not None for key, field in PUBLICATION_FIELDS.items()
+            },
             "team_weight_percent": int(TEAM_WEIGHT * 100),
             "peer_weight_percent": int(PEER_WEIGHT * 100),
         },

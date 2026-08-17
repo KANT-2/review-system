@@ -33,6 +33,9 @@
             {% if winner %}
               <div class="ax-hero-value">{{ winner.team.name }}</div>
               <div class="text-muted font-size-115">{{ winner.team_score_raw|as_five_point }}/5</div>
+            {% elif published.team_winner %}
+              <div class="ax-hero-value ax-na-value">집계 없음</div>
+              <p class="text-muted font-size-135 mb-0">아직 순위를 매길 팀 평가 데이터가 없습니다.</p>
             {% else %}
               <div class="mt-2">
                 <span class="badge ax-badge-unpublished">비공개</span>
@@ -57,6 +60,9 @@
               {% if my_result.primary_rank %}
                 <div class="mt-1">{% include "results/_rank_cell.html" with rank=my_result.primary_rank tied=my_result.is_tied %}</div>
               {% endif %}
+            {% elif published.my_score %}
+              <div class="ax-hero-value ax-na-value">집계 없음</div>
+              <p class="text-muted font-size-135 mb-0">이번 회차 채점 대상에 포함되지 않았습니다.</p>
             {% else %}
               <div class="mt-2">
                 <span class="badge ax-badge-unpublished">비공개</span>
@@ -73,10 +79,13 @@
             {% if my_rank %}
               <div class="ax-hero-value">{{ my_rank }}위</div>
               <div class="text-muted font-size-115">개인 평가 점수 기준</div>
+            {% elif published.peer_ranking %}
+              <div class="ax-hero-value ax-na-value">순위 없음</div>
+              <p class="text-muted font-size-135 mb-0">받은 개인 평가가 없어 순위 계산에서 빠졌습니다.</p>
             {% else %}
               <div class="mt-2">
                 <span class="badge ax-badge-unpublished">비공개</span>
-                <p class="text-muted font-size-135 mb-0 mt-2">아직 공개되지 않았거나 순위 대상이 아닙니다.</p>
+                <p class="text-muted font-size-135 mb-0 mt-2">아직 공개되지 않았습니다.</p>
               </div>
             {% endif %}
           </div>
@@ -175,6 +184,8 @@
             </button>
           </div>
         {% endif %}
+      {% elif published.team_ranking %}
+        <div class="card-body-custom text-muted">아직 순위를 매길 팀 평가 데이터가 없습니다.</div>
       {% else %}
         <div class="card-body-custom">
           <span class="badge ax-badge-unpublished">비공개</span>

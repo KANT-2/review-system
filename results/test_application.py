@@ -7,7 +7,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from results.application import PUBLICATION_FIELDS, calculate_round, toggle_publication
+from results.application import (
+    PUBLICATION_FIELDS,
+    calculate_round,
+    toggle_all_publications,
+    toggle_publication,
+)
 from results.models import CalculationRun, EvaluationResult, TutorNote
 from reviews.models import ReviewAnswer, ReviewSubmission
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
@@ -377,6 +382,22 @@ class ResultWorkflowTests(TestCase):
         response = self.client.get(reverse("results:me"))
 
         self.assertNotContains(response, "학생에게 보이면 안 되는 메모")
+
+    def test_published_but_missing_values_are_not_labelled_as_unpublished(self):
+        # 개인 평가를 한 건도 못 받은 학생은 공개된 뒤에도 순위가 없다 - 이때 "비공개"가
+        # 아니라 순위 대상이 아니라는 안내가 나와야 한다.
+        ReviewSubmission.objects.filter(
+            review_type="PEER", target_participant=self.participants[0]
+        ).delete()
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_all_publications(round_id=self.round.pk, actor=self.tutor, partial_confirmed=True)
+        self.client.force_login(self.students[0])
+
+        response = self.client.get(reverse("results:me"))
+
+        self.assertContains(response, "순위 없음")
+        self.assertContains(response, "받은 개인 평가가 없어 순위 계산에서 빠졌습니다")
+        self.assertNotContains(response, "비공개")
 
     def test_students_cannot_write_tutor_notes(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
