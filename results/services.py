@@ -12,12 +12,11 @@ real 0.00 score. N/A propagates through FinalScore, is excluded from ranking, an
 from Seed history - it is never averaged in as 0. This supersedes this project's earlier
 ADR-0001 ("missing evaluation data scores as 0"), which predates this refined spec.
 
-Precision (RES-005, docs/DATABASE-DESIGN.md 5.11 ``results_evaluation_result``): calculations
-stay at raw precision (matching the ``*_raw numeric(9,6)`` columns) all the way through the
-chain - submission score -> team/peer score -> final score -> seed. Only ``round_to_display``
-rounds to 2 decimal places (``ROUND_HALF_UP``), and only when a value is actually about to be
-shown to a user (matching the ``display_score numeric(4,2)`` column). Rounding to 2dp at every
-intermediate step (this app's earlier approach) would compound rounding error across the chain.
+Scale and precision (RES-005, docs/DATABASE-DESIGN.md 5.11): every stored score stays on the
+same 1~5 scale as the rating answers. Calculations keep six decimal places through the chain -
+submission score -> team/peer score -> final score -> seed. Only ``round_to_display`` rounds to
+2 decimal places (``ROUND_HALF_UP``) when a value is shown. Rounding every intermediate result
+to 2dp would compound rounding error.
 """
 
 import hashlib
@@ -56,9 +55,9 @@ def round_to_display(value) -> Decimal:
 
 
 def score_from_answers(answers: list[int]) -> Decimal:
-    """한 건의 평가 응답(1~5점 문항 목록)을 0~100점 raw 정밀도로 환산한다."""
+    """한 건의 평가 응답을 저장 척도와 같은 1~5점 raw 정밀도로 평균한다."""
     average = sum(answers) / len(answers)
-    return round_to_raw(average / 5 * 100)
+    return round_to_raw(average)
 
 
 def calculate_team_score(received_answer_sets: list[list[int]]) -> Decimal | None:
@@ -69,8 +68,8 @@ def calculate_team_score(received_answer_sets: list[list[int]]) -> Decimal | Non
     """
     if not received_answer_sets:
         return None
-    percentages = [score_from_answers(answers) for answers in received_answer_sets]
-    return round_to_raw(sum(percentages) / len(percentages))
+    submission_scores = [score_from_answers(answers) for answers in received_answer_sets]
+    return round_to_raw(sum(submission_scores) / len(submission_scores))
 
 
 def calculate_peer_score(received_answer_sets: list[list[int]]) -> Decimal | None:
@@ -78,8 +77,8 @@ def calculate_peer_score(received_answer_sets: list[list[int]]) -> Decimal | Non
     팀 점수와 동일하다 (RES-003, SUB-006)."""
     if not received_answer_sets:
         return None
-    percentages = [score_from_answers(answers) for answers in received_answer_sets]
-    return round_to_raw(sum(percentages) / len(percentages))
+    submission_scores = [score_from_answers(answers) for answers in received_answer_sets]
+    return round_to_raw(sum(submission_scores) / len(submission_scores))
 
 
 def calculate_final_score(
@@ -142,7 +141,7 @@ def competition_rank(values_descending: list[Decimal]) -> list[int]:
 
     values_descending은 N/A(``None``)가 이미 제외되고 내림차순 정렬되어 있어야 한다 -
     N/A는 순위 자체에서 빠진다(RES-006). 동점이면 같은 순위를 받고, 다음 순위는 인원수만큼
-    건너뛴다 (예: [90, 90, 80, 70] -> [1, 1, 3, 4], [100, 90, 90, 80] -> [1, 2, 2, 4]).
+    건너뛴다 (예: [4.5, 4.5, 4.0, 3.5] -> [1, 1, 3, 4]).
     """
     ranks: list[int] = []
     for index, value in enumerate(values_descending):

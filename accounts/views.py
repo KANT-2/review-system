@@ -17,7 +17,7 @@ from accounts.forms import (
     SignUpForm,
 )
 from accounts.models import User, WhitelistEmail
-from accounts.portal import build_student_portal
+from accounts.portal import build_student_portal, build_student_result_portal
 from accounts.services import (
     AccountConflictError,
     InvalidAccountTransition,
@@ -70,7 +70,7 @@ def home_view(request):
     if not request.user.is_authenticated:
         return redirect("accounts:login")
     if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
-        return redirect("accounts:tutor_dashboard")
+        return redirect("rounds:dashboard")
     return redirect("accounts:dashboard")
 
 
@@ -78,7 +78,7 @@ def home_view(request):
 def login_view(request):
     if request.user.is_authenticated:
         if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
-            return redirect("accounts:tutor_dashboard")
+            return redirect("rounds:dashboard")
         return redirect("accounts:dashboard")
 
     form = LoginForm(request.POST or None, request=request)
@@ -95,7 +95,7 @@ def login_view(request):
             if user.must_rotate_password:
                 return redirect("accounts:password_change")
             if user.role in {User.Role.TUTOR, User.Role.ADMIN}:
-                return redirect("accounts:tutor_dashboard")
+                return redirect("rounds:dashboard")
             return redirect("accounts:dashboard")
 
     return render(
@@ -194,7 +194,7 @@ def logout_view(request):
 @login_required
 def dashboard_view(request):
     if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
-        return redirect("accounts:tutor_dashboard")
+        return redirect("rounds:dashboard")
     return render(
         request,
         "accounts/dashboard.html",
@@ -207,7 +207,7 @@ def mypage_view(request):
     return render(
         request,
         "accounts/mypage.html",
-        {"portal": build_student_portal(request.user)},
+        {"portal": build_student_result_portal(request.user)},
     )
 
 

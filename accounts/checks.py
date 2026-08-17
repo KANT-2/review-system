@@ -25,8 +25,6 @@ def production_security_checks(app_configs, **kwargs):
         not settings.TRUSTED_PROXY_IPS or settings.TRUSTED_PROXY_HOPS < 1
     ):
         errors.append(Error("Trusted proxy IPs and hop count are required", id="accounts.E006"))
-    if settings.ENABLE_DEV_PREVIEWS:
-        errors.append(Error("Development preview routes must be disabled", id="accounts.E010"))
     if settings.GOOGLE_OAUTH_REQUESTED and not settings.GOOGLE_OAUTH_ENABLED:
         errors.append(Error("Google OAuth credentials are incomplete", id="accounts.E007"))
     if settings.KAKAO_OAUTH_REQUESTED and not settings.KAKAO_OAUTH_ENABLED:

@@ -83,6 +83,9 @@ class User(AbstractUser):
     is_onboarded = models.BooleanField(_("온보딩 완료 여부"), default=False)
     is_social_account = models.BooleanField(_("소셜 계정 여부"), default=False)
     session_info = models.CharField(_("기수 정보"), max_length=50, blank=True, default="")
+    student_number = models.CharField(
+        _("수강생 식별번호"), max_length=32, null=True, blank=True, unique=True
+    )
     phone_number = models.CharField(_("연락처"), max_length=20, blank=True, default="")
     auth_session_version = models.PositiveBigIntegerField(_("인증 세션 버전"), default=0)
     must_rotate_password = models.BooleanField(_("비밀번호 변경 필요"), default=False)

@@ -427,10 +427,10 @@ DB 제약:
 | `result_type` | varchar(12) | N | `TEAM`, `INDIVIDUAL` |
 | `team_id` | FK → team | Y | TEAM일 때만 값 존재 |
 | `participant_id` | FK → round_participant | Y | INDIVIDUAL일 때만 값 존재 |
-| `team_score_raw` | numeric(9,6) | Y | TEAM 점수 또는 개인의 소속 팀 점수 |
-| `peer_score_raw` | numeric(9,6) | Y | INDIVIDUAL만 사용 |
-| `final_score_raw` | numeric(9,6) | Y | INDIVIDUAL만 사용, 40:60 합산 |
-| `display_score` | numeric(4,2) | Y | TEAM 점수 또는 개인 최종점수 표시값 |
+| `team_score_raw` | numeric(9,6) | Y | 1~5, TEAM 점수 또는 개인의 소속 팀 점수 |
+| `peer_score_raw` | numeric(9,6) | Y | 1~5, INDIVIDUAL만 사용 |
+| `final_score_raw` | numeric(9,6) | Y | 1~5, INDIVIDUAL만 사용, 40:60 합산 |
+| `display_score` | numeric(5,2) | Y | 1~5, TEAM 점수 또는 개인 최종점수 표시값 |
 | `primary_rank` | integer | Y | TEAM 순위 또는 개인 최종순위 |
 | `peer_rank` | integer | Y | INDIVIDUAL 개인점수 순위 |
 | `expected_count` | integer | N | TEAM이면 팀 평가, INDIVIDUAL이면 개인 평가 기대 수 |
@@ -456,6 +456,9 @@ TEAM 행은 `peer_score_raw`, `final_score_raw`, `peer_rank`가 null이어야 �
 null이어야 한다. `NO_DATA`와 `NOT_APPLICABLE`의 대상 점수·순위도 null로 강제한다. 이
 nullable 컬럼은 임의 선택 필드가 아니라 `result_type` CHECK로 조합이 제한되는 단일 테이블
 상속 패턴이다.
+
+네 점수 컬럼은 null이 아닐 때 `1 <= score <= 5` CHECK로 보호한다. 100점 환산값은 저장하지
+않으며, 평가 입력·집계·시드가 모두 같은 5점 척도를 사용한다.
 
 ### 5.12 `audit_event`
 

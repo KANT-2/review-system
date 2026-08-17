@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load results_extras %}
 {% block title %}마이페이지 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}마이페이지{% endblock %}
 {% block content %}
@@ -66,19 +67,19 @@
               <div class="col-sm-4">
                 <div class="p-3 rounded-3 border bg-light h-100">
                   <div class="text-muted small">팀 점수</div>
-                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.team_score|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
+                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.team_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
                 </div>
               </div>
               <div class="col-sm-4">
                 <div class="p-3 rounded-3 border bg-light h-100">
                   <div class="text-muted small">개인 점수</div>
-                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.peer_score|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
+                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.peer_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
                 </div>
               </div>
               <div class="col-sm-4">
                 <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100">
                   <div class="text-muted small">최종 점수</div>
-                  <div class="fs-3 fw-bold text-primary mt-1">{{ portal.latest_result.final_score|default:"N/A" }}<small class="fs-6">/5</small></div>
+                  <div class="fs-3 fw-bold text-primary mt-1">{{ portal.latest_result.final_score|as_five_point|default:"N/A" }}<small class="fs-6">/5</small></div>
                 </div>
               </div>
             </div>
@@ -104,7 +105,7 @@
         </section>
       </div>
       <div class="col-12 col-lg-5">
-        <section class="card-custom mb-4" aria-labelledby="result-history-title">
+        <section class="card-custom" aria-labelledby="result-history-title">
           <div class="card-header-custom">
             <div class="card-title-custom" id="result-history-title">
               <i class="bi bi-clock-history text-muted"></i>최근 유효 결과
@@ -118,20 +119,9 @@
                     <div class="fw-bold small">{{ result.round_name }}</div>
                     <div class="font-size-11 text-muted">{{ result.data_status }}</div>
                   </div>
-                  <strong>{{ result.final_score }}/5</strong>
+                  <strong>{{ result.final_score|as_five_point }}/5</strong>
                 </div>
               {% endfor %}
-            </div>
-          </div>
-        </section>
-        <section class="card-custom" aria-labelledby="seed-title">
-          <div class="card-body-custom">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <div class="text-muted small" id="seed-title">다음 회차 편성 기준 점수</div>
-                <p class="font-size-11 text-muted mb-0">최근 유효 결과를 20·30·50%로 가중</p>
-              </div>
-              <div class="fs-3 fw-bold text-primary">{{ portal.seed }}/5</div>
             </div>
           </div>
         </section>

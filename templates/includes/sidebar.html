@@ -1,52 +1,50 @@
 <aside id="sidebar">
   <div>
     <div class="sidebar-header">
-      <a href="{% url 'accounts:dashboard' %}" class="sidebar-brand">
+      <a href="{% url 'home' %}" class="sidebar-brand">
         <i class="bi bi-mortarboard-fill"></i>
         <span class="brand-text">AX Console</span>
       </a>
-      <button class="btn btn-sm text-white p-0" id="sidebar-toggle" title="사이드바 토글">
+      <button type="button"
+              class="btn btn-sm text-white p-0"
+              id="sidebar-toggle"
+              title="사이드바 토글"
+              aria-label="사이드바 접기 또는 펼치기">
         <i class="bi bi-list fs-5"></i>
       </button>
     </div>
-    <div class="nav-section-title">
-      {% if role == 'tutor' or user.role == 'tutor' or user.role == 'admin' %}운영 포털 (Tutor){% else %}학생 포털 (Student){% endif %}
-    </div>
-    <ul class="sidebar-nav">
-      <li class="sidebar-nav-item">
-        <a href="{% url 'accounts:dashboard' %}"
-           class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-          <i class="bi bi-grid-1x2-fill"></i>
-          <span class="nav-text">메인 대시보드</span>
-        </a>
-      </li>
-      <li class="sidebar-nav-item">
-        <a href="{% url 'accounts:mypage' %}"
-           class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}">
-          <i class="bi bi-person-lines-fill"></i>
-          <span class="nav-text">마이페이지</span>
-        </a>
-      </li>
-      {% if portal %}
-        <li class="sidebar-nav-item">
-          <a href="{% url 'results:me_preview' %}" class="sidebar-nav-link">
-            <i class="bi bi-bar-chart-line-fill"></i>
-            <span class="nav-text">내 결과</span>
-          </a>
-        </li>
-      {% endif %}
-    </ul>
     {% if user.role == 'tutor' or user.role == 'admin' %}
-      <div class="nav-section-title">관리 및 운영 (Tutor)</div>
+      <div class="nav-section-title">운영 포털</div>
       <ul class="sidebar-nav">
-        <li class="sidebar-nav-item">
-          <a href="{% url 'accounts:tutor_dashboard' %}"
-             class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_dashboard' %}active{% endif %}">
-            <i class="bi bi-shield-check"></i>
-            <span class="nav-text">튜터 관리 / 승인</span>
-          </a>
-        </li>
+        <li class="sidebar-nav-item"><a href="{% url 'rounds:dashboard' %}"
+   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span class="nav-text">운영 대시보드</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'rounds:list' %}"
+   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name != 'dashboard' %}active{% endif %}"><i class="bi bi-calendar-range"></i><span class="nav-text">평가 회차</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'accounts:tutor_dashboard' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_dashboard' %}active{% endif %}"><i class="bi bi-person-check-fill"></i><span class="nav-text">수강생 승인</span></a></li>
+        {% if user.is_staff %}<li class="sidebar-nav-item"><a href="{% url 'admin:index' %}" class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">템플릿·계정 관리</span></a></li>{% endif %}
+      </ul>
+    {% else %}
+      <div class="nav-section-title">학생 포털</div>
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-item"><a href="{% url 'accounts:dashboard' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span class="nav-text">홈</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'student-team-page' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'student-team-page' %}active{% endif %}"><i class="bi bi-people-fill"></i><span class="nav-text">내 팀</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'reviews:team-list' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'team-list' or request.resolver_match.url_name == 'team-form' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span class="nav-text">팀 평가</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'reviews:peer-list' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'peer-list' or request.resolver_match.url_name == 'peer-form' %}active{% endif %}"><i class="bi bi-person-check"></i><span class="nav-text">개인 평가</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'reviews:status' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'status' %}active{% endif %}"><i class="bi bi-list-check"></i><span class="nav-text">제출 현황</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'results:me' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'me' %}active{% endif %}"><i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">내 결과</span></a></li>
       </ul>
     {% endif %}
+    <div class="nav-section-title">계정</div>
+    <ul class="sidebar-nav">
+      <li class="sidebar-nav-item"><a href="{% url 'accounts:mypage' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}"><i class="bi bi-person-lines-fill"></i><span class="nav-text">마이페이지</span></a></li>
+    </ul>
   </div>
 </aside>

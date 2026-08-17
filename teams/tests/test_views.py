@@ -136,6 +136,7 @@ class TeamsHttpViewTests(TestCase):
             "/teams/manage/rounds/10/teams/auto/",
             response.content.decode(),
         )
+        self.assertIn("myParticipantId:null", response.content.decode())
 
     def test_preview_renders_without_database_backend(self):
         request = self.factory.get("/teams/preview/?role=tutor&state=unassigned")
@@ -272,14 +273,14 @@ class TeamsBackendConfigurationTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
-    def test_unconfigured_backend_returns_service_unavailable(self):
+    def test_configured_backend_returns_not_found_without_active_round(self):
         request = self.factory.get("/teams/student/team/")
         request.user = FakeUser(1, "student")
 
         response = student_team_view(request)
 
-        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(
             json.loads(response.content)["error"]["code"],
-            "teams_backend_not_configured",
+            "not_found",
         )

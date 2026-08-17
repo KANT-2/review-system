@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}운영 대시보드 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}운영 대시보드{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">운영 대시보드</h1>
+      <p class="page-desc">회차 준비부터 결과 공개까지 다음 작업을 확인합니다.</p>
+    </div>
+    <a href="{% url 'rounds:create' %}" class="btn btn-ax-primary"><i class="bi bi-plus-lg me-1"></i>새 회차</a>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">현재 진행 회차</div>
+          <div class="fs-5 fw-bold mt-2">{{ current_round.title|default:"없음" }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">가입 승인 대기</div>
+          <div class="fs-3 fw-bold text-warning">{{ pending_approvals }}명</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">준비 중 회차</div>
+          <div class="fs-5 fw-bold mt-2">{{ latest_draft.title|default:"없음" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% if current_round %}
+    <section class="card-custom mb-4">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-activity text-primary"></i>{{ current_round.title }}</div>
+        <span class="badge bg-primary">진행 중</span>
+      </div>
+      <div class="card-body-custom">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3">팀 평가 <strong class="float-end">{{ progress.team_completed }}/{{ progress.team_expected }}</strong></div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3">개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong></div>
+          </div>
+        </div>
+        <a href="{% url 'rounds:reviews' current_round.pk %}"
+           class="btn btn-ax-primary">제출 현황 및 마감</a>
+      </div>
+    </section>
+  {% elif latest_draft %}
+    <section class="card-custom mb-4"><div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-3"><div><h2 class="h5 fw-bold">{{ latest_draft.title }} 준비를 이어가세요</h2><p class="text-muted mb-0">참가자와 질문지를 확인한 뒤 팀을 편성합니다.</p></div><a href="{% url 'rounds:edit' latest_draft.pk %}"
+   class="btn btn-ax-primary">회차 설정</a></div></section>
+  {% else %}
+    <section class="card-custom mb-4">
+      <div class="card-body-custom text-center py-5">
+        <i class="bi bi-calendar-plus fs-1 text-muted"></i>
+        <h2 class="h5 fw-bold mt-3">첫 평가 회차를 만들어 주세요</h2>
+        <p class="text-muted">참가자·기간·질문지를 먼저 정합니다.</p>
+      </div>
+    </section>
+  {% endif %}
+  <section class="card-custom">
+    <div class="card-header-custom"><div class="card-title-custom">최근 완료 회차</div><a href="{% url 'rounds:list' %}"
+   class="btn btn-sm btn-outline-secondary">전체 보기</a></div>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>회차</th><th>참가자</th><th>팀</th><th>채점</th><th></th></tr></thead><tbody>{% for item in completed_rounds %}<tr><td>{{ item.title }}</td><td>{{ item.participant_count }}명</td><td>{{ item.team_count }}팀</td><td>{% if item.active_runs %}완료{% else %}대기{% endif %}</td><td class="text-end"><a href="{% url 'rounds:results' item.pk %}"
+   class="btn btn-sm btn-outline-primary">결과 관리</a></td></tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">완료된 회차가 없습니다.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+{% endblock %}

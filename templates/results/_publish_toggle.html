@@ -1,0 +1,41 @@
+{% comment %}항목별 공개 토글 (RES-010). 일부 제출 데이터가 있으면 켤 때 한 번 더 확인받는다.{% endcomment %}
+<div class="col-md-6 d-flex flex-column gap-2">
+  <div class="ax-publish-item flex-grow-1">
+    <div class="ax-publish-item-text">
+      <strong>{{ item.label }}</strong>
+      <span>{{ item.hint }}</span>
+      {% if item.published_at %}
+        <span class="ax-publish-time">{{ item.published_at|date:"Y-m-d H:i" }} 공개</span>
+      {% endif %}
+    </div>
+    <form method="post"
+          action="{% url 'rounds:publish-results' round_obj.pk item.key %}">
+      {% csrf_token %}
+      <label class="ax-switch" title="{{ item.label }} 공개 전환">
+        <input type="checkbox"
+               onchange="this.form.submit()"
+               aria-label="{{ item.label }} 공개 전환"
+               {% if item.published %}checked{% endif %}>
+        <span class="ax-slider"></span>
+      </label>
+    </form>
+  </div>
+  {% if pending_confirm == item.key %}
+    <div class="ax-confirm-banner" id="confirm-{{ item.key }}">
+      <p class="font-size-135 mb-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        일부만 제출된 팀·학생이 있습니다. 그래도 '{{ item.label }}'을(를) 공개할까요?
+      </p>
+      <div class="d-flex gap-2">
+        <form method="post"
+              action="{% url 'rounds:publish-results' round_obj.pk item.key %}">
+          {% csrf_token %}
+          <input type="hidden" name="partial_confirmed" value="1">
+          <button type="submit" class="btn btn-sm btn-warning fw-semibold">예, 공개합니다</button>
+        </form>
+        <a class="btn btn-sm btn-ax-secondary"
+           href="{% url 'rounds:results' round_obj.pk %}#publish">취소</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
