@@ -199,65 +199,6 @@
         </div>
       </div>
     </div>
-    {% comment %}승인 뒤 최초 로그인 온보딩. 전용 화면으로 튕겨내는 대신 어느 화면에 있든
-    같은 모달을 띄운다 - 배경 클릭·ESC로는 닫히지 않는다.{% endcomment %}
-    {% if user.is_authenticated and user.role == 'student' and not user.is_onboarded %}
-      <div class="modal fade"
-           id="onboardingModal"
-           tabindex="-1"
-           data-bs-backdrop="static"
-           data-bs-keyboard="false"
-           aria-labelledby="onboardingModalLabel"
-           aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-body p-4">
-              <div class="text-center mb-4">
-                <div class="icon-box-48 d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-3 mb-3">
-                  <i class="bi bi-stars fs-4"></i>
-                </div>
-                <h5 class="fw-bold mb-1" id="onboardingModalLabel">환영합니다! 필수 프로필 온보딩</h5>
-                <p class="text-muted small mb-0">평가에 참여하려면 아래 정보를 먼저 등록해 주세요.</p>
-              </div>
-              <div class="mb-3">
-                <label class="form-label small fw-bold" for="onboarding_first_name">이름(실명) <span class="text-danger">*</span></label>
-                <input type="text"
-                       class="form-control"
-                       id="onboarding_first_name"
-                       maxlength="150"
-                       placeholder="실명을 입력해 주세요"
-                       value="{{ user.first_name }}"
-                       required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label small fw-bold" for="onboarding_session_info">소속 기수 / 세션 <span class="text-danger">*</span></label>
-                <input type="text"
-                       class="form-control"
-                       id="onboarding_session_info"
-                       maxlength="50"
-                       placeholder="예: 5기 풀스택"
-                       value="{{ user.session_info }}"
-                       required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label small fw-bold" for="onboarding_phone_number">연락처 <span class="text-danger">*</span></label>
-                <input type="text"
-                       class="form-control"
-                       id="onboarding_phone_number"
-                       maxlength="20"
-                       placeholder="010-0000-0000"
-                       value="{{ user.phone_number }}"
-                       required>
-              </div>
-              <div id="onboardingErrorMsg" class="alert alert-danger py-2 small d-none"></div>
-              <button type="button"
-                      class="btn btn-ax-primary w-100 py-2 mt-2"
-                      id="onboardingSubmitBtn">온보딩 완료 및 대시보드 시작</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    {% endif %}
     <!-- 개별 페이지 모달 슬롯 -->
     {% block modals %}{% endblock %}
     <!-- Bootstrap Bundle JS -->
@@ -313,49 +254,6 @@
         modal.show();
       }
     };
-
-    // 온보딩 모달 - 대상자에게만 렌더링되므로 존재 여부로 판단한다.
-    (() => {
-      const modalEl = document.getElementById('onboardingModal');
-      if (!modalEl) return;
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
-
-      const submitBtn = document.getElementById('onboardingSubmitBtn');
-      const errorBox = document.getElementById('onboardingErrorMsg');
-      submitBtn.addEventListener('click', async () => {
-        errorBox.classList.add('d-none');
-        const payload = {
-          first_name: document.getElementById('onboarding_first_name').value.trim(),
-          session_info: document.getElementById('onboarding_session_info').value.trim(),
-          phone_number: document.getElementById('onboarding_phone_number').value.trim()
-        };
-        if (!payload.first_name || !payload.session_info || !payload.phone_number) {
-          errorBox.textContent = '이름, 소속 기수, 연락처를 모두 입력해 주세요.';
-          errorBox.classList.remove('d-none');
-          return;
-        }
-        submitBtn.disabled = true;
-        try {
-          const response = await fetch('{% url "accounts:api_onboarding" %}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-            body: JSON.stringify(payload)
-          });
-          const data = await response.json();
-          if (data.success) {
-            window.location.reload();
-          } else {
-            errorBox.textContent = data.message;
-            errorBox.classList.remove('d-none');
-          }
-        } catch {
-          errorBox.textContent = '서버 통신 오류가 발생했습니다.';
-          errorBox.classList.remove('d-none');
-        } finally {
-          submitBtn.disabled = false;
-        }
-      });
-    })();
 
     // 모달 닫힐 때 잔여 투명 가림막 강제 청소 (버튼 잠김 방지)
     document.addEventListener('hidden.bs.modal', function () {
