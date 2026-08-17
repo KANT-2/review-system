@@ -1,19 +1,91 @@
 {% extends "base.html" %}
 {% block title %}{{ target.label }} 평가 | AX Evaluation Console{% endblock %}
-{% block breadcrumb %}{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %} / {{ target.label }}{% endblock %}
+{% block breadcrumb %}
+  {% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %} / {{ target.label }}
+{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ target.label }} 평가</h1>
-      <p class="page-desc">제출한 평가는 수정하거나 삭제할 수 없습니다.</p></div><a href="{% if review_type == 'TEAM' %}{% url 'reviews:team-list' %}{% else %}{% url 'reviews:peer-list' %}{% endif %}"
-   class="btn btn-ax-secondary">목록</a></div>
+      <p class="page-desc">
+        {% if finalized %}
+          최종 제출이 끝나 읽기 전용입니다.
+        {% else %}
+          최종 제출 전까지는 몇 번이든 고쳐 쓸 수 있습니다.
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% if review_type == 'TEAM' %}{% url 'reviews:team-list' %}{% else %}{% url 'reviews:peer-list' %}{% endif %}"
+       class="btn btn-ax-secondary"><i class="bi bi-arrow-left me-1"></i>목록</a>
+  </div>
+  {% if finalized %}
+    <div class="alert alert-success d-flex align-items-center gap-2">
+      <i class="bi bi-lock-fill"></i>
+      {{ existing.submitted_at|date:"Y-m-d H:i" }}에 제출했고 최종 제출까지 끝났습니다.
+    </div>
+    <section class="card-custom">
+      <div class="card-body-custom">
+        {% for answer in readonly_answers %}
+          <div class="mb-4">
+            <div class="fw-semibold mb-2">{{ answer.question.display_order }}. {{ answer.question.prompt }}</div>
+            {% if answer.rating_value %}
+              <span class="badge badge-ax badge-ax-pending fs-6">{{ answer.rating_value }} / 5</span>
+            {% else %}
+              <div class="p-3 bg-body-secondary border rounded-3">{{ answer.text_value|linebreaksbr }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
     {% if existing %}
-      <div class="alert alert-success">{{ existing.submitted_at|date:"Y-m-d H:i" }}에 제출한 내 응답입니다.</div>
-      <section class="card-custom"><div class="card-body-custom">{% for answer in readonly_answers %}<div class="mb-4"><div class="fw-semibold mb-2">{{ answer.question.display_order }}. {{ answer.question.prompt }}</div>{% if answer.rating_value %}<span class="badge bg-primary fs-6">{{ answer.rating_value }}점</span>{% else %}<div class="p-3 bg-light border rounded-3">{{ answer.text_value }}</div>{% endif %}</div>{% endfor %}</div></section>
-    {% else %}
-      {% if window_state != 'OPEN' %}<div class="alert alert-warning">현재는 평가를 제출할 수 있는 기간이 아닙니다.</div>{% endif %}
-      <form method="post">{% csrf_token %}<section class="card-custom"><div class="card-body-custom">{{ form.non_field_errors }}{% for field in form %}<fieldset class="mb-4"><legend class="fs-6 fw-semibold">{{ forloop.counter }}. {{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% endif %}</legend>{{ field }}{% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</fieldset>{% endfor %}</div><div class="card-footer bg-white border-top p-3 text-end"><button class="btn btn-ax-primary"
-        type="submit"
-        {% if window_state != 'OPEN' %}disabled{% endif %}>최종 제출</button></div></section></form>
+      <div class="alert alert-info d-flex align-items-center gap-2">
+        <i class="bi bi-pencil-square"></i>
+        {{ existing.submitted_at|date:"Y-m-d H:i" }}에 제출한 응답입니다. 아래에서 고쳐 쓰면 덮어씁니다.
+      </div>
     {% endif %}
+    {% if window_state != 'OPEN' %}
+      <div class="alert alert-warning">현재는 평가를 제출할 수 있는 기간이 아닙니다.</div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <section class="card-custom">
+        <div class="card-body-custom">
+          {{ form.non_field_errors }}
+          {% for field in form %}
+            <fieldset class="mb-4">
+              <legend class="fs-6 fw-semibold mb-1">
+                {{ forloop.counter }}. {{ field.label }}
+                {% if field.field.required %}
+                  <span class="text-danger" aria-hidden="true">*</span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-expired ms-1">선택</span>
+                {% endif %}
+              </legend>
+              {% if field.field.widget.input_type == 'radio' %}
+                <p class="text-muted small mb-2">1(전혀 아니다)부터 5(매우 그렇다) 중 하나를 고르세요.</p>
+                <div class="ax-rating">
+                  <span class="ax-rating-anchor">전혀 아니다</span>
+                  {{ field }}
+                  <span class="ax-rating-anchor">매우 그렇다</span>
+                </div>
+              {% else %}
+                <p class="text-muted small mb-2">최대 2,000자까지 쓸 수 있습니다.</p>
+                {{ field }}
+              {% endif %}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </fieldset>
+          {% endfor %}
+        </div>
+        <div class="card-body-custom border-top d-flex justify-content-between align-items-center gap-2">
+          <span class="text-muted small">저장해도 최종 제출 전까지는 계속 고칠 수 있습니다.</span>
+          <button class="btn btn-ax-primary flex-shrink-0"
+                  type="submit"
+                  {% if window_state != 'OPEN' %}disabled{% endif %}>
+            {% if existing %}수정 저장{% else %}제출하기{% endif %}
+          </button>
+        </div>
+      </section>
+    </form>
+  {% endif %}
 {% endblock %}

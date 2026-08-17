@@ -11,7 +11,10 @@ from reviews.models import ReviewSubmission
 from reviews.services import (
     DuplicateReviewError,
     current_participation,
+    final_submit,
+    final_submit_state,
     get_submission,
+    is_final_submitted,
     own_submission,
     participation_for_round,
     peer_targets,
@@ -42,6 +45,7 @@ def _list_page(request, *, review_type):
             "review_type": review_type,
             "window_state": review_window_state(participant.round) if participant else None,
             "completed_count": sum(target.completed for target in targets),
+            "final_state": final_submit_state(participant, review_type) if participant else None,
         },
     )
 
@@ -56,6 +60,16 @@ def peer_review_list(request):
     return _list_page(request, review_type=ReviewSubmission.ReviewType.PEER)
 
 
+def _initial_from(submission):
+    """이미 낸 답변을 폼에 채워 넣는다 - 수정 화면에서 처음부터 다시 쓰지 않게."""
+    return {
+        f"question_{answer.question_id}": (
+            answer.rating_value if answer.rating_value is not None else answer.text_value
+        )
+        for answer in submission.answers.all()
+    }
+
+
 def _form_page(request, *, review_type, target_id):
     participant = _participant_or_none(request)
     if not participant:
@@ -66,10 +80,12 @@ def _form_page(request, *, review_type, target_id):
         raise PermissionDenied("평가할 수 없는 대상입니다.")
     existing = get_submission(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
-    form = ReviewForm(request.POST or None, questions=questions)
+    finalized = is_final_submitted(participant, review_type)
+    initial = _initial_from(existing) if existing else None
+    form = ReviewForm(request.POST or None, questions=questions, initial=initial)
     if request.method == "POST":
-        if existing:
-            messages.info(request, "이미 제출한 평가입니다.")
+        if finalized:
+            messages.info(request, "최종 제출한 평가는 수정할 수 없습니다.")
         elif form.is_valid():
             try:
                 submit_review(
@@ -83,7 +99,10 @@ def _form_page(request, *, review_type, target_id):
             except ValidationError as error:
                 form.add_error(None, error)
             else:
-                messages.success(request, "평가를 제출했습니다. 제출 후에는 수정할 수 없습니다.")
+                messages.success(
+                    request,
+                    "평가를 수정했습니다." if existing else "평가를 제출했습니다.",
+                )
                 return redirect(
                     "reviews:team-list" if review_type == "TEAM" else "reviews:peer-list"
                 )
@@ -97,6 +116,7 @@ def _form_page(request, *, review_type, target_id):
             "form": form,
             "questions": questions,
             "existing": existing,
+            "finalized": finalized,
             "readonly_answers": existing.answers.all() if existing else [],
             "window_state": review_window_state(participant.round),
         },
@@ -124,6 +144,24 @@ def _submission_map(participant, review_type):
             round=participant.round, evaluator=participant, review_type=review_type
         )
     }
+
+
+@login_required
+@require_http_methods(["POST"])
+def review_final_submit(request, review_type):
+    """유형별 최종 제출 - 되돌릴 수 없다."""
+    if review_type not in ReviewSubmission.ReviewType.values:
+        raise Http404("알 수 없는 평가 유형입니다.")
+    participant = _participant_or_none(request)
+    if not participant:
+        raise PermissionDenied("현재 회차 참가자가 아닙니다.")
+    try:
+        final_submit(participant=participant, review_type=review_type)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "최종 제출했습니다. 이제 이 평가는 수정할 수 없습니다.")
+    return redirect("reviews:team-list" if review_type == "TEAM" else "reviews:peer-list")
 
 
 @login_required

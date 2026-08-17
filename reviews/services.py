@@ -4,7 +4,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.models import ReviewAnswer, ReviewFinalSubmission, ReviewSubmission
 from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
 from teams.models import Team
 
@@ -171,11 +171,79 @@ def _validate_target(participant, review_type, target_id):
     return {"target_participant": target}
 
 
+def is_final_submitted(participant, review_type):
+    """해당 유형의 평가를 최종 제출했는지. 최종 제출 뒤에는 수정할 수 없다."""
+    if participant is None:
+        return False
+    return ReviewFinalSubmission.objects.filter(
+        round=participant.round, evaluator=participant, review_type=review_type
+    ).exists()
+
+
+def final_submit_state(participant, review_type):
+    """목록 화면이 최종 제출 영역을 그리는 데 쓰는 상태 묶음."""
+    targets = team_targets(participant) if review_type == "TEAM" else peer_targets(participant)
+    completed = sum(target.completed for target in targets)
+    finalized = is_final_submitted(participant, review_type)
+    return {
+        "finalized": finalized,
+        "completed": completed,
+        "total": len(targets),
+        "remaining": len(targets) - completed,
+        # 대상이 없는 경우(1인 팀 등)도 최종 제출로 마무리할 수 있어야 한다.
+        "can_finalize": (
+            not finalized
+            and completed == len(targets)
+            and participant is not None
+            and participant.round.status == EvaluationRound.Status.IN_PROGRESS
+            and review_window_state(participant.round) == "OPEN"
+        ),
+    }
+
+
+def final_submit(*, participant, review_type):
+    """유형별 최종 제출. 되돌릴 수 없으므로 서버에서 조건을 다시 확인한다."""
+    state = final_submit_state(participant, review_type)
+    if state["finalized"]:
+        raise ValidationError("이미 최종 제출했습니다.")
+    if not state["can_finalize"]:
+        raise ValidationError("모든 대상을 제출해야 최종 제출할 수 있습니다.")
+    try:
+        return ReviewFinalSubmission.objects.create(
+            round=participant.round, evaluator=participant, review_type=review_type
+        )
+    except IntegrityError as error:
+        raise ValidationError("이미 최종 제출했습니다.") from error
+
+
+def _get_or_create_submission(participant, review_type, target):
+    existing = ReviewSubmission.objects.filter(
+        round=participant.round, evaluator=participant, review_type=review_type, **target
+    ).first()
+    if existing:
+        return existing
+    try:
+        # 동시 요청이 겹쳐도 유니크 제약이 한 건만 남긴다(TR-007, PR-009).
+        with transaction.atomic():
+            return ReviewSubmission.objects.create(
+                round=participant.round,
+                review_type=review_type,
+                evaluator=participant,
+                **target,
+            )
+    except IntegrityError:
+        return ReviewSubmission.objects.get(
+            round=participant.round, evaluator=participant, review_type=review_type, **target
+        )
+
+
 def submit_review(*, participant, review_type, target_id, answers):
     if participant.round.status != EvaluationRound.Status.IN_PROGRESS:
         raise ValidationError("진행 중인 회차가 아닙니다.")
     if review_window_state(participant.round) != "OPEN":
         raise ValidationError("평가 제출 기간이 아닙니다.")
+    if is_final_submitted(participant, review_type):
+        raise ValidationError("최종 제출한 평가는 수정할 수 없습니다.")
     target = _validate_target(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
     question_by_id = {question.pk: question for question in questions}
@@ -200,27 +268,19 @@ def submit_review(*, participant, review_type, target_id, answers):
             if len(text) > 2000:
                 raise ValidationError("서술 답변은 2,000자 이하여야 합니다.")
             answer_rows.append((question, None, text))
-    try:
-        with transaction.atomic():
-            submission = ReviewSubmission.objects.create(
-                round=participant.round,
-                review_type=review_type,
-                evaluator=participant,
-                **target,
-            )
-            ReviewAnswer.objects.bulk_create(
-                [
-                    ReviewAnswer(
-                        submission=submission,
-                        question=question,
-                        rating_value=rating,
-                        text_value=text or "",
-                    )
-                    for question, rating, text in answer_rows
-                ]
-            )
-            return submission
-    except IntegrityError as error:
-        if get_submission(participant, review_type, target_id):
-            raise DuplicateReviewError("이미 제출한 평가입니다.") from error
-        raise
+    with transaction.atomic():
+        # 최종 제출 전이면 다시 저장할 수 있다 - 기존 답변을 지우고 새로 쓴다.
+        submission = _get_or_create_submission(participant, review_type, target)
+        submission.answers.all().delete()
+        ReviewAnswer.objects.bulk_create(
+            [
+                ReviewAnswer(
+                    submission=submission,
+                    question=question,
+                    rating_value=rating,
+                    text_value=text or "",
+                )
+                for question, rating, text in answer_rows
+            ]
+        )
+        return submission
