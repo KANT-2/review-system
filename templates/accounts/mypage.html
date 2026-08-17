@@ -65,13 +65,13 @@
           <div class="card-body-custom">
             <div class="row g-3 mb-4 text-center">
               <div class="col-sm-4">
-                <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="p-3 rounded-3 border bg-body-secondary h-100">
                   <div class="text-muted small">팀 점수</div>
                   <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.team_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
                 </div>
               </div>
               <div class="col-sm-4">
-                <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="p-3 rounded-3 border bg-body-secondary h-100">
                   <div class="text-muted small">개인 점수</div>
                   <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.peer_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
                 </div>

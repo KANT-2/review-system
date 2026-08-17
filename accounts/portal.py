@@ -95,30 +95,30 @@ def build_student_portal(user):
             }
             for member in team.memberships.select_related("participant")
         ]
-    pending = [
-        {
-            "category": "TEAM",
-            "label": "팀 평가",
-            "target": row.label,
-            "description": row.description,
-            "target_id": row.pk,
-            "url_name": row.url_name,
-        }
-        for row in team_rows
-        if not row.completed
-    ] + [
-        {
-            "category": "PEER",
-            "label": "개인 평가",
-            "target": row.label,
-            "description": row.description,
-            "target_id": row.pk,
-            "url_name": row.url_name,
-        }
-        for row in peer_rows
-        if not row.completed
-    ]
+
+    def _evaluation_rows(rows, *, category, label, completed):
+        return [
+            {
+                "category": category,
+                "label": label,
+                "target": row.label,
+                "description": row.description,
+                "target_id": row.pk,
+                "url_name": row.url_name,
+            }
+            for row in rows
+            if row.completed is completed
+        ]
+
+    pending = _evaluation_rows(
+        team_rows, category="TEAM", label="팀 평가", completed=False
+    ) + _evaluation_rows(peer_rows, category="PEER", label="개인 평가", completed=False)
+    # 제출한 평가도 함께 보여준다 - 무엇을 이미 냈는지 화면에서 확인할 수 있어야 한다.
+    done = _evaluation_rows(
+        team_rows, category="TEAM", label="팀 평가", completed=True
+    ) + _evaluation_rows(peer_rows, category="PEER", label="개인 평가", completed=True)
     remaining = round_obj.evaluation_end_at - timezone.now()
+    d_day = max(ceil(remaining.total_seconds() / 86400), 0)
     return {
         "is_demo": False,
         "round": {
@@ -126,7 +126,9 @@ def build_student_portal(user):
             "status": round_obj.get_status_display(),
             "evaluation_start_at": round_obj.evaluation_start_at,
             "evaluation_end_at": round_obj.evaluation_end_at,
-            "d_day": max(ceil(remaining.total_seconds() / 86400), 0),
+            "d_day": d_day,
+            # 남은 평가가 있는데 마감이 하루 안쪽이면 화면에서 눈에 띄게 표시한다.
+            "is_urgent": bool(pending) and d_day <= 1,
         },
         "team": {
             "team_number": team.team_number if team else None,
@@ -141,5 +143,6 @@ def build_student_portal(user):
             "percent": 100 if expected == 0 else round(completed / expected * 100),
         },
         "pending_evaluations": pending,
+        "completed_evaluations": done,
         "latest_result": _latest_result(user),
     }
