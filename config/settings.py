@@ -210,20 +210,6 @@ TRUSTED_PROXY_IPS = env_list("DJANGO_TRUSTED_PROXY_IPS")
 TRUSTED_PROXY_HOPS = env_int("DJANGO_TRUSTED_PROXY_HOPS", 0)
 HTTPS_READY = env_bool("DJANGO_HTTPS_READY", False)
 
-EMAIL_BACKEND = os.getenv(
-    "DJANGO_EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",
-)
-EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "")
-EMAIL_PORT = env_int("DJANGO_EMAIL_PORT", 587)
-EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
-EMAIL_USE_SSL = env_bool("DJANGO_EMAIL_USE_SSL", False)
-EMAIL_TIMEOUT = env_int("DJANGO_EMAIL_TIMEOUT", 10)
-DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@localhost")
-ACCOUNT_EMAIL_SUBJECT_PREFIX = os.getenv("DJANGO_ACCOUNT_EMAIL_SUBJECT_PREFIX", "[AX Console] ")
-
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {
