@@ -151,73 +151,92 @@ class AccountsTests(TestCase):
         self.assertEqual(user.phone_number, "")
         self.assertFalse(user.is_onboarded)
 
-    def _rookie(self, email):
-        return User.objects.create_user(
-            email=email,
+    def test_student_without_profile_is_sent_to_onboarding(self):
+        rookie = User.objects.create_user(
+            email="rookie@ax.com",
             password=STRONG_PASSWORD,
             _email_verified=True,
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
         )
-
-    def test_student_without_profile_gets_the_onboarding_modal(self):
-        """전용 화면으로 튕겨내지 않고, 어느 화면에 있든 같은 모달로 프로필을 받는다."""
-        self.client.force_login(self._rookie("rookie@ax.com"))
+        self.client.force_login(rookie)
 
         dashboard = self.client.get(reverse("accounts:dashboard"))
         mypage = self.client.get(reverse("accounts:mypage"))
 
-        self.assertEqual(dashboard.status_code, 200)
-        self.assertContains(dashboard, 'id="onboardingModal"')
-        self.assertContains(dashboard, 'data-bs-backdrop="static"')
-        self.assertContains(mypage, 'id="onboardingModal"')
+        self.assertRedirects(dashboard, reverse("accounts:onboarding"))
+        self.assertRedirects(mypage, reverse("accounts:onboarding"))
 
-    def test_onboarding_saves_profile_and_removes_the_modal(self):
-        rookie = self._rookie("rookie2@ax.com")
+    def test_onboarding_saves_profile_and_unlocks_dashboard(self):
+        rookie = User.objects.create_user(
+            email="rookie2@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
         self.client.force_login(rookie)
 
         response = self.client.post(
-            reverse("accounts:api_onboarding"),
-            data=json.dumps(
-                {
-                    "first_name": " 김민준 ",
-                    "session_info": "5기 풀스택",
-                    "phone_number": "010-1111-2222",
-                }
-            ),
-            content_type="application/json",
+            reverse("accounts:onboarding"),
+            {
+                "first_name": " 김민준 ",
+                "session_info": "5기 풀스택",
+                "phone_number": "010-1111-2222",
+            },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:dashboard"))
         rookie.refresh_from_db()
         self.assertEqual(rookie.first_name, "김민준")
         self.assertEqual(rookie.session_info, "5기 풀스택")
         self.assertEqual(rookie.phone_number, "010-1111-2222")
         self.assertTrue(rookie.is_onboarded)
-        self.assertNotContains(
-            self.client.get(reverse("accounts:dashboard")), 'id="onboardingModal"'
-        )
+        self.assertEqual(self.client.get(reverse("accounts:dashboard")).status_code, 200)
 
     def test_onboarding_requires_every_field(self):
-        rookie = self._rookie("rookie3@ax.com")
+        rookie = User.objects.create_user(
+            email="rookie3@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
         self.client.force_login(rookie)
 
         response = self.client.post(
-            reverse("accounts:api_onboarding"),
-            data=json.dumps({"first_name": "김민준", "session_info": "", "phone_number": ""}),
-            content_type="application/json",
+            reverse("accounts:onboarding"),
+            {"first_name": "김민준", "session_info": "", "phone_number": ""},
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         rookie.refresh_from_db()
         self.assertFalse(rookie.is_onboarded)
 
-    def test_onboarded_student_does_not_see_the_modal(self):
+    def test_onboarded_student_is_not_sent_back_to_onboarding(self):
         self.client.force_login(self.approved_student)
 
-        response = self.client.get(reverse("accounts:dashboard"))
+        response = self.client.get(reverse("accounts:onboarding"))
 
-        self.assertNotContains(response, 'id="onboardingModal"')
+        self.assertRedirects(response, reverse("accounts:dashboard"))
+
+    def test_onboarding_gate_is_enforced_on_the_server(self):
+        """화면에서 가리는 방식이 아니라 서버가 되돌려 보내야 한다."""
+        rookie = User.objects.create_user(
+            email="rookie4@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(rookie)
+
+        dashboard = self.client.get(reverse("accounts:dashboard"))
+
+        self.assertEqual(dashboard.status_code, 302)
+        self.assertNotContains(
+            self.client.get(reverse("accounts:onboarding")), 'id="onboardingModal"'
+        )
 
     def test_layout_offers_a_dark_mode_toggle(self):
         self.client.force_login(self.approved_student)
