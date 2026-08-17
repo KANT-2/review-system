@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}평가 회차 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}평가 회차{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">평가 회차</h1>
+      <p class="page-desc">기간·참가자·질문지와 운영 상태를 관리합니다.</p></div><a href="{% url 'rounds:create' %}" class="btn btn-ax-primary">새 회차</a></div>
+    <section class="card-custom">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>회차</th>
+              <th>상태</th>
+              <th>기간</th>
+              <th>참가자</th>
+              <th>팀</th>
+              <th class="text-end">다음 작업</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in rounds %}<tr><td><strong>{{ item.title }}</strong><div class="small text-muted">{{ item.description|truncatechars:60 }}</div></td><td><span class="badge {% if item.status == 'IN_PROGRESS' %}bg-primary{% elif item.status == 'COMPLETED' %}bg-success{% else %}text-bg-secondary{% endif %}">{{ item.get_status_display }}</span></td><td class="small">{{ item.evaluation_start_at|date:"Y-m-d H:i" }}<br>{{ item.evaluation_end_at|date:"Y-m-d H:i" }}</td><td>{{ item.participant_count }}명</td><td>{{ item.team_count }}팀</td><td class="text-end">{% if item.status == 'DRAFT' %}<a href="{% url 'rounds:edit' item.pk %}"
+   class="btn btn-sm btn-outline-primary">설정</a> <a href="{% url 'rounds:teams' item.pk %}"
+    class="btn btn-sm btn-primary">팀 편성</a>{% elif item.status == 'IN_PROGRESS' %}<a href="{% url 'rounds:reviews' item.pk %}"
+   class="btn btn-sm btn-primary">진행 현황</a>{% else %}<a href="{% url 'rounds:results' item.pk %}"
+   class="btn btn-sm btn-primary">결과</a>{% endif %}</td></tr>
+          {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">등록된 회차가 없습니다.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

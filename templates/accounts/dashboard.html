@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load results_extras %}
 {% block title %}학생 대시보드 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}학생 대시보드{% endblock %}
 {% block content %}
@@ -11,7 +12,7 @@
       <p class="page-desc">현재 회차에서 해야 할 평가와 내 팀 현황을 확인합니다.</p>
     </div>
     {% if portal %}
-      <a href="{% url 'results:me_preview' %}" class="btn btn-ax-secondary"><i class="bi bi-bar-chart-line me-1"></i>최근 결과 보기</a>
+      <a href="{% url 'results:me' %}" class="btn btn-ax-secondary"><i class="bi bi-bar-chart-line me-1"></i>최근 결과 보기</a>
     {% endif %}
   </div>
   {% if portal %}
@@ -77,39 +78,39 @@
                     <h6 class="fw-bold mt-2 mb-1">{{ evaluation.target }}</h6>
                     <p class="text-muted small mb-0">{{ evaluation.description }}</p>
                   </div>
-                  <button type="button"
-                          class="btn btn-ax-primary"
-                          disabled
-                          title="평가 작성 화면은 아직 통합되지 않았습니다.">평가하기</button>
+                  <a href="{% url evaluation.url_name evaluation.target_id %}"
+                     class="btn btn-ax-primary">평가하기</a>
                 </div>
               </div>
             {% endfor %}
           </div>
         </section>
-        <section class="card-custom" aria-labelledby="latest-result-title">
-          <div class="card-header-custom">
-            <div class="card-title-custom" id="latest-result-title">
-              <i class="bi bi-award-fill text-primary"></i>최근 공개 결과
+        {% if portal.latest_result %}
+          <section class="card-custom" aria-labelledby="latest-result-title">
+            <div class="card-header-custom">
+              <div class="card-title-custom" id="latest-result-title">
+                <i class="bi bi-award-fill text-primary"></i>최근 공개 결과
+              </div>
+              <span class="badge badge-ax badge-ax-completed">{{ portal.latest_result.round_name }}</span>
             </div>
-            <span class="badge badge-ax badge-ax-completed">{{ portal.latest_result.round_name }}</span>
-          </div>
-          <div class="card-body-custom">
-            <div class="row g-3 text-center">
-              <div class="col-4">
-                <div class="text-muted small">팀 점수</div>
-                <div class="fs-4 fw-bold">{{ portal.latest_result.team_score|default:"N/A" }}</div>
-              </div>
-              <div class="col-4 border-start border-end">
-                <div class="text-muted small">개인 점수</div>
-                <div class="fs-4 fw-bold">{{ portal.latest_result.peer_score|default:"N/A" }}</div>
-              </div>
-              <div class="col-4">
-                <div class="text-muted small">최종 점수</div>
-                <div class="fs-4 fw-bold text-primary">{{ portal.latest_result.final_score|default:"N/A" }}</div>
+            <div class="card-body-custom">
+              <div class="row g-3 text-center">
+                <div class="col-4">
+                  <div class="text-muted small">팀 점수</div>
+                  <div class="fs-4 fw-bold">{{ portal.latest_result.team_score|as_five_point|default:"N/A" }}</div>
+                </div>
+                <div class="col-4 border-start border-end">
+                  <div class="text-muted small">개인 점수</div>
+                  <div class="fs-4 fw-bold">{{ portal.latest_result.peer_score|as_five_point|default:"N/A" }}</div>
+                </div>
+                <div class="col-4">
+                  <div class="text-muted small">최종 점수</div>
+                  <div class="fs-4 fw-bold text-primary">{{ portal.latest_result.final_score|as_five_point|default:"N/A" }}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        {% endif %}
       </div>
       <div class="col-12 col-lg-4">
         <section class="card-custom" aria-labelledby="my-team-title">

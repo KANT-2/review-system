@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load static results_extras %}
+{% block title %}결과·공개 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}결과·공개{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ round_obj.title }} 결과·공개</h1>
+      <p class="page-desc">
+        채점 결과와 공개 범위를 관리합니다.
+        {% if run %}
+          <span class="ax-status-chip ms-1"><span class="ax-status-dot"></span>채점 완료 v{{ run.version }}</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="visually-hidden" for="round-switcher">회차 선택</label>
+      <select class="ax-round-select"
+              id="round-switcher"
+              onchange="location.href=this.value">
+        {% for option in round_options %}
+          <option value="{% url 'rounds:results' option.pk %}"
+                  {% if option.pk == round_obj.pk %}selected{% endif %}>{{ option.title }}</option>
+        {% endfor %}
+      </select>
+      <form method="post"
+            action="{% url 'rounds:calculate-results' round_obj.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-ax-primary"
+                type="submit"
+                {% if round_obj.status != 'COMPLETED' %}disabled title="완료된 회차만 채점할 수 있습니다."{% endif %}>
+          {% if run %}재채점{% else %}채점 실행{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% if not run %}
+    <section class="card-custom">
+      <div class="card-body-custom ax-empty-state">
+        <i class="bi bi-calculator"></i>
+        <p class="fw-semibold mb-1">아직 채점 결과가 없습니다.</p>
+        <p class="text-muted mb-0">회차를 마감한 뒤 채점을 실행하면 팀·개인 순위가 여기에 표시됩니다.</p>
+      </div>
+    </section>
+  {% else %}
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card-custom ax-summary-card h-100 mb-0">
+          <span class="ax-summary-label">전체 평가 현황</span>
+          <span class="ax-summary-value">{{ summary.participant_count }}명 · {{ summary.team_count }}팀</span>
+          <span class="ax-summary-note">
+            {% if summary.na_count %}
+              {{ summary.na_count }}명 데이터 미비
+            {% else %}
+              전원 채점 완료
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card-custom ax-summary-card ax-summary-card--highlight h-100 mb-0">
+          <span class="ax-summary-label"><i class="bi bi-trophy-fill"></i> 최고 종합 점수</span>
+          <span class="ax-summary-value">
+            {% if summary.top_student %}
+              {{ summary.top_student.final_score_raw|as_five_point }}/5
+            {% else %}
+              -
+            {% endif %}
+          </span>
+          <span class="ax-summary-note">
+            {% if summary.top_student %}
+              {{ summary.top_student.participant.display_name_snapshot }}
+            {% else %}
+              순위를 매길 데이터가 없습니다
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card-custom ax-summary-card ax-summary-card--highlight h-100 mb-0">
+          <span class="ax-summary-label"><i class="bi bi-trophy-fill"></i> 최우수 팀</span>
+          <span class="ax-summary-value">{% if summary.top_team %}{{ summary.top_team.team.name }}{% else %}-{% endif %}</span>
+          <span class="ax-summary-note">
+            {% if summary.top_team %}
+              {{ summary.top_team.team_score_raw|as_five_point }}/5
+            {% else %}
+              순위를 매길 데이터가 없습니다
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-light border font-size-135">
+      활성 계산 버전 <strong>v{{ run.version }}</strong> · {{ run.finished_at|date:"Y-m-d H:i" }} · 공식 {{ run.formula_version }}
+      {% if has_partial %}<span class="badge badge-ax badge-ax-pending ms-2">일부 제출 포함</span>{% endif %}
+    </div>
+    <section class="card-custom" data-result-table>
+      <div class="card-header-custom">
+        <div class="card-title-custom">팀 순위</div>
+        <div class="ax-filter-group">
+          <button type="button" class="ax-filter-chip active" data-filter="ALL">전체</button>
+          <button type="button" class="ax-filter-chip" data-filter="PARTIAL">일부 제출</button>
+          <button type="button" class="ax-filter-chip" data-filter="NO_DATA">미제출</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="text-end">순위</th>
+              <th scope="col">팀</th>
+              <th scope="col">구성원</th>
+              <th scope="col" class="text-end">팀 점수 (5점 만점)</th>
+              <th scope="col" class="text-center">제출 현황</th>
+              <th scope="col" class="text-end">응답률</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in team_head %}
+              {% include "results/_result_team_row.html" %}
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">팀 결과가 없습니다.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          {% if team_rest %}
+            <tbody class="collapse" id="teamRestRows">
+              {% for result in team_rest %}
+                {% include "results/_result_team_row.html" %}
+              {% endfor %}
+            </tbody>
+          {% endif %}
+        </table>
+      </div>
+      {% if team_rest %}
+        <div class="ax-expand-wrapper">
+          <button type="button"
+                  class="btn btn-sm btn-link ax-toggle-rest"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#teamRestRows"
+                  data-more-text="나머지 {{ team_rest|length }}개 팀 더보기"
+                  aria-expanded="false"
+                  aria-controls="teamRestRows">
+            <i class="bi bi-chevron-down ax-toggle-icon"></i>
+            <span class="ax-toggle-label">나머지 {{ team_rest|length }}개 팀 더보기</span>
+          </button>
+        </div>
+      {% endif %}
+    </section>
+    <section class="card-custom" data-result-table>
+      <div class="card-header-custom">
+        <div class="card-title-custom">개인 결과</div>
+        <div class="ax-filter-group">
+          <button type="button" class="ax-filter-chip active" data-filter="ALL">전체</button>
+          <button type="button" class="ax-filter-chip" data-filter="PARTIAL">일부 제출</button>
+          <button type="button" class="ax-filter-chip" data-filter="NO_DATA">미제출</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="text-end">순위</th>
+              <th scope="col">수강생</th>
+              <th scope="col">팀</th>
+              <th scope="col" class="text-end">
+                점수 계산
+                <i class="bi bi-info-circle ax-info-icon"
+                   data-bs-toggle="tooltip"
+                   data-bs-placement="top"
+                   title="팀 {{ team_weight_percent }}% + 개인 {{ peer_weight_percent }}%"></i>
+              </th>
+              <th scope="col" class="text-end">최종점수 (5점 만점)</th>
+              <th scope="col" class="text-center">개인 평가 제출 현황</th>
+              <th scope="col" class="text-center">메모</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in individual_head %}
+              {% include "results/_result_student_row.html" %}
+            {% empty %}
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">개인 결과가 없습니다.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          {% if individual_rest %}
+            <tbody class="collapse" id="studentRestRows">
+              {% for result in individual_rest %}
+                {% include "results/_result_student_row.html" %}
+              {% endfor %}
+            </tbody>
+          {% endif %}
+        </table>
+      </div>
+      {% if individual_rest %}
+        <div class="ax-expand-wrapper">
+          <button type="button"
+                  class="btn btn-sm btn-link ax-toggle-rest"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#studentRestRows"
+                  data-more-text="나머지 {{ individual_rest|length }}명 더보기"
+                  aria-expanded="false"
+                  aria-controls="studentRestRows">
+            <i class="bi bi-chevron-down ax-toggle-icon"></i>
+            <span class="ax-toggle-label">나머지 {{ individual_rest|length }}명 더보기</span>
+          </button>
+        </div>
+      {% endif %}
+      <div class="card-body-custom pt-0">
+        <p class="text-muted font-size-115 mb-0">"평가 없음"은 0점이 아니라 미제출 상태이며, 순위 계산에서 빠집니다.</p>
+      </div>
+    </section>
+    <section class="card-custom" id="publish">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          결과 공개
+          {% if has_partial %}<span class="badge badge-ax badge-ax-pending">일부 제출 포함</span>{% endif %}
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="font-size-135 fw-semibold">이번 회차 결과 전체 공개</span>
+          <form method="post"
+                action="{% url 'rounds:publish-all-results' round_obj.pk %}">
+            {% csrf_token %}
+            <label class="ax-switch" title="4개 항목 전체 공개 전환">
+              <input type="checkbox"
+                     onchange="this.form.submit()"
+                     aria-label="4개 항목 전체 공개 전환"
+                     {% if all_published %}checked{% endif %}>
+              <span class="ax-slider"></span>
+            </label>
+          </form>
+        </div>
+      </div>
+      <div class="card-body-custom">
+        <p class="text-muted font-size-135">항목별로 따로 공개할 수 있습니다. 재채점하면 공개 상태는 초기화됩니다.</p>
+        {% if pending_confirm == "ALL" %}
+          <div class="ax-confirm-banner mb-3">
+            <p class="font-size-135 mb-2">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              일부만 제출된 팀·학생이 있습니다. 그래도 4개 항목을 전체 공개할까요?
+            </p>
+            <div class="d-flex gap-2">
+              <form method="post"
+                    action="{% url 'rounds:publish-all-results' round_obj.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="partial_confirmed" value="1">
+                <button type="submit" class="btn btn-sm btn-warning fw-semibold">예, 전체 공개합니다</button>
+              </form>
+              <a class="btn btn-sm btn-ax-secondary"
+                 href="{% url 'rounds:results' round_obj.pk %}#publish">취소</a>
+            </div>
+          </div>
+        {% endif %}
+        <div class="row g-3">
+          {% for item in publish_items %}
+            {% include "results/_publish_toggle.html" %}
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+{% block modals %}
+  {% if run %}
+    <div class="modal fade"
+         id="studentNoteModal"
+         tabindex="-1"
+         aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <form method="post" id="studentNoteForm">
+            {% csrf_token %}
+            <div class="modal-header border-bottom px-4 py-3">
+              <h6 class="modal-title fw-bold">
+                <i class="bi bi-sticky me-2 text-primary"></i>메모 · <span id="noteStudentName"></span>
+              </h6>
+              <button type="button"
+                      class="btn-close"
+                      data-bs-dismiss="modal"
+                      aria-label="닫기"></button>
+            </div>
+            <div class="modal-body p-4">
+              <p class="text-muted font-size-135">튜터·관리자만 볼 수 있는 메모입니다. 학생 화면에는 표시되지 않습니다.</p>
+              <label class="visually-hidden" for="noteBody">메모 내용</label>
+              <textarea name="body"
+                        id="noteBody"
+                        class="form-control"
+                        rows="4"
+                        maxlength="1000"
+                        placeholder="예: 이번 회차 개인 사정으로 일부만 제출함"></textarea>
+              <p class="text-muted font-size-115 mt-2 mb-0">비우고 저장하면 메모가 삭제됩니다.</p>
+            </div>
+            <div class="modal-footer border-top-0 px-4 pb-3">
+              <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="submit" class="btn btn-ax-primary">저장</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/results-manage.js' %}"></script>
+{% endblock %}

@@ -7,12 +7,22 @@ from accounts.models import AuthThrottleBucket, EmailResendCooldown, User, White
 @admin.register(User)
 class AccountUserAdmin(UserAdmin):
     ordering = ("email",)
-    list_display = ("email", "first_name", "role", "approval_status", "is_active")
-    search_fields = ("email", "first_name")
+    list_display = (
+        "email",
+        "first_name",
+        "student_number",
+        "role",
+        "approval_status",
+        "is_active",
+    )
+    search_fields = ("email", "first_name", "student_number")
     readonly_fields = ("auth_session_version", "email_needs_review")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("프로필", {"fields": ("first_name", "phone_number", "session_info")}),
+        (
+            "프로필",
+            {"fields": ("first_name", "student_number", "phone_number", "session_info")},
+        ),
         (
             "권한과 상태",
             {

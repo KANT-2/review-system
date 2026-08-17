@@ -41,7 +41,6 @@ def env_list(name, default=()):
 
 RUNNING_TESTS = "test" in sys.argv
 DEBUG = env_bool("DJANGO_DEBUG", True)
-ENABLE_DEV_PREVIEWS = env_bool("DJANGO_ENABLE_DEV_PREVIEWS", DEBUG or RUNNING_TESTS)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-local-development-key")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
@@ -62,7 +61,10 @@ INSTALLED_APPS = [
     "axes",
     "accounts.apps.AccountsConfig",
     "teams.apps.TeamsConfig",
+    "rounds.apps.RoundsConfig",
+    "reviews.apps.ReviewsConfig",
     "results.apps.ResultsConfig",
+    "audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
