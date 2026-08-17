@@ -44,6 +44,19 @@
     byId("emptyText").textContent = text;
   }
 
+  // 검색은 화면을 떠나지 않고 입력 즉시 걸린다. 찾은 사람만 남기면 어느 팀 소속인지
+  // 알 수 없어지므로, 팀 구성은 그대로 두고 매칭되지 않는 사람만 흐리게 처리한다.
+  let searchQuery = "";
+
+  function normalize(value) {
+    return String(value ?? "").trim().toLowerCase();
+  }
+
+  function matchesSearch(person) {
+    if (!searchQuery) return true;
+    return normalize(person.display_name).includes(searchQuery);
+  }
+
   function memberMarkup(person, canEdit) {
     const isMe = person.participant_id === config.myParticipantId;
     const draggableAttributes = canEdit
@@ -52,7 +65,9 @@
     const myLabel = isMe ? '<span class="me-tag">나</span>' : "";
     const displayName = escapeHtml(person.display_name);
     const initialLetter = escapeHtml(person.display_name?.[0] || "-");
-    return `<div class="member${isMe ? " me" : ""}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span>${displayName}</span>${myLabel}</div>`;
+    const dimmed = matchesSearch(person) ? "" : " dimmed";
+    const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
+    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span>${displayName}</span>${myLabel}</div>`;
   }
 
   function teamCardMarkup(team, canEdit, showMyTeam) {
@@ -86,12 +101,23 @@
         const dragAttributes = canEdit
           ? `draggable="true" data-person="${person.participant_id}"`
           : "";
-        return `<span class="teams-chip" ${dragAttributes}>${escapeHtml(person.display_name)}</span>`;
+        const dimmed = matchesSearch(person) ? "" : " dimmed";
+        const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
+        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}</span>`;
       })
       .join("");
-    byId("unassignedArea").innerHTML = people.length
-      ? `<div class="teams-waiting"><strong>미배정 학생 ${people.length}명</strong><div>${memberChips}</div></div>`
-      : "";
+    // 편집 중에는 비어 있어도 영역을 남긴다 - 팀에서 뺀 학생을 떨어뜨릴 자리가 필요하다.
+    if (canEdit) {
+      const body = people.length
+        ? `<div>${memberChips}</div>`
+        : '<p class="teams-waiting-hint">학생을 이곳으로 끌어다 놓으면 팀에서 빠집니다.</p>';
+      byId("unassignedArea").innerHTML =
+        `<div class="teams-waiting${people.length ? "" : " empty"}" data-dropzone="unassigned"><strong>미배정 학생 ${people.length}명</strong>${body}</div>`;
+    } else {
+      byId("unassignedArea").innerHTML = people.length
+        ? `<div class="teams-waiting"><strong>미배정 학생 ${people.length}명</strong><div>${memberChips}</div></div>`
+        : "";
+    }
     byId("unassignedMetric").textContent = `미배정 ${people.length}명`;
     byId("unassignedMetric").className = `teams-metric ${people.length ? "warn" : "neutral"}`;
   }
@@ -100,6 +126,14 @@
     document.querySelectorAll("[data-person]").forEach((item) => {
       item.addEventListener("dragstart", (event) => {
         event.dataTransfer.setData("text/plain", item.dataset.person);
+        event.dataTransfer.effectAllowed = "move";
+        document.body.classList.add("teams-dragging");
+      });
+      item.addEventListener("dragend", () => {
+        document.body.classList.remove("teams-dragging");
+        document
+          .querySelectorAll(".over")
+          .forEach((element) => element.classList.remove("over"));
       });
     });
     document.querySelectorAll("[data-team]").forEach((team) => {
@@ -110,6 +144,8 @@
       team.addEventListener("dragleave", () => team.classList.remove("over"));
       team.addEventListener("drop", (event) => {
         event.preventDefault();
+        // 팀 카드가 처리했으면 아래의 보드 배경 핸들러까지 내려가지 않게 막는다.
+        event.stopPropagation();
         team.classList.remove("over");
         moveParticipant(
           Number(event.dataTransfer.getData("text/plain")),
@@ -117,6 +153,38 @@
         );
       });
     });
+    bindUnassignDropzones();
+  }
+
+  function bindUnassignDropzones() {
+    // 미배정 영역과 보드 여백 - 어느 쪽에 떨어뜨려도 팀에서 빠진다.
+    const zones = [byId("unassignedArea").querySelector("[data-dropzone]"), byId("board")];
+    zones.filter(Boolean).forEach((zone) => {
+      zone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        zone.classList.add("over");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+      zone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        zone.classList.remove("over");
+        unassignParticipant(Number(event.dataTransfer.getData("text/plain")));
+      });
+    });
+  }
+
+  function unassignParticipant(participantId) {
+    // 회차 참가자 명단에서 지우는 게 아니라 팀에서만 뺀다 - 명단 자체는 회차 편집 화면에서 다룬다.
+    for (const team of data.teams) {
+      const index = team.members.findIndex((item) => item.participant_id === participantId);
+      if (index >= 0) {
+        const [participant] = team.members.splice(index, 1);
+        data.unassigned_members.push(participant);
+        isDirty = true;
+        renderTutorBoard();
+        return;
+      }
+    }
   }
 
   function moveParticipant(participantId, teamNumber) {
@@ -141,10 +209,24 @@
     renderTutorBoard();
   }
 
+  function renderSearchMetric() {
+    const metric = byId("searchMetric");
+    if (!metric) return;
+    if (!searchQuery) {
+      metric.hidden = true;
+      return;
+    }
+    const hits = allParticipants().filter(matchesSearch).length;
+    metric.hidden = false;
+    metric.textContent = `검색 ${hits}명`;
+    metric.className = `teams-metric ${hits ? "neutral" : "warn"}`;
+  }
+
   function renderTutorBoard() {
     const canEdit = !data.is_read_only;
     renderUnassignedMembers(canEdit);
     renderBoard({ canEdit });
+    renderSearchMetric();
     byId("cancelButton").disabled = !isDirty;
     byId("saveButton").disabled = !isDirty || data.unassigned_members.length > 0;
   }
@@ -294,9 +376,15 @@
     byId("statusBadge").textContent = "DRAFT · 편집 가능";
     byId("pageDescription").textContent =
       "자동 배치 결과를 확인하고 필요한 학생만 다른 팀으로 이동하세요.";
-    byId("legend").textContent = "학생 이름을 끌어 다른 팀으로 이동할 수 있습니다.";
+    byId("legend").textContent =
+      "학생 이름을 끌어 다른 팀으로 옮기거나, 미배정 영역·보드 여백에 놓아 팀에서 뺄 수 있습니다.";
     configureTeamCountSelect();
     renderTutorBoard();
+
+    byId("memberSearch").addEventListener("input", (event) => {
+      searchQuery = normalize(event.target.value);
+      renderTutorBoard();
+    });
 
     byId("cancelButton").addEventListener("click", () => {
       data = structuredClone(saved);

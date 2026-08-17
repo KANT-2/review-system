@@ -261,3 +261,60 @@
     flex-basis: auto;
   }
 }
+
+/* ---- 학생 검색 (제자리 실시간 필터) ---- */
+
+.teams-search {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.teams-search input {
+  width: 160px;
+}
+
+/* 검색어와 맞지 않는 사람은 숨기지 않고 흐리게 둔다 - 팀 구성이 그대로 보여야
+   누구를 어디로 옮길지 판단할 수 있다. */
+.member.dimmed,
+.teams-chip.dimmed {
+  opacity: 0.35;
+}
+
+.member.search-hit {
+  border-color: #1769e0;
+  background: #f3f8ff;
+}
+
+.teams-chip.search-hit {
+  border-color: #1769e0;
+  box-shadow: 0 0 0 2px #1769e022;
+}
+
+/* ---- 팀에서 빼는 드롭 영역 ---- */
+
+.teams-waiting.empty {
+  border-style: dashed;
+  background: #fcfcfd;
+}
+
+.teams-waiting-hint {
+  margin: 8px 0 0;
+  color: var(--teams-muted);
+  font-size: 12px;
+}
+
+.teams-waiting.over {
+  border-color: #1769e0;
+  background: #f3f8ff;
+}
+
+.teams-board.over {
+  border-color: #1769e0;
+  box-shadow: inset 0 0 0 2px #1769e015;
+}
+
+/* 끌고 있는 동안 놓을 수 있는 자리를 눈에 띄게 한다. */
+body.teams-dragging .teams-waiting {
+  border-color: #1769e0;
+}
