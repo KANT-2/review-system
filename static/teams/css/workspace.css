@@ -72,8 +72,21 @@
   color: #713b00;
 }
 
+.teams-waiting-hint {
+  margin: 4px 0 0;
+  color: #8a5a10;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.teams-waiting.over {
+  box-shadow: 0 0 0 3px #1769e025;
+}
+
 .teams-chip {
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin: 8px 6px 0 0;
   padding: 6px 10px;
   border: 1px solid #e4c47e;
@@ -178,10 +191,32 @@
   font-size: 11px;
 }
 
+.member-score {
+  color: var(--teams-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .me-tag {
   margin-left: auto;
   color: var(--ax-primary);
   font-size: 11px;
+}
+
+.member-unassign {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--teams-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.member-unassign:hover {
+  color: #d92d20;
 }
 
 .teams-legend {

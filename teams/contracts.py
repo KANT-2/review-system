@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from teams.application import AutoTeamBoardResult
@@ -149,6 +149,14 @@ def _decimal_response(value: Decimal | None) -> str | None:
     return str(value) if value is not None else None
 
 
+def _seed_score_response(value: Decimal | None) -> str | None:
+    # 시드 점수는 raw 정밀도로 계산되지만(개인 점수 표시용), 화면에는 소수 첫째
+    # 자리까지만 반올림해서 보여준다. 균형 계산 자체에는 영향을 주지 않는다.
+    if value is None:
+        return None
+    return str(value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
 def _team_draft_response(team: TeamDraft) -> dict[str, Any]:
     return {
         "team_number": team.team_number,
@@ -170,4 +178,5 @@ def _member_response(member: TeamMemberView) -> dict[str, Any]:
         "participant_id": member.participant_id,
         "student_number": member.student_number,
         "display_name": member.display_name,
+        "seed_score": _seed_score_response(member.seed_score),
     }

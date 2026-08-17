@@ -57,15 +57,25 @@
     byId("emptyText").textContent = text;
   }
 
-  function memberMarkup(person, canEdit) {
+  function scoreMarkup(person) {
+    if (person.seed_score === null || person.seed_score === undefined) return "";
+    return `<span class="member-score">${escapeHtml(person.seed_score)}점</span>`;
+  }
+
+  function memberMarkup(person, canEdit, { allowUnassign = false } = {}) {
     const isMe = person.participant_id === config.myParticipantId;
+    // data-person은 항상 붙여서(드래그 가능 여부와 무관하게) 버튼 등에서 식별할 수 있게 한다.
     const draggableAttributes = canEdit
       ? `draggable="true" data-person="${person.participant_id}"`
-      : "";
+      : `data-person="${person.participant_id}"`;
     const myLabel = isMe ? '<span class="me-tag">나</span>' : "";
     const displayName = escapeHtml(person.display_name);
     const initialLetter = escapeHtml(person.display_name?.[0] || "-");
-    return `<div class="member${isMe ? " me" : ""}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span>${displayName}</span>${myLabel}</div>`;
+    const unassignButton =
+      canEdit && allowUnassign
+        ? `<button type="button" class="member-unassign" data-unassign="${person.participant_id}" title="미배정으로 이동" aria-label="${displayName} 미배정으로 이동">×</button>`
+        : "";
+    return `<div class="member${isMe ? " me" : ""}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span class="member-name">${displayName}</span>${scoreMarkup(person)}${myLabel}${unassignButton}</div>`;
   }
 
   function teamCardMarkup(team, canEdit, showMyTeam) {
@@ -75,7 +85,7 @@
     const cardLabel = isMyTeam
       ? '<span class="mine-label">나의 팀</span>'
       : `<span>${team.members.length}명</span>`;
-    return `<article class="team-card${isMyTeam ? " mine" : ""}" data-team="${team.team_number}"><header><h2>${escapeHtml(team.name)}</h2>${cardLabel}</header><div class="members">${team.members.map((person) => memberMarkup(person, canEdit)).join("")}</div></article>`;
+    return `<article class="team-card${isMyTeam ? " mine" : ""}" data-team="${team.team_number}"><header><h2>${escapeHtml(team.name)}</h2>${cardLabel}</header><div class="members">${team.members.map((person) => memberMarkup(person, canEdit, { allowUnassign: true })).join("")}</div></article>`;
   }
 
   function renderBoard({ canEdit = false, showMyTeam = false } = {}) {
@@ -98,19 +108,31 @@
       .map((person) => {
         const dragAttributes = canEdit
           ? `draggable="true" data-person="${person.participant_id}"`
-          : "";
-        return `<span class="teams-chip" ${dragAttributes}>${escapeHtml(person.display_name)}</span>`;
+          : `data-person="${person.participant_id}"`;
+        const scoreLabel = scoreMarkup(person);
+        return `<span class="teams-chip" ${dragAttributes}>${escapeHtml(person.display_name)}${scoreLabel}</span>`;
       })
       .join("");
-    byId("unassignedArea").innerHTML = people.length
-      ? `<div class="teams-waiting"><strong>미배정 학생 ${people.length}명</strong><div>${memberChips}</div></div>`
-      : "";
+    // 편집 가능한 동안에는 미배정 인원이 0명이어도 드롭존을 항상 남겨둬서,
+    // 팀에 배치된 학생을 다시 미배정으로 끌어올 수 있는 자리를 유지한다.
+    if (!canEdit && people.length === 0) {
+      byId("unassignedArea").innerHTML = "";
+    } else {
+      const heading = people.length
+        ? `<strong>미배정 학생 ${people.length}명</strong>`
+        : "<strong>미배정 학생 없음</strong>";
+      const hint = canEdit
+        ? '<p class="teams-waiting-hint">여기로 학생을 끌어오면 미배정으로 이동합니다.</p>'
+        : "";
+      byId("unassignedArea").innerHTML =
+        `<div class="teams-waiting" id="unassignedDropZone">${heading}${hint}<div>${memberChips}</div></div>`;
+    }
     byId("unassignedMetric").textContent = `미배정 ${people.length}명`;
     byId("unassignedMetric").className = `teams-metric ${people.length ? "warn" : "neutral"}`;
   }
 
   function bindDragEvents() {
-    document.querySelectorAll("[data-person]").forEach((item) => {
+    document.querySelectorAll("[draggable='true'][data-person]").forEach((item) => {
       item.addEventListener("dragstart", (event) => {
         event.dataTransfer.setData("text/plain", item.dataset.person);
       });
@@ -128,6 +150,24 @@
           Number(event.dataTransfer.getData("text/plain")),
           Number(team.dataset.team),
         );
+      });
+    });
+    const dropZone = byId("unassignedDropZone");
+    if (dropZone) {
+      dropZone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        dropZone.classList.add("over");
+      });
+      dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+      dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        dropZone.classList.remove("over");
+        moveToUnassigned(Number(event.dataTransfer.getData("text/plain")));
+      });
+    }
+    document.querySelectorAll("[data-unassign]").forEach((button) => {
+      button.addEventListener("click", () => {
+        moveToUnassigned(Number(button.dataset.unassign));
       });
     });
   }
@@ -150,6 +190,23 @@
     const destination = data.teams.find((team) => team.team_number === teamNumber);
     if (!participant || !destination) return;
     destination.members.push(participant);
+    isDirty = true;
+    renderTutorBoard();
+  }
+
+  function moveToUnassigned(participantId) {
+    // 이미 미배정 상태거나(팀에서 못 찾음) 존재하지 않는 참가자면 아무 것도 하지 않는다.
+    let participant;
+    for (const team of data.teams) {
+      const index = team.members.findIndex((item) => item.participant_id === participantId);
+      if (index >= 0) {
+        [participant] = team.members.splice(index, 1);
+        break;
+      }
+    }
+    if (!participant) return;
+    data.unassigned_members = data.unassigned_members || [];
+    data.unassigned_members.push(participant);
     isDirty = true;
     renderTutorBoard();
   }
@@ -305,7 +362,8 @@
     setStatusBadge("DRAFT · 편집 가능", "pending");
     byId("pageDescription").textContent =
       "자동 배치 결과를 확인하고 필요한 학생만 다른 팀으로 이동하세요.";
-    byId("legend").textContent = "학생 이름을 끌어 다른 팀으로 이동할 수 있습니다.";
+    byId("legend").textContent =
+      "학생 이름을 끌어 다른 팀이나 미배정 영역으로 이동할 수 있습니다. 팀원 옆의 × 버튼으로도 미배정으로 뺄 수 있습니다.";
     configureTeamCountSelect();
     renderTutorBoard();
 

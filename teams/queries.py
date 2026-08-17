@@ -1,4 +1,6 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 class TeamQueryError(ValueError):
@@ -38,6 +40,9 @@ class TeamMemberView:
     participant_id: int
     student_number: str
     display_name: str
+    # 튜터가 팀을 배치할 때 참고하는 이전 회차 개인 점수 평균(시드 점수)이다.
+    # 시드 이력이 없으면 None이며, 학생용 화면에는 내려주지 않는다.
+    seed_score: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -67,8 +72,16 @@ class StudentTeamView:
     participant_id: int | None = None
 
 
-def build_management_team_view(data: TeamQueryData) -> ManagementTeamView:
-    """튜터용 전체 팀 구성과 미배정 참가자 목록을 만든다."""
+def build_management_team_view(
+    data: TeamQueryData,
+    seed_scores: Mapping[int, Decimal | None] | None = None,
+) -> ManagementTeamView:
+    """튜터용 전체 팀 구성과 미배정 참가자 목록을 만든다.
+
+    seed_scores가 주어지면 참가자별 개인 점수(시드 점수)를 함께 담는다. 학생용
+    화면(build_student_team_view)에서는 넘기지 않으므로 항상 None으로 내려간다.
+    """
+    seed_scores = seed_scores or {}
     participant_by_id = _participant_map(data.participants)
     assigned_participant_ids: set[int] = set()
     team_views = []
@@ -82,11 +95,11 @@ def build_management_team_view(data: TeamQueryData) -> ManagementTeamView:
             if participant is None:
                 raise TeamQueryError(f"unknown participant in team: {participant_id}")
             assigned_participant_ids.add(participant_id)
-            members.append(_to_member_view(participant))
+            members.append(_to_member_view(participant, seed_scores.get(participant_id)))
         team_views.append(TeamView(team.team_number, team.name, tuple(members)))
 
     unassigned_members = tuple(
-        _to_member_view(participant)
+        _to_member_view(participant, seed_scores.get(participant.participant_id))
         for participant in data.participants
         if participant.participant_id not in assigned_participant_ids
     )
@@ -144,10 +157,14 @@ def _participant_map(
     return participant_by_id
 
 
-def _to_member_view(participant: ParticipantSnapshot) -> TeamMemberView:
+def _to_member_view(
+    participant: ParticipantSnapshot,
+    seed_score: Decimal | None = None,
+) -> TeamMemberView:
     # 과거 회차 표시는 현재 User 이름이 아니라 회차 참가자 스냅샷을 사용한다.
     return TeamMemberView(
         participant_id=participant.participant_id,
         student_number=participant.student_number,
         display_name=participant.display_name,
+        seed_score=seed_score,
     )
