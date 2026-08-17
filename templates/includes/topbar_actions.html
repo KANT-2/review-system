@@ -1,4 +1,11 @@
 <div class="topbar-actions d-flex align-items-center gap-3">
+  <button type="button"
+          class="btn btn-sm btn-ax-secondary ax-theme-toggle"
+          id="axThemeToggle"
+          title="야간모드 전환"
+          aria-label="야간모드 전환">
+    <i class="bi bi-moon-stars" id="axThemeIcon"></i>
+  </button>
   {% if user.is_authenticated and user.role == 'student' %}
     <a href="{% url 'results:me' %}"
        class="btn btn-sm btn-ax-secondary"

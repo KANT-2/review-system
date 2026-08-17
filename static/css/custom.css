@@ -25,6 +25,28 @@
   --radius-lg: 16px;
 }
 
+/* 야간모드: 색은 전부 위 토큰을 통해 쓰므로 토큰만 다시 정의한다.
+   (Bootstrap 컴포넌트는 data-bs-theme="dark"가 알아서 처리한다) */
+[data-bs-theme="dark"] {
+  --ax-primary: #4C93F5;
+  --ax-primary-hover: #6BA6F8;
+  --ax-primary-container: #1C2E47;
+  --ax-nav: #0A1626;
+  --ax-nav-hover: #16283F;
+  --ax-bg: #0F1722;
+  --ax-surface: #172230;
+  --ax-surface-subtle: #1C2836;
+  --ax-text: #E6EDF6;
+  --ax-text-muted: #97A6BA;
+  --ax-border: #2A3849;
+  --ax-success: #4ADE80;
+  --ax-success-bg: #14301F;
+  --ax-warning: #FBBF24;
+  --ax-warning-bg: #3A2C10;
+  --ax-error: #F87171;
+  --ax-error-bg: #3A1A1A;
+}
+
 body {
   font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-color: var(--ax-bg);
@@ -221,6 +243,7 @@ main { padding: 28px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
 }
 .auth-shell {
   background-color: var(--ax-bg);
+  position: relative;
 }
 .auth-shell-inner {
   max-width: 460px;
@@ -644,4 +667,121 @@ tbody.collapse.show { display: table-row-group; }
   .ax-filter-chip {
     transition: none;
   }
+}
+
+/* ============================================================
+   야간모드 - 토큰으로 못 덮는 고정 색상만 여기서 보정한다
+   ============================================================ */
+[data-bs-theme="dark"] .btn-ax-secondary {
+  background-color: var(--ax-surface);
+}
+[data-bs-theme="dark"] .btn-ax-secondary:hover {
+  background-color: var(--ax-surface-subtle);
+  border-color: var(--ax-border);
+}
+[data-bs-theme="dark"] .badge-ax-expired,
+[data-bs-theme="dark"] .ax-badge-no-data,
+[data-bs-theme="dark"] .ax-badge-not-applicable,
+[data-bs-theme="dark"] .ax-badge-unpublished,
+[data-bs-theme="dark"] .ax-trend-flat {
+  background-color: var(--ax-surface-subtle);
+  color: var(--ax-text-muted);
+}
+[data-bs-theme="dark"] .eval-card.pending {
+  background-color: var(--ax-surface);
+}
+[data-bs-theme="dark"] .eval-card.expired {
+  background-color: var(--ax-surface-subtle);
+}
+[data-bs-theme="dark"] .eval-card.expired {
+  border-left-color: var(--ax-border);
+}
+[data-bs-theme="dark"] .progress-compact {
+  background-color: var(--ax-border);
+}
+[data-bs-theme="dark"] .custom-scroll::-webkit-scrollbar-track {
+  background: var(--ax-surface-subtle);
+}
+[data-bs-theme="dark"] .custom-scroll::-webkit-scrollbar-thumb {
+  background: var(--ax-border);
+}
+[data-bs-theme="dark"] .custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ax-text-muted);
+}
+[data-bs-theme="dark"] .ax-switch .ax-slider {
+  background: var(--ax-border);
+}
+[data-bs-theme="dark"] .ax-score-bar-tick {
+  background: var(--ax-text-muted);
+}
+[data-bs-theme="dark"] .ax-math-sign {
+  color: var(--ax-text-muted);
+}
+[data-bs-theme="dark"] .ax-score-part {
+  background: var(--ax-surface-subtle);
+}
+[data-bs-theme="dark"] .ax-rank-badge--gold {
+  background: #3A2C10;
+  color: #FBBF24;
+}
+[data-bs-theme="dark"] .ax-rank-badge--silver {
+  background: #22303F;
+  color: #C3CEDC;
+}
+[data-bs-theme="dark"] .ax-rank-badge--bronze {
+  background: #3A2418;
+  color: #E9A178;
+}
+[data-bs-theme="dark"] .ax-confirm-banner,
+[data-bs-theme="dark"] .ax-note-btn--filled {
+  border-color: #5A4718;
+}
+[data-bs-theme="dark"] .ax-summary-card--highlight {
+  border-color: #8A6A1F;
+}
+[data-bs-theme="dark"] .ax-summary-card--highlight .ax-summary-label {
+  color: #FBBF24;
+}
+[data-bs-theme="dark"] .ax-status-chip {
+  border-color: #24503A;
+}
+[data-bs-theme="dark"] .avatar-sky {
+  background: #12354D;
+  color: #7DD3FC;
+}
+[data-bs-theme="dark"] .avatar-amber {
+  background: #3A2C10;
+  color: #FCD34D;
+}
+[data-bs-theme="dark"] .sidebar-brand i {
+  color: #7FB3FF;
+}
+/* 야간모드 토글 버튼 */
+.ax-theme-toggle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ax-theme-toggle--floating {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+/* 로그인 입력창 아이콘 영역 */
+.ax-input-group .input-group-text {
+  background-color: var(--ax-surface-subtle);
+  border-color: var(--ax-border);
+  color: var(--ax-text-muted);
+}
+.ax-input-group .form-control {
+  border-left: 0;
+}
+.ax-input-group .form-control:focus {
+  box-shadow: none;
+  border-color: var(--ax-border);
 }
