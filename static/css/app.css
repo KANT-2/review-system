@@ -323,6 +323,14 @@ tbody.collapse.show {
   background: #b6c0cf;
 }
 
+.ax-score-bar-tick--40 {
+  left: 80%;
+}
+
+.ax-score-bar-tick--45 {
+  left: 90%;
+}
+
 /* ---- response-rate progress ring ---- */
 
 .ax-progress-ring-wrap {
