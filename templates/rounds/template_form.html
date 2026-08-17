@@ -53,10 +53,10 @@
                   <th scope="col" class="text-center">삭제</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="questionRows">
                 {% for question_form in formset %}
                   <tr>
-                    <td class="text-end text-muted">{{ forloop.counter }}</td>
+                    <td class="text-end text-muted question-order">{{ forloop.counter }}</td>
                     <td>
                       {{ question_form.id }}
                       {{ question_form.prompt }}
@@ -75,8 +75,13 @@
               <div class="alert alert-danger py-2 small mb-0">{{ error }}</div>
             </div>
           {% endfor %}
-          <div class="card-body-custom">
-            <p class="text-muted font-size-115 mb-0">빈 문항 줄은 저장할 때 무시됩니다. 줄을 더 쓰려면 저장한 뒤 다시 열어 주세요.</p>
+          <div class="card-body-custom d-flex justify-content-between align-items-center gap-2">
+            <p class="text-muted font-size-115 mb-0">빈 문항 줄은 저장할 때 무시됩니다.</p>
+            {% if not locked %}
+              <button type="button" class="btn btn-ax-secondary btn-sm" id="addQuestionRow">
+                <i class="bi bi-plus-lg me-1"></i>문항 줄 추가
+              </button>
+            {% endif %}
           </div>
         </section>
         {% if not locked %}
@@ -85,4 +90,47 @@
       </div>
     </div>
   </form>
+  {% if not locked %}
+    {% comment %}빈 폼 한 벌을 숨겨 두고, 줄 추가는 이걸 복제해서 만든다.
+    Django 폼셋은 __prefix__ 자리에 새 인덱스를 넣으면 그대로 인식한다.{% endcomment %}
+    <template id="questionRowTemplate">
+      <tr>
+        <td class="text-end text-muted question-order"></td>
+        <td>{{ formset.empty_form.prompt }}</td>
+        <td>{{ formset.empty_form.response_type }}</td>
+        <td class="text-center">{{ formset.empty_form.is_required }}</td>
+        <td class="text-center"></td>
+      </tr>
+    </template>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  <script>
+  (() => {
+    const addButton = document.getElementById('addQuestionRow');
+    const rowTemplate = document.getElementById('questionRowTemplate');
+    const rows = document.getElementById('questionRows');
+    const totalForms = document.querySelector("[name$='-TOTAL_FORMS']");
+    if (!addButton || !rowTemplate || !rows || !totalForms) return;
+
+    const renumber = () => {
+      rows.querySelectorAll('.question-order').forEach((cell, index) => {
+        cell.textContent = String(index + 1);
+      });
+    };
+
+    addButton.addEventListener('click', () => {
+      const index = Number(totalForms.value);
+      const row = rowTemplate.content.firstElementChild.cloneNode(true);
+      row.querySelectorAll('[name], [id]').forEach((field) => {
+        if (field.name) field.name = field.name.replace(/__prefix__/g, index);
+        if (field.id) field.id = field.id.replace(/__prefix__/g, index);
+      });
+      rows.appendChild(row);
+      totalForms.value = String(index + 1);
+      renumber();
+      row.querySelector("[name$='-prompt']")?.focus();
+    });
+  })();
+  </script>
 {% endblock %}

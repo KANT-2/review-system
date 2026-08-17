@@ -18,6 +18,7 @@ urlpatterns = [
     path("rounds/<int:round_id>/", views.round_edit, name="edit"),
     path("rounds/<int:round_id>/start/", views.round_start, name="start"),
     path("rounds/<int:round_id>/reviews/", views.round_reviews, name="reviews"),
+    path("rounds/<int:round_id>/answers/", views.round_text_answers, name="text-answers"),
     path("rounds/<int:round_id>/complete/", views.round_complete, name="complete"),
     path("rounds/<int:round_id>/delete/", views.round_delete, name="delete"),
     path("rounds/<int:round_id>/revert/", views.round_revert, name="revert"),
