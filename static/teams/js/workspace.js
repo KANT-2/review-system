@@ -7,11 +7,14 @@
   let isDirty = false;
 
   const byId = (id) => document.getElementById(id);
+  // CSRF 쿠키는 HttpOnly라 스크립트로 읽을 수 없다 - 서버가 페이지로 내려준 토큰을 쓴다.
   const csrfToken = () =>
+    config?.csrfToken ||
     document.cookie
       .split("; ")
       .find((item) => item.startsWith("csrftoken="))
-      ?.split("=")[1] || "";
+      ?.split("=")[1] ||
+    "";
 
   function escapeHtml(value) {
     const element = document.createElement("span");
