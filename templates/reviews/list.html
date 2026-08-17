@@ -2,11 +2,17 @@
 {% block title %}{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %} | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %}{% endblock %}
 {% block content %}
-  <div class="page-header"><div><h1 class="page-title">{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %}</h1><p class="page-desc">{% if review_type == 'TEAM' %}내 팀을 제외한 다른 팀을 평가합니다.{% else %}같은 팀의 다른 구성원을 평가합니다.{% endif %}</p></div>{% if participant %}<span class="badge bg-primary fs-6">{{ completed_count }}/{{ targets|length }} 완료</span>{% endif %}</div>
-  {% if not participant %}<section class="card-custom"><div class="card-body-custom text-center py-5"><i class="bi bi-calendar-x fs-1 text-muted"></i><h2 class="h5 fw-bold mt-3">현재 참가 중인 회차가 없습니다</h2><p class="text-muted mb-0">회차가 시작되면 평가 대상이 표시됩니다.</p></div></section>
+  <div class="page-header"><div><h1 class="page-title">{% if review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %}</h1>
+    <p class="page-desc">{% if review_type == 'TEAM' %}내 팀을 제외한 다른 팀을 평가합니다.{% else %}같은 팀의 다른 구성원을 평가합니다.{% endif %}</p></div>{% if participant %}<span class="badge bg-primary fs-6">{{ completed_count }}/{{ targets|length }} 완료</span>{% endif %}</div>
+  {% if not participant %}<section class="card-custom"><div class="card-body-custom text-center py-5"><i class="bi bi-calendar-x fs-1 text-muted"></i><h2 class="h5 fw-bold mt-3">현재 참가 중인 회차가 없습니다</h2>
+  <p class="text-muted mb-0">회차가 시작되면 평가 대상이 표시됩니다.</p>
+  </div>
+  </section>
 {% else %}
   {% if window_state == 'BEFORE' %}<div class="alert alert-info">평가 시작 전입니다. {{ participant.round.evaluation_start_at|date:"Y-m-d H:i" }}부터 제출할 수 있습니다.</div>{% elif window_state == 'CLOSED' %}<div class="alert alert-warning">평가 기간이 종료되어 새로 제출할 수 없습니다.</div>{% endif %}
-  <div class="row g-3">{% for target in targets %}<div class="col-12 col-md-6 col-xl-4"><article class="card-custom h-100"><div class="card-body-custom d-flex flex-column"><div class="d-flex justify-content-between gap-2"><div><span class="badge {% if target.completed %}bg-success{% else %}bg-warning text-dark{% endif %}">{% if target.completed %}제출 완료{% else %}미완료{% endif %}</span><h2 class="h5 fw-bold mt-3 mb-1">{{ target.label }}</h2><p class="text-muted small">{{ target.description }}</p></div></div><a href="{% url target.url_name target.pk %}"
-   class="btn {% if target.completed %}btn-outline-secondary{% else %}btn-primary{% endif %} mt-auto">{% if target.completed %}내 응답 보기{% else %}평가하기{% endif %}</a></div></article></div>{% empty %}<div class="col-12"><section class="card-custom"><div class="card-body-custom text-center py-5"><h2 class="h5 fw-bold">평가 대상 없음</h2><p class="text-muted mb-0">정상 완료 상태입니다.</p></div></section></div>{% endfor %}</div>
+  <div class="row g-3">{% for target in targets %}<div class="col-12 col-md-6 col-xl-4"><article class="card-custom h-100"><div class="card-body-custom d-flex flex-column"><div class="d-flex justify-content-between gap-2"><div><span class="badge {% if target.completed %}bg-success{% else %}bg-warning text-dark{% endif %}">{% if target.completed %}제출 완료{% else %}미완료{% endif %}</span><h2 class="h5 fw-bold mt-3 mb-1">{{ target.label }}</h2>
+    <p class="text-muted small">{{ target.description }}</p></div></div><a href="{% url target.url_name target.pk %}"
+   class="btn {% if target.completed %}btn-outline-secondary{% else %}btn-primary{% endif %} mt-auto">{% if target.completed %}내 응답 보기{% else %}평가하기{% endif %}</a></div></article></div>{% empty %}<div class="col-12"><section class="card-custom"><div class="card-body-custom text-center py-5"><h2 class="h5 fw-bold">평가 대상 없음</h2>
+    <p class="text-muted mb-0">정상 완료 상태입니다.</p></div></section></div>{% endfor %}</div>
 {% endif %}
 {% endblock %}

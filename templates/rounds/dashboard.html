@@ -55,7 +55,11 @@
       </div>
     </section>
   {% elif latest_draft %}
-    <section class="card-custom mb-4"><div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-3"><div><h2 class="h5 fw-bold">{{ latest_draft.title }} 준비를 이어가세요</h2><p class="text-muted mb-0">참가자와 질문지를 확인한 뒤 팀을 편성합니다.</p></div><a href="{% url 'rounds:edit' latest_draft.pk %}"
+    <section class="card-custom mb-4">
+      <div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <h2 class="h5 fw-bold">{{ latest_draft.title }} 준비를 이어가세요</h2>
+          <p class="text-muted mb-0">참가자와 질문지를 확인한 뒤 팀을 편성합니다.</p></div><a href="{% url 'rounds:edit' latest_draft.pk %}"
    class="btn btn-ax-primary">회차 설정</a></div></section>
   {% else %}
     <section class="card-custom mb-4">
