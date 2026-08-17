@@ -7,6 +7,8 @@ from django.utils import timezone
 
 from accounts.models import User
 from audit.models import AuditEvent
+from results.models import CalculationRun
+from reviews.models import ReviewAnswer, ReviewSubmission
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from rounds.services import start_round
 from teams.models import Team, TeamMembership
@@ -257,3 +259,143 @@ class QuestionTemplateScreenTests(TestCase):
             self.client.get(reverse("rounds:template-create")),
         ):
             self.assertEqual(response.status_code, 403)
+
+
+class RoundLifecycleReversalTests(TestCase):
+    """운영 실수를 되돌리는 경로 - 삭제·준비 중으로 되돌리기·다시 열기."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="lifecycle-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="lifecycle-student@example.com",
+            password="strong-test-password",
+            student_number="L001",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.client.force_login(self.tutor)
+
+    def _round(self, status=EvaluationRound.Status.DRAFT, **extra):
+        now = timezone.now()
+        round_obj = EvaluationRound.objects.create(
+            title="되돌리기 회차",
+            status=status,
+            evaluation_start_at=now,
+            evaluation_end_at=now + timedelta(days=1),
+            target_team_count=2,
+            created_by=self.tutor,
+            started_at=now if status != EvaluationRound.Status.DRAFT else None,
+            completed_at=now if status == EvaluationRound.Status.COMPLETED else None,
+            **extra,
+        )
+        participant = RoundParticipant.objects.create(
+            round=round_obj,
+            user=self.student,
+            student_number_snapshot="L001",
+            display_name_snapshot="학생",
+        )
+        team = Team.objects.create(round=round_obj, team_number=1, name="1팀")
+        TeamMembership.objects.create(team=team, participant=participant)
+        return round_obj
+
+    def test_draft_round_is_deleted_with_teams_and_participants(self):
+        round_obj = self._round()
+
+        response = self.client.post(reverse("rounds:delete", args=[round_obj.pk]))
+
+        self.assertRedirects(response, reverse("rounds:list"))
+        self.assertFalse(EvaluationRound.objects.filter(pk=round_obj.pk).exists())
+        self.assertFalse(Team.objects.filter(round_id=round_obj.pk).exists())
+        self.assertFalse(RoundParticipant.objects.filter(round_id=round_obj.pk).exists())
+        self.assertTrue(AuditEvent.objects.filter(action="ROUND_DELETED").exists())
+
+    def test_started_round_cannot_be_deleted(self):
+        round_obj = self._round(status=EvaluationRound.Status.IN_PROGRESS)
+
+        self.client.post(reverse("rounds:delete", args=[round_obj.pk]))
+
+        self.assertTrue(EvaluationRound.objects.filter(pk=round_obj.pk).exists())
+
+    def test_started_round_reverts_to_draft_when_nothing_submitted(self):
+        round_obj = self._round(status=EvaluationRound.Status.IN_PROGRESS)
+
+        self.client.post(reverse("rounds:revert", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.DRAFT)
+        self.assertIsNone(round_obj.started_at)
+        self.assertTrue(AuditEvent.objects.filter(action="ROUND_REVERTED_TO_DRAFT").exists())
+
+    def test_round_with_submissions_is_not_reverted(self):
+        template = QuestionTemplate.objects.create(
+            name="되돌리기 팀", category="TEAM", created_by=self.tutor
+        )
+        question = TemplateQuestion.objects.create(
+            template=template, response_type="RATING_5", prompt="문항", display_order=1
+        )
+        round_obj = self._round(status=EvaluationRound.Status.IN_PROGRESS, team_template=template)
+        other_team = Team.objects.create(round=round_obj, team_number=2, name="2팀")
+        submission = ReviewSubmission.objects.create(
+            round=round_obj,
+            review_type="TEAM",
+            evaluator=round_obj.participants.first(),
+            target_team=other_team,
+        )
+        ReviewAnswer.objects.create(submission=submission, question=question, rating_value=4)
+
+        self.client.post(reverse("rounds:revert", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
+
+    def test_completed_round_reopens_when_not_scored(self):
+        round_obj = self._round(status=EvaluationRound.Status.COMPLETED)
+
+        self.client.post(reverse("rounds:reopen", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
+        self.assertIsNone(round_obj.completed_at)
+        self.assertTrue(AuditEvent.objects.filter(action="ROUND_REOPENED").exists())
+
+    def test_scored_round_is_not_reopened(self):
+        round_obj = self._round(status=EvaluationRound.Status.COMPLETED)
+        CalculationRun.objects.create(
+            round=round_obj,
+            version=1,
+            formula_version="score-v1",
+            executed_by=self.tutor,
+            status=CalculationRun.Status.SUCCEEDED,
+            is_active=True,
+            finished_at=timezone.now(),
+        )
+
+        self.client.post(reverse("rounds:reopen", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.COMPLETED)
+
+    def test_reopen_is_blocked_while_another_round_is_running(self):
+        self._round(status=EvaluationRound.Status.IN_PROGRESS)
+        completed = self._round(status=EvaluationRound.Status.COMPLETED)
+
+        self.client.post(reverse("rounds:reopen", args=[completed.pk]))
+
+        completed.refresh_from_db()
+        self.assertEqual(completed.status, EvaluationRound.Status.COMPLETED)
+
+    def test_students_cannot_reverse_rounds(self):
+        round_obj = self._round()
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse("rounds:delete", args=[round_obj.pk]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(EvaluationRound.objects.filter(pk=round_obj.pk).exists())

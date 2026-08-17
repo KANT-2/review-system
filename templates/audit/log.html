@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}감사 로그 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}감사 로그{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">감사 로그</h1>
+      <p class="page-desc">채점·공개·승인·팀 편성처럼 결과에 영향을 주는 동작의 기록입니다. 민감한 원문은 남기지 않습니다.</p>
+    </div>
+  </div>
+  <section class="card-custom">
+    <div class="card-header-custom">
+      <div class="card-title-custom">기록 {{ page.paginator.count }}건</div>
+      <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+        <label class="visually-hidden" for="round">회차</label>
+        <select class="ax-round-select" id="round" name="round">
+          <option value="">회차 전체</option>
+          {% for item in rounds %}
+            <option value="{{ item.pk }}"
+                    {% if item.pk == selected_round %}selected{% endif %}>{{ item.title }}</option>
+          {% endfor %}
+        </select>
+        <label class="visually-hidden" for="action">동작</label>
+        <select class="ax-round-select" id="action" name="action">
+          <option value="">동작 전체</option>
+          {% for value, label in actions %}
+            <option value="{{ value }}"
+                    {% if value == selected_action %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <label class="visually-hidden" for="actor">수행자</label>
+        <select class="ax-round-select" id="actor" name="actor">
+          <option value="">수행자 전체</option>
+          {% for person in actors %}
+            <option value="{{ person.pk }}"
+                    {% if person.pk == selected_actor %}selected{% endif %}>
+              {{ person.first_name|default:person.email }}
+            </option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-ax-secondary">조회</button>
+      </form>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">시각</th>
+            <th scope="col">동작</th>
+            <th scope="col">수행자</th>
+            <th scope="col">회차</th>
+            <th scope="col">대상</th>
+            <th scope="col">요약</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in page %}
+            <tr>
+              <td class="text-muted font-size-115">{{ event.created_at|date:"Y-m-d H:i:s" }}</td>
+              <td class="fw-semibold">
+                {{ event.action_label }}
+                {% if event.result != 'SUCCEEDED' %}<span class="badge badge-ax badge-ax-danger ms-1">실패</span>{% endif %}
+              </td>
+              <td>{{ event.actor.first_name|default:event.actor.email|default:"-" }}</td>
+              <td class="text-muted">{{ event.round.title|default:"-" }}</td>
+              <td class="text-muted font-size-115">
+                {{ event.target_type|cut:"accounts."|cut:"rounds."|cut:"results."|cut:"teams." }}
+                #{{ event.target_id }}
+              </td>
+              <td class="text-muted font-size-115">
+                {% for key, value in event.summary.items %}
+                  {{ key }}={{ value }}{% if not forloop.last %} · {% endif %}
+                {% empty %}
+                  -
+                {% endfor %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-5">조건에 맞는 기록이 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page.has_other_pages %}
+      <div class="card-body-custom d-flex align-items-center justify-content-between">
+        <span class="text-muted font-size-115">{{ page.number }} / {{ page.paginator.num_pages }} 페이지</span>
+        <div class="d-flex gap-2">
+          {% if page.has_previous %}
+            <a class="btn btn-sm btn-ax-secondary"
+               href="?page={{ page.previous_page_number }}{% if selected_round %}&round={{ selected_round }}{% endif %}{% if selected_action %}&action={{ selected_action }}{% endif %}{% if selected_actor %}&actor={{ selected_actor }}{% endif %}">이전</a>
+          {% endif %}
+          {% if page.has_next %}
+            <a class="btn btn-sm btn-ax-secondary"
+               href="?page={{ page.next_page_number }}{% if selected_round %}&round={{ selected_round }}{% endif %}{% if selected_action %}&action={{ selected_action }}{% endif %}{% if selected_actor %}&actor={{ selected_actor }}{% endif %}">다음</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

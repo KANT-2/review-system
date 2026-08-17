@@ -16,6 +16,12 @@ urlpatterns = [
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("mypage/", views.mypage_view, name="mypage"),
     path("tutor/dashboard/", views.tutor_dashboard, name="tutor_dashboard"),
+    path("tutor/accounts/", views.account_admin, name="account_admin"),
+    path(
+        "tutor/accounts/<int:user_id>/<str:action>/",
+        views.account_action,
+        name="account_action",
+    ),
     path("tutor/whitelist/", views.whitelist_view, name="whitelist"),
     path("tutor/whitelist/<int:entry_id>/delete/", views.whitelist_delete, name="whitelist_delete"),
     path("tutor/approve/<int:user_id>/", views.approve_user, name="approve_user"),

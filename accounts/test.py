@@ -309,6 +309,112 @@ class AccountsTests(TestCase):
         self.assertEqual(removal.status_code, 403)
         self.assertTrue(WhitelistEmail.objects.filter(pk=self.whitelist_entry.pk).exists())
 
+    def test_account_screen_lists_and_filters_accounts(self):
+        self.client.force_login(self.tutor_user)
+
+        listing = self.client.get(reverse("accounts:account_admin"))
+        students_only = self.client.get(reverse("accounts:account_admin"), {"role": "student"})
+        searched = self.client.get(reverse("accounts:account_admin"), {"q": "홍길동"})
+
+        self.assertContains(listing, self.approved_student.email)
+        self.assertContains(listing, self.tutor_user.email)
+        self.assertNotIn(self.tutor_user, students_only.context["accounts"])
+        self.assertIn(self.approved_student, searched.context["accounts"])
+
+    def test_rejected_account_can_be_moved_back_to_pending(self):
+        rejected = User.objects.create_user(
+            email="rejected@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.REJECTED,
+        )
+        self.client.force_login(self.tutor_user)
+
+        response = self.client.post(
+            reverse("accounts:account_action", args=[rejected.pk, "revert-approval"])
+        )
+
+        self.assertRedirects(response, reverse("accounts:account_admin"))
+        rejected.refresh_from_db()
+        self.assertEqual(rejected.approval_status, User.ApprovalStatus.PENDING)
+
+    def test_tutor_requires_password_reset_for_a_student(self):
+        self.client.force_login(self.tutor_user)
+
+        self.client.post(
+            reverse(
+                "accounts:account_action", args=[self.approved_student.pk, "require-password-reset"]
+            )
+        )
+
+        self.approved_student.refresh_from_db()
+        self.assertTrue(self.approved_student.must_rotate_password)
+
+    def test_tutor_cannot_deactivate_or_change_roles(self):
+        """계정 비활성화와 역할 변경은 관리자만 - 튜터에게는 버튼도 보이지 않는다."""
+        self.client.force_login(self.tutor_user)
+
+        page = self.client.get(reverse("accounts:account_admin"))
+        deactivate = self.client.post(
+            reverse("accounts:account_action", args=[self.approved_student.pk, "deactivate"])
+        )
+        promote = self.client.post(
+            reverse("accounts:account_action", args=[self.approved_student.pk, "make-tutor"])
+        )
+
+        self.assertFalse(page.context["can_change_role"])
+        self.assertContains(page, "관리자만 할 수 있습니다")
+        self.approved_student.refresh_from_db()
+        self.assertTrue(self.approved_student.is_active)
+        self.assertEqual(self.approved_student.role, User.Role.STUDENT)
+        self.assertRedirects(deactivate, reverse("accounts:account_admin"))
+        self.assertRedirects(promote, reverse("accounts:account_admin"))
+
+    def test_admin_deactivates_account_and_ends_its_sessions(self):
+        admin = User.objects.create_superuser(
+            email="ops-admin@ax.com", password=STRONG_PASSWORD, first_name="관리자"
+        )
+        before = self.approved_student.auth_session_version
+        self.client.force_login(admin)
+
+        self.client.post(
+            reverse("accounts:account_action", args=[self.approved_student.pk, "deactivate"])
+        )
+
+        self.approved_student.refresh_from_db()
+        self.assertFalse(self.approved_student.is_active)
+        self.assertGreater(self.approved_student.auth_session_version, before)
+
+    def test_admin_switches_role_between_student_and_tutor(self):
+        admin = User.objects.create_superuser(
+            email="role-admin@ax.com", password=STRONG_PASSWORD, first_name="관리자"
+        )
+        self.client.force_login(admin)
+
+        self.client.post(
+            reverse("accounts:account_action", args=[self.approved_student.pk, "make-tutor"])
+        )
+        self.approved_student.refresh_from_db()
+        self.assertEqual(self.approved_student.role, User.Role.TUTOR)
+
+        self.client.post(
+            reverse("accounts:account_action", args=[self.approved_student.pk, "make-student"])
+        )
+        self.approved_student.refresh_from_db()
+        self.assertEqual(self.approved_student.role, User.Role.STUDENT)
+
+    def test_students_cannot_reach_account_management(self):
+        self.client.force_login(self.approved_student)
+
+        listing = self.client.get(reverse("accounts:account_admin"))
+        action = self.client.post(
+            reverse("accounts:account_action", args=[self.tutor_user.pk, "deactivate"])
+        )
+
+        self.assertEqual(listing.status_code, 403)
+        self.assertEqual(action.status_code, 403)
+
     def test_login_keeps_signup_as_modal_and_signup_url_opens_it(self):
         login = self.client.get(reverse("accounts:login"))
         signup = self.client.get(reverse("accounts:signup"))
