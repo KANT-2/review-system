@@ -25,5 +25,6 @@ urlpatterns = [
     path("reviews/", include("reviews.urls")),
     path("results/", include("results.urls")),
     path("manage/", include("rounds.urls")),
+    path("manage/audit/", include("audit.urls")),
     path("", account_views.home_view, name="home"),
 ]

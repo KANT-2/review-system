@@ -14,8 +14,11 @@ from rounds.services import (
     complete_round,
     copy_question_template,
     delete_question_template,
+    delete_round,
     get_review_progress,
     question_template_rows,
+    reopen_round,
+    revert_round_to_draft,
     round_start_errors,
     rounds_dashboard_rows,
     save_question_template,
@@ -234,3 +237,42 @@ def template_delete(request, template_id):
     else:
         messages.success(request, "템플릿을 삭제했습니다.")
     return redirect("rounds:template-list")
+
+
+def _round_lifecycle_action(request, round_id, *, action, success_message):
+    """회차 상태를 되돌리는 세 가지 동작이 결과 처리 방식이 같아 한곳에 모았다."""
+    _require_operations(request.user)
+    try:
+        action(round_id=round_id, actor=request.user)
+    except (EvaluationRound.DoesNotExist, ValidationError) as error:
+        messages.error(request, " ".join(getattr(error, "messages", [str(error)])))
+        return redirect("rounds:list")
+    messages.success(request, success_message)
+    return redirect("rounds:list")
+
+
+@login_required
+@require_POST
+def round_delete(request, round_id):
+    return _round_lifecycle_action(
+        request, round_id, action=delete_round, success_message="회차를 삭제했습니다."
+    )
+
+
+@login_required
+@require_POST
+def round_revert(request, round_id):
+    return _round_lifecycle_action(
+        request,
+        round_id,
+        action=revert_round_to_draft,
+        success_message="회차를 준비 중으로 되돌렸습니다.",
+    )
+
+
+@login_required
+@require_POST
+def round_reopen(request, round_id):
+    return _round_lifecycle_action(
+        request, round_id, action=reopen_round, success_message="회차를 다시 열었습니다."
+    )

@@ -355,3 +355,96 @@ def remove_whitelist_email(*, entry_id, actor):
     )
     entry.delete()
     return entry
+
+
+def _require_account_authority(actor, target):
+    """계정 상태를 바꿀 권한 규칙 - transition_approval과 같은 기준을 쓴다.
+
+    관리자는 전원, 튜터는 수강생만. 자기 계정과 슈퍼유저는 화면에서 건드리지 못한다.
+    """
+    if target.pk == actor.pk or target.is_superuser:
+        raise PermissionDenied
+    if actor.is_application_admin:
+        return
+    is_tutor = (
+        actor.role == User.Role.TUTOR
+        and actor.is_active
+        and actor.approval_status == User.ApprovalStatus.APPROVED
+    )
+    if not is_tutor or target.role != User.Role.STUDENT:
+        raise PermissionDenied
+
+
+@transaction.atomic
+def revert_approval_to_pending(*, actor, target_id):
+    """반려한 계정을 승인 대기로 되돌린다 - 반려는 최종 상태가 아니어야 한다."""
+    target = User.objects.select_for_update().get(pk=target_id)
+    _require_account_authority(actor, target)
+    if target.approval_status != User.ApprovalStatus.REJECTED:
+        raise InvalidAccountTransition("반려된 계정만 승인 대기로 되돌릴 수 있습니다.")
+    target.approval_status = User.ApprovalStatus.PENDING
+    target.auth_session_version = F("auth_session_version") + 1
+    target.save(update_fields=["approval_status", "auth_session_version"])
+    record_event(
+        action="ACCOUNT_APPROVAL_REVERTED",
+        target=target,
+        actor=actor,
+        summary={"to": User.ApprovalStatus.PENDING},
+    )
+    target.refresh_from_db()
+    return target
+
+
+@transaction.atomic
+def change_user_role(*, actor, target_id, role):
+    """수강생과 튜터 사이의 역할만 바꾼다.
+
+    관리자 역할은 is_staff와 함께 움직여야 해서(accounts_staff_role_consistent 제약) 화면에서
+    다루지 않는다 - 권한 상승 경로를 만들지 않기 위해서다.
+    """
+    if role not in {User.Role.STUDENT, User.Role.TUTOR}:
+        raise InvalidAccountTransition("수강생과 튜터 사이에서만 역할을 바꿀 수 있습니다.")
+    target = User.objects.select_for_update().get(pk=target_id)
+    if not actor.is_application_admin:
+        raise PermissionDenied
+    if target.pk == actor.pk or target.is_superuser or target.role == User.Role.ADMIN:
+        raise PermissionDenied
+    if target.role == role:
+        raise InvalidAccountTransition("이미 같은 역할입니다.")
+    previous = target.role
+    target.role = role
+    target.auth_session_version = F("auth_session_version") + 1
+    target.save(update_fields=["role", "auth_session_version"])
+    record_event(
+        action="ACCOUNT_ROLE_CHANGED",
+        target=target,
+        actor=actor,
+        summary={"from": previous, "to": role},
+    )
+    target.refresh_from_db()
+    return target
+
+
+@transaction.atomic
+def require_password_rotation(*, actor, target_id):
+    """다음 로그인에서 비밀번호를 새로 정하게 만든다(기존 세션도 함께 끊는다)."""
+    target = User.objects.select_for_update().get(pk=target_id)
+    _require_account_authority(actor, target)
+    target.must_rotate_password = True
+    target.auth_session_version = F("auth_session_version") + 1
+    target.save(update_fields=["must_rotate_password", "auth_session_version"])
+    record_event(action="ACCOUNT_PASSWORD_ROTATION_REQUIRED", target=target, actor=actor)
+    target.refresh_from_db()
+    return target
+
+
+def account_rows(*, role=None, status=None, query=None):
+    """계정 관리 화면 목록."""
+    users = User.objects.exclude(is_superuser=True).order_by("role", "email")
+    if role:
+        users = users.filter(role=role)
+    if status:
+        users = users.filter(approval_status=status)
+    if query:
+        users = users.filter(email__icontains=query) | users.filter(first_name__icontains=query)
+    return users

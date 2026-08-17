@@ -24,14 +24,19 @@ from accounts.services import (
     AccountConflictError,
     InvalidAccountTransition,
     RateLimitExceeded,
+    account_rows,
     add_whitelist_emails,
     change_password,
+    change_user_role,
     confirm_email_ownership,
     finalize_password_login,
     get_confirmation_address,
     remove_whitelist_email,
     request_signup,
+    require_password_rotation,
     resend_confirmation,
+    revert_approval_to_pending,
+    set_account_active,
     store_confirmation_grant,
     transition_approval,
     whitelist_rows,
@@ -311,6 +316,82 @@ def whitelist_delete(request, entry_id):
     else:
         messages.success(request, f"{entry.email}을 명단에서 지웠습니다.")
     return redirect("accounts:whitelist")
+
+
+@login_required
+def account_admin(request):
+    """계정 관리 - 승인 상태·활성 여부·역할을 화면에서 다룬다."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    role = request.GET.get("role") or ""
+    status = request.GET.get("status") or ""
+    query = (request.GET.get("q") or "").strip()
+    if role not in dict(User.Role.choices):
+        role = ""
+    if status not in dict(User.ApprovalStatus.choices):
+        status = ""
+    return render(
+        request,
+        "accounts/account_admin.html",
+        {
+            "accounts": account_rows(role=role, status=status, query=query),
+            "selected_role": role,
+            "selected_status": status,
+            "query": query,
+            "role_choices": User.Role.choices,
+            "status_choices": User.ApprovalStatus.choices,
+            "can_change_role": request.user.is_application_admin,
+        },
+    )
+
+
+@login_required
+@require_POST
+def account_action(request, user_id, action):
+    """계정 관리 화면의 한 줄 동작 - 되돌리기·역할 변경·활성 전환·비밀번호 재설정 요구."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    handlers = {
+        "revert-approval": lambda: revert_approval_to_pending(
+            actor=request.user, target_id=user_id
+        ),
+        "activate": lambda: set_account_active(
+            actor=request.user, target_id=user_id, is_active=True
+        ),
+        "deactivate": lambda: set_account_active(
+            actor=request.user, target_id=user_id, is_active=False
+        ),
+        "require-password-reset": lambda: require_password_rotation(
+            actor=request.user, target_id=user_id
+        ),
+        "make-tutor": lambda: change_user_role(
+            actor=request.user, target_id=user_id, role=User.Role.TUTOR
+        ),
+        "make-student": lambda: change_user_role(
+            actor=request.user, target_id=user_id, role=User.Role.STUDENT
+        ),
+    }
+    messages_by_action = {
+        "revert-approval": "승인 대기로 되돌렸습니다.",
+        "activate": "계정을 다시 활성화했습니다.",
+        "deactivate": "계정을 비활성화했습니다. 기존 로그인 세션도 끊겼습니다.",
+        "require-password-reset": "다음 로그인에서 비밀번호를 새로 정하도록 했습니다.",
+        "make-tutor": "튜터로 역할을 바꿨습니다.",
+        "make-student": "수강생으로 역할을 바꿨습니다.",
+    }
+    handler = handlers.get(action)
+    if handler is None:
+        messages.error(request, "지원하지 않는 동작입니다.")
+        return redirect("accounts:account_admin")
+    try:
+        handler()
+    except PermissionDenied:
+        messages.error(request, "이 계정에 대한 권한이 없습니다.")
+    except (InvalidAccountTransition, User.DoesNotExist) as error:
+        messages.error(request, str(error) or "상태가 맞지 않아 처리하지 못했습니다.")
+    else:
+        messages.success(request, messages_by_action[action])
+    return redirect("accounts:account_admin")
 
 
 def _html_transition(request, user_id, decision):

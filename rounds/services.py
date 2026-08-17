@@ -167,6 +167,8 @@ def rounds_dashboard_rows():
         team_count=Count("teams", distinct=True),
         submission_count=Count("review_submissions", distinct=True),
         active_runs=Count("calculation_runs", filter=Q(calculation_runs__is_active=True)),
+        # 다시 열기 가능 여부는 활성 여부와 무관하게 "채점 기록이 있었는지"로 판단한다.
+        run_count=Count("calculation_runs", distinct=True),
     )
 
 
@@ -269,3 +271,83 @@ def delete_question_template(*, template_id, actor):
     )
     template.questions.all().delete()
     template.delete()
+
+
+@transaction.atomic
+def delete_round(*, round_id, actor):
+    """준비 중인 회차를 지운다.
+
+    시작된 회차는 참가자 스냅샷이 동결되고 제출·채점이 붙기 때문에 지울 수 없다. 준비 중
+    회차는 팀·구성원·참가자를 함께 정리해야 지워진다(모두 PROTECT로 묶여 있다).
+    """
+    round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
+    if round_obj.status != EvaluationRound.Status.DRAFT:
+        raise ValidationError("준비 중인 회차만 삭제할 수 있습니다.")
+    if round_obj.review_submissions.exists() or round_obj.calculation_runs.exists():
+        raise ValidationError("제출이나 채점 기록이 있는 회차는 삭제할 수 없습니다.")
+    record_event(
+        action="ROUND_DELETED",
+        target=round_obj,
+        actor=actor,
+        summary={"title": round_obj.title, "participant_count": round_obj.participants.count()},
+    )
+    for team in round_obj.teams.all():
+        team.memberships.all().delete()
+    round_obj.teams.all().delete()
+    round_obj.participants.all().delete()
+    round_obj.delete()
+
+
+@transaction.atomic
+def revert_round_to_draft(*, round_id, actor):
+    """잘못 시작한 회차를 준비 중으로 되돌린다.
+
+    제출이 하나라도 있으면 되돌리지 않는다 - 참가자·팀 구성이 다시 열리면 이미 받은 평가의
+    전제가 깨진다. 이때는 마감 후 채점으로 처리해야 한다.
+    """
+    round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
+    if round_obj.status != EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError("진행 중인 회차만 되돌릴 수 있습니다.")
+    if round_obj.review_submissions.exists():
+        raise ValidationError("이미 제출된 평가가 있어 되돌릴 수 없습니다. 마감 후 채점해 주세요.")
+    round_obj.status = EvaluationRound.Status.DRAFT
+    round_obj.started_at = None
+    round_obj.save(update_fields=("status", "started_at", "updated_at"))
+    record_event(
+        action="ROUND_REVERTED_TO_DRAFT",
+        target=round_obj,
+        actor=actor,
+        round_obj=round_obj,
+        summary={"title": round_obj.title},
+    )
+    return round_obj
+
+
+@transaction.atomic
+def reopen_round(*, round_id, actor):
+    """잘못 마감한 회차를 다시 진행 중으로 되돌린다.
+
+    이미 채점한 회차는 결과가 나가 있으므로 열지 않는다(재채점으로 처리한다). 진행 중 회차는
+    전체에서 하나만 허용되므로 다른 회차가 진행 중이면 열 수 없다.
+    """
+    round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
+    if round_obj.status != EvaluationRound.Status.COMPLETED:
+        raise ValidationError("마감된 회차만 다시 열 수 있습니다.")
+    if round_obj.calculation_runs.exists():
+        raise ValidationError(
+            "채점 기록이 있는 회차는 다시 열 수 없습니다. 재채점을 사용해 주세요."
+        )
+    round_obj.status = EvaluationRound.Status.IN_PROGRESS
+    round_obj.completed_at = None
+    try:
+        round_obj.save(update_fields=("status", "completed_at", "updated_at"))
+    except IntegrityError as error:
+        raise ValidationError("이미 진행 중인 다른 회차가 있습니다.") from error
+    record_event(
+        action="ROUND_REOPENED",
+        target=round_obj,
+        actor=actor,
+        round_obj=round_obj,
+        summary={"title": round_obj.title},
+    )
+    return round_obj
