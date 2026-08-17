@@ -8,6 +8,11 @@ app_name = "rounds"
 
 urlpatterns = [
     path("", views.operations_dashboard, name="dashboard"),
+    path("templates/", views.template_list, name="template-list"),
+    path("templates/new/", views.template_edit, name="template-create"),
+    path("templates/<int:template_id>/", views.template_edit, name="template-edit"),
+    path("templates/<int:template_id>/copy/", views.template_copy, name="template-copy"),
+    path("templates/<int:template_id>/delete/", views.template_delete, name="template-delete"),
     path("rounds/", views.round_list, name="list"),
     path("rounds/new/", views.round_edit, name="create"),
     path("rounds/<int:round_id>/", views.round_edit, name="edit"),

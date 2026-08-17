@@ -235,6 +235,80 @@ class AccountsTests(TestCase):
         self.assertContains(dashboard, "ax_theme")
         self.assertContains(login_page, 'id="axThemeToggle"')
 
+    def test_tutor_registers_multiple_whitelist_emails_at_once(self):
+        """명단 붙여넣기 - 운영자가 admin 없이 자동 승인 대상을 등록할 수 있어야 한다."""
+        self.client.force_login(self.tutor_user)
+
+        response = self.client.post(
+            reverse("accounts:whitelist"),
+            {
+                "emails": "First@AX.com\nsecond@ax.com, third@ax.com\n\n",
+                "session_info": "5기 풀스택",
+            },
+        )
+
+        self.assertRedirects(response, reverse("accounts:whitelist"))
+        registered = set(WhitelistEmail.objects.values_list("email", flat=True))
+        self.assertTrue({"first@ax.com", "second@ax.com", "third@ax.com"} <= registered)
+        self.assertEqual(
+            WhitelistEmail.objects.get(email="first@ax.com").session_info, "5기 풀스택"
+        )
+
+    def test_registering_an_existing_email_updates_the_session_only(self):
+        self.client.force_login(self.tutor_user)
+
+        self.client.post(
+            reverse("accounts:whitelist"),
+            {"emails": self.whitelist_entry.email, "session_info": "3기"},
+        )
+
+        self.assertEqual(WhitelistEmail.objects.filter(email=self.whitelist_entry.email).count(), 1)
+        self.whitelist_entry.refresh_from_db()
+        self.assertEqual(self.whitelist_entry.session_info, "3기")
+
+    def test_invalid_email_is_rejected_without_saving_anything(self):
+        self.client.force_login(self.tutor_user)
+        before = WhitelistEmail.objects.count()
+
+        response = self.client.post(
+            reverse("accounts:whitelist"), {"emails": "ok@ax.com\n엉망진창", "session_info": ""}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(WhitelistEmail.objects.count(), before)
+
+    def test_whitelist_screen_shows_whether_each_email_signed_up(self):
+        WhitelistEmail.objects.create(email=self.approved_student.email, session_info="1기")
+        self.client.force_login(self.tutor_user)
+
+        response = self.client.get(reverse("accounts:whitelist"))
+
+        rows = {entry.email: entry.account for entry in response.context["entries"]}
+        self.assertEqual(rows[self.approved_student.email], self.approved_student)
+        self.assertIsNone(rows[self.whitelist_entry.email])
+
+    def test_tutor_removes_whitelist_email(self):
+        self.client.force_login(self.tutor_user)
+
+        response = self.client.post(
+            reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
+        )
+
+        self.assertRedirects(response, reverse("accounts:whitelist"))
+        self.assertFalse(WhitelistEmail.objects.filter(pk=self.whitelist_entry.pk).exists())
+
+    def test_students_cannot_touch_the_whitelist(self):
+        self.client.force_login(self.approved_student)
+
+        listing = self.client.get(reverse("accounts:whitelist"))
+        removal = self.client.post(
+            reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
+        )
+
+        self.assertEqual(listing.status_code, 403)
+        self.assertEqual(removal.status_code, 403)
+        self.assertTrue(WhitelistEmail.objects.filter(pk=self.whitelist_entry.pk).exists())
+
     def test_login_keeps_signup_as_modal_and_signup_url_opens_it(self):
         login = self.client.get(reverse("accounts:login"))
         signup = self.client.get(reverse("accounts:signup"))

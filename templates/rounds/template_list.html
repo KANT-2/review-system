@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}문항 템플릿 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}문항 템플릿{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">문항 템플릿</h1>
+      <p class="page-desc">회차에 붙이는 팀·개인 평가 문항을 관리합니다. 시작된 회차가 쓰는 템플릿은 잠깁니다.</p>
+    </div>
+    <a href="{% url 'rounds:template-create' %}" class="btn btn-ax-primary">새 템플릿</a>
+  </div>
+  <section class="card-custom">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">유형</th>
+            <th scope="col">이름</th>
+            <th scope="col" class="text-end">문항</th>
+            <th scope="col">만든 사람</th>
+            <th scope="col" class="text-center">상태</th>
+            <th scope="col" class="text-end">관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for template in templates %}
+            <tr>
+              <td>
+                <span class="badge badge-ax {% if template.category == 'TEAM' %}badge-ax-pending{% else %}badge-ax-completed{% endif %}">
+                  {{ template.get_category_display }}
+                </span>
+              </td>
+              <td class="fw-semibold">
+                {{ template.name }}
+                {% if template.description %}<div class="text-muted font-size-115">{{ template.description }}</div>{% endif %}
+                {% if template.copied_from %}<div class="text-muted font-size-115">{{ template.copied_from.name }} 복제</div>{% endif %}
+              </td>
+              <td class="text-end">{{ template.question_count }}개</td>
+              <td class="text-muted">{{ template.created_by.first_name|default:template.created_by.email }}</td>
+              <td class="text-center">
+                {% if template.locked %}
+                  <span class="badge ax-badge-partial">사용 중 · 잠김</span>
+                {% else %}
+                  <span class="badge ax-badge-no-data">편집 가능</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-2">
+                  <a href="{% url 'rounds:template-edit' template.pk %}"
+                     class="btn btn-sm btn-ax-secondary">{% if template.locked %}보기{% else %}편집{% endif %}</a>
+                  <form method="post" action="{% url 'rounds:template-copy' template.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-ax-secondary">복제</button>
+                  </form>
+                  <form method="post" action="{% url 'rounds:template-delete' template.pk %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-danger"
+                            {% if template.locked %}disabled title="사용 중인 템플릿은 삭제할 수 없습니다."{% endif %}>삭제</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-5">아직 템플릿이 없습니다. 회차를 시작하려면 팀 평가·개인 평가 템플릿이 각각 하나씩 필요합니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

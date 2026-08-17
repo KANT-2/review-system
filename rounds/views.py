@@ -8,13 +8,17 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.models import ReviewSubmission
-from rounds.forms import EvaluationRoundForm
-from rounds.models import EvaluationRound
+from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
+from rounds.models import EvaluationRound, QuestionTemplate
 from rounds.services import (
     complete_round,
+    copy_question_template,
+    delete_question_template,
     get_review_progress,
+    question_template_rows,
     round_start_errors,
     rounds_dashboard_rows,
+    save_question_template,
     save_round,
     start_round,
 )
@@ -174,3 +178,59 @@ def round_complete(request, round_id):
         messages.success(request, "회차를 마감했습니다. 이제 채점을 실행할 수 있습니다.")
         return redirect("rounds:results", round_id=round_id)
     return redirect("rounds:reviews", round_id=round_id)
+
+
+@login_required
+def template_list(request):
+    """문항 템플릿 목록 - 운영자가 admin 없이 평가 문항을 관리하는 화면."""
+    _require_operations(request.user)
+    return render(request, "rounds/template_list.html", {"templates": question_template_rows()})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def template_edit(request, template_id=None):
+    _require_operations(request.user)
+    template = get_object_or_404(QuestionTemplate, pk=template_id) if template_id else None
+    locked = bool(template and template.is_locked)
+    form = QuestionTemplateForm(request.POST or None, instance=template)
+    formset = TemplateQuestionFormSet(request.POST or None, instance=template)
+    if request.method == "POST":
+        if locked:
+            messages.error(request, "시작된 회차가 사용하는 템플릿은 수정할 수 없습니다.")
+            return redirect("rounds:template-list")
+        if form.is_valid() and formset.is_valid():
+            try:
+                saved = save_question_template(form=form, formset=formset, actor=request.user)
+            except ValidationError as error:
+                messages.error(request, " ".join(error.messages))
+            else:
+                messages.success(request, f"'{saved.name}' 템플릿을 저장했습니다.")
+                return redirect("rounds:template-list")
+    return render(
+        request,
+        "rounds/template_form.html",
+        {"form": form, "formset": formset, "template": template, "locked": locked},
+    )
+
+
+@login_required
+@require_POST
+def template_copy(request, template_id):
+    _require_operations(request.user)
+    copy = copy_question_template(template_id=template_id, actor=request.user)
+    messages.success(request, f"'{copy.name}'으로 복제했습니다. 내용을 수정해 주세요.")
+    return redirect("rounds:template-edit", template_id=copy.pk)
+
+
+@login_required
+@require_POST
+def template_delete(request, template_id):
+    _require_operations(request.user)
+    try:
+        delete_question_template(template_id=template_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "템플릿을 삭제했습니다.")
+    return redirect("rounds:template-list")

@@ -7,7 +7,12 @@ from django.utils import timezone
 
 from audit.services import record_event
 from reviews.models import ReviewSubmission
-from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
+from rounds.models import (
+    EvaluationRound,
+    QuestionTemplate,
+    RoundParticipant,
+    TemplateQuestion,
+)
 
 
 @dataclass(frozen=True)
@@ -163,3 +168,104 @@ def rounds_dashboard_rows():
         submission_count=Count("review_submissions", distinct=True),
         active_runs=Count("calculation_runs", filter=Q(calculation_runs__is_active=True)),
     )
+
+
+def question_template_rows():
+    """템플릿 목록 화면용 - 문항 수와 사용 중(잠금) 여부를 함께 계산한다."""
+    templates = (
+        QuestionTemplate.objects.annotate(question_count=Count("questions"))
+        .select_related("created_by")
+        .order_by("category", "name")
+    )
+    rows = []
+    for template in templates:
+        template.locked = template.is_locked
+        rows.append(template)
+    return rows
+
+
+@transaction.atomic
+def save_question_template(*, form, formset, actor):
+    """템플릿과 문항을 함께 저장한다.
+
+    시작된 회차가 사용 중인 템플릿은 잠긴다(QuestionTemplate.is_locked) - 이미 제출된 평가의
+    문항이 바뀌면 안 되기 때문이다. 문항 순서는 화면에 나온 순서대로 다시 매긴다.
+    """
+    template = form.instance
+    if template.pk and template.is_locked:
+        raise ValidationError("시작된 회차가 사용하는 템플릿은 수정할 수 없습니다.")
+    is_new = template.pk is None
+    if is_new:
+        template.created_by = actor
+    template = form.save()
+
+    formset.instance = template
+    kept = [
+        question_form.instance
+        for question_form in formset.forms
+        if question_form.cleaned_data
+        and not question_form.cleaned_data.get("DELETE")
+        and question_form.cleaned_data.get("prompt")
+    ]
+    template.questions.exclude(pk__in=[q.pk for q in kept if q.pk]).delete()
+    # (template, display_order) 유니크 제약 때문에 임시 번호를 한 번 거쳐 다시 매긴다.
+    for order, question in enumerate(kept, start=1):
+        question.template = template
+        question.display_order = 1000 + order
+        question.save()
+    for order, question in enumerate(kept, start=1):
+        question.display_order = order
+        question.save(update_fields=("display_order",))
+
+    record_event(
+        action="QUESTION_TEMPLATE_CREATED" if is_new else "QUESTION_TEMPLATE_UPDATED",
+        target=template,
+        actor=actor,
+        summary={"category": template.category, "question_count": len(kept)},
+    )
+    return template
+
+
+@transaction.atomic
+def copy_question_template(*, template_id, actor):
+    """기존 템플릿을 문항까지 복제한다 - 잠긴 템플릿도 복제는 할 수 있다."""
+    source = QuestionTemplate.objects.get(pk=template_id)
+    copy = QuestionTemplate.objects.create(
+        name=f"{source.name} (사본)"[:100],
+        description=source.description,
+        category=source.category,
+        copied_from=source,
+        created_by=actor,
+    )
+    for question in source.questions.all():
+        TemplateQuestion.objects.create(
+            template=copy,
+            response_type=question.response_type,
+            prompt=question.prompt,
+            is_required=question.is_required,
+            display_order=question.display_order,
+        )
+    record_event(
+        action="QUESTION_TEMPLATE_COPIED",
+        target=copy,
+        actor=actor,
+        summary={"source_id": source.pk, "question_count": copy.questions.count()},
+    )
+    return copy
+
+
+@transaction.atomic
+def delete_question_template(*, template_id, actor):
+    template = QuestionTemplate.objects.get(pk=template_id)
+    if template.is_locked:
+        raise ValidationError("시작된 회차가 사용하는 템플릿은 삭제할 수 없습니다.")
+    if template.team_rounds.exists() or template.peer_rounds.exists():
+        raise ValidationError("준비 중인 회차가 사용하고 있어 삭제할 수 없습니다.")
+    record_event(
+        action="QUESTION_TEMPLATE_DELETED",
+        target=template,
+        actor=actor,
+        summary={"name": template.name, "category": template.category},
+    )
+    template.questions.all().delete()
+    template.delete()
