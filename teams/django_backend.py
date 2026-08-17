@@ -80,22 +80,28 @@ class DjangoTeamsDataSource:
                 pk__in=participant_ids
             )
         }
-        scores = {}
-        for participant_id, user_id in participants.items():
-            history = list(
-                EvaluationResult.objects.filter(
-                    result_type=EvaluationResult.ResultType.INDIVIDUAL,
-                    participant__user_id=user_id,
-                    calculation_run__is_active=True,
-                    calculation_run__round__status=EvaluationRound.Status.COMPLETED,
-                    final_score_raw__isnull=False,
-                )
-                .exclude(calculation_run__round_id=round_id)
-                .order_by("-calculation_run__round__completed_at")
-                .values_list("final_score_raw", flat=True)[:3]
+        histories_by_user_id = {user_id: [] for user_id in participants.values()}
+        result_rows = (
+            EvaluationResult.objects.filter(
+                result_type=EvaluationResult.ResultType.INDIVIDUAL,
+                participant__user_id__in=histories_by_user_id,
+                calculation_run__is_active=True,
+                calculation_run__round__status=EvaluationRound.Status.COMPLETED,
+                final_score_raw__isnull=False,
             )
-            scores[participant_id] = calculate_seed(list(reversed(history)))
-        return scores
+            .exclude(calculation_run__round_id=round_id)
+            .order_by("participant__user_id", "-calculation_run__round__completed_at")
+            .values_list("participant__user_id", "final_score_raw")
+        )
+        for user_id, final_score in result_rows:
+            history = histories_by_user_id[user_id]
+            if len(history) < 3:
+                history.append(final_score)
+
+        return {
+            participant_id: calculate_seed(list(reversed(histories_by_user_id[user_id])))
+            for participant_id, user_id in participants.items()
+        }
 
     def get_previous_teammate_pairs(self, round_id, participant_ids):
         current_participants = {
@@ -146,6 +152,7 @@ class DjangoTeamSaveUnitOfWork:
         )
 
     def replace_team_configuration(self, board: TeamBoard):
+        TeamMembership.objects.filter(team__round=self.round_obj).delete()
         Team.objects.filter(round=self.round_obj).delete()
         participant_by_id = {
             participant.pk: participant for participant in self.round_obj.participants.all()

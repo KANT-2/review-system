@@ -23,7 +23,7 @@ class Team(models.Model):
 
 
 class TeamMembership(models.Model):
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="memberships")
+    team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="memberships")
     participant = models.OneToOneField(
         "rounds.RoundParticipant", on_delete=models.PROTECT, related_name="team_membership"
     )
