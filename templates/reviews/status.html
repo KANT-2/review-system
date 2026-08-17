@@ -1,12 +1,29 @@
 {% extends "base.html" %}
+{% load review_extras %}
 {% block title %}제출 현황 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}제출 현황{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
       <h1 class="page-title">제출 현황</h1>
-      <p class="page-desc">팀·개인 평가의 대상별 완료 여부를 확인합니다.</p>
+      <p class="page-desc">팀·개인 평가의 대상별 완료 여부를 확인합니다. 지난 회차도 볼 수 있습니다.</p>
     </div>
+    {% if participations|length > 1 %}
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label for="roundSelect" class="form-label small fw-bold mb-0">회차</label>
+        <select id="roundSelect"
+                name="round"
+                class="form-select form-select-sm"
+                onchange="this.form.submit()">
+          {% for item in participations %}
+            <option value="{{ item.round_id }}"
+                    {% if item.round_id == selected_round_id %}selected{% endif %}>
+              {{ item.round.title }}{% if item.round.status == 'IN_PROGRESS' %} (진행 중){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
   </div>
   {% if not participant %}<section class="card-custom"><div class="card-body-custom text-center py-5">현재 참가 중인 회차가 없습니다.</div></section>{% else %}
   <div class="row g-3 mb-4">
@@ -27,9 +44,11 @@
       </div>
     </div>
   </div>
-  <section class="card-custom mb-4"><div class="card-header-custom"><div class="card-title-custom">팀 평가 대상</div></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>대상</th><th>상태</th><th></th></tr></thead><tbody>{% for row in team_rows %}<tr><td>{{ row.label }}</td><td>{% if row.completed %}<span class="badge bg-success">완료</span>{% else %}<span class="badge bg-warning text-dark">미완료</span>{% endif %}</td><td class="text-end"><a href="{% url 'reviews:team-form' row.pk %}"
-   class="btn btn-sm btn-outline-primary">{% if row.completed %}응답 보기{% else %}작성{% endif %}</a></td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">대상 없음</td></tr>{% endfor %}</tbody></table></div></section>
-  <section class="card-custom"><div class="card-header-custom"><div class="card-title-custom">개인 평가 대상</div></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>대상</th><th>상태</th><th></th></tr></thead><tbody>{% for row in peer_rows %}<tr><td>{{ row.label }}<div class="small text-muted">{{ row.description }}</div></td><td>{% if row.completed %}<span class="badge bg-success">완료</span>{% else %}<span class="badge bg-warning text-dark">미완료</span>{% endif %}</td><td class="text-end"><a href="{% url 'reviews:peer-form' row.pk %}"
-   class="btn btn-sm btn-outline-primary">{% if row.completed %}응답 보기{% else %}작성{% endif %}</a></td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">평가 대상 없음 — 정상 완료</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="card-custom mb-4"><div class="card-header-custom"><div class="card-title-custom">팀 평가 대상</div></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>대상</th><th>상태</th><th></th></tr></thead><tbody>{% for row in team_rows %}<tr><td>{{ row.label }}</td><td>{% if row.completed %}<span class="badge bg-success">완료</span>{% else %}<span class="badge bg-warning text-dark">미완료</span>{% endif %}</td><td class="text-end">{% if row.completed %}<a href="{% url 'reviews:submission-detail' team_submissions|get_item:row.pk %}"
+   class="btn btn-sm btn-outline-primary">응답 보기</a>{% elif is_current_round %}<a href="{% url 'reviews:team-form' row.pk %}"
+   class="btn btn-sm btn-outline-primary">작성</a>{% else %}<span class="text-muted small">미제출</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">대상 없음</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="card-custom"><div class="card-header-custom"><div class="card-title-custom">개인 평가 대상</div></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>대상</th><th>상태</th><th></th></tr></thead><tbody>{% for row in peer_rows %}<tr><td>{{ row.label }}<div class="small text-muted">{{ row.description }}</div></td><td>{% if row.completed %}<span class="badge bg-success">완료</span>{% else %}<span class="badge bg-warning text-dark">미완료</span>{% endif %}</td><td class="text-end">{% if row.completed %}<a href="{% url 'reviews:submission-detail' peer_submissions|get_item:row.pk %}"
+   class="btn btn-sm btn-outline-primary">응답 보기</a>{% elif is_current_round %}<a href="{% url 'reviews:peer-form' row.pk %}"
+   class="btn btn-sm btn-outline-primary">작성</a>{% else %}<span class="text-muted small">미제출</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">평가 대상 없음 — 정상 완료</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
 {% endblock %}

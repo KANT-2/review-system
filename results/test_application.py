@@ -442,3 +442,96 @@ class ResultWorkflowTests(TestCase):
         self.assertContains(response, "내 팀")
         self.assertContains(response, "비공개")  # 내 최종점수는 아직 비공개
         self.assertEqual(response.context["my_team_id"], self.teams[0].pk)
+
+
+class StudentResultRoundSelectionTests(TestCase):
+    """내 결과 - 채점이 끝난 회차를 골라서 볼 수 있어야 한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="sel-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="sel-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            student_number="S900",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.older = self._completed_round("1회차", days_ago=30, score=Decimal("3.00"))
+        self.newer = self._completed_round("2회차", days_ago=5, score=Decimal("4.50"))
+        self.client.force_login(self.student)
+
+    def _completed_round(self, title, *, days_ago, score):
+        now = timezone.now()
+        evaluation_round = EvaluationRound.objects.create(
+            title=title,
+            status=EvaluationRound.Status.COMPLETED,
+            evaluation_start_at=now - timedelta(days=days_ago + 5),
+            evaluation_end_at=now - timedelta(days=days_ago + 1),
+            target_team_count=2,
+            created_by=self.tutor,
+            started_at=now - timedelta(days=days_ago + 5),
+            completed_at=now - timedelta(days=days_ago),
+        )
+        run = CalculationRun.objects.create(
+            round=evaluation_round,
+            version=1,
+            formula_version="score-v1",
+            executed_by=self.tutor,
+            status=CalculationRun.Status.SUCCEEDED,
+            is_active=True,
+            finished_at=now - timedelta(days=days_ago),
+            my_score_published_at=now - timedelta(days=days_ago),
+        )
+        participant = RoundParticipant.objects.create(
+            round=evaluation_round,
+            user=self.student,
+            student_number_snapshot=self.student.student_number,
+            display_name_snapshot=self.student.first_name,
+        )
+        EvaluationResult.objects.create(
+            calculation_run=run,
+            result_type=EvaluationResult.ResultType.INDIVIDUAL,
+            participant=participant,
+            final_score_raw=score,
+            display_score=score,
+            expected_count=1,
+            valid_count=1,
+            data_status=EvaluationResult.DataStatus.COMPLETE,
+        )
+        return evaluation_round
+
+    def test_defaults_to_the_most_recent_completed_round(self):
+        response = self.client.get(reverse("results:me"))
+
+        self.assertEqual(response.context["participant"].round_id, self.newer.pk)
+        self.assertEqual(len(response.context["available_rounds"]), 2)
+
+    def test_student_can_open_an_older_round(self):
+        response = self.client.get(reverse("results:me"), {"round": self.older.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["participant"].round_id, self.older.pk)
+        self.assertContains(response, "1회차")
+
+    def test_round_a_student_did_not_join_falls_back_to_their_own(self):
+        """남의 회차 id를 넣어도 본인이 참가한 회차만 열린다."""
+        outsider_round = EvaluationRound.objects.create(
+            title="남의 회차",
+            status=EvaluationRound.Status.COMPLETED,
+            evaluation_start_at=timezone.now() - timedelta(days=3),
+            evaluation_end_at=timezone.now() - timedelta(days=2),
+            target_team_count=2,
+            created_by=self.tutor,
+            completed_at=timezone.now() - timedelta(days=2),
+        )
+
+        response = self.client.get(reverse("results:me"), {"round": outsider_round.pk})
+
+        self.assertEqual(response.context["participant"].round_id, self.newer.pk)

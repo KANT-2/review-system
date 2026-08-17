@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}제출한 응답 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}제출한 응답{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">제출한 응답</h1>
+      <p class="page-desc">{{ submission.round.title }} · {{ target_label }}에 대한 내 응답입니다.</p>
+    </div>
+    <a href="{% url 'reviews:status' %}?round={{ submission.round_id }}"
+       class="btn btn-ax-secondary"><i class="bi bi-arrow-left me-1"></i>제출 현황</a>
+  </div>
+  <section class="card-custom" aria-labelledby="submission-answers-title">
+    <div class="card-header-custom">
+      <div class="card-title-custom" id="submission-answers-title">
+        <i class="bi bi-file-text text-primary"></i>
+        {% if submission.review_type == 'TEAM' %}팀 평가{% else %}개인 평가{% endif %}
+      </div>
+      <span class="badge badge-ax badge-ax-completed">{{ submission.submitted_at|date:"Y.m.d H:i" }} 제출</span>
+    </div>
+    <div class="card-body-custom">
+      <p class="text-muted small">제출한 응답은 수정할 수 없습니다.</p>
+      <dl class="mb-0">
+        {% for answer in answers %}
+          <dt class="fw-bold small mt-3">{{ answer.question.prompt }}</dt>
+          <dd class="mb-0">
+            {% if answer.question.response_type == 'RATING_5' %}
+              <span class="badge badge-ax badge-ax-pending">{{ answer.rating_value }} / 5</span>
+            {% else %}
+              <p class="mb-0">{{ answer.text_value|default:"(응답 없음)"|linebreaksbr }}</p>
+            {% endif %}
+          </dd>
+        {% empty %}
+          <dd class="text-muted mb-0">
+            저장된 응답이 없습니다.
+          </dd>
+        {% endfor %}
+      </dl>
+    </div>
+  </section>
+{% endblock %}
