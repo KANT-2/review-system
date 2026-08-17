@@ -36,6 +36,7 @@ from accounts.services import (
     set_account_active,
     start_password_reset,
     transition_approval,
+    update_account_profile,
     whitelist_rows,
 )
 
@@ -332,6 +333,29 @@ def account_admin(request):
             "can_change_role": request.user.is_application_admin,
         },
     )
+
+
+@login_required
+@require_POST
+def account_profile_update(request, user_id):
+    """계정 관리 화면의 이름·식별번호·기수 수정(ACC-001)."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        update_account_profile(
+            actor=request.user,
+            target_id=user_id,
+            first_name=request.POST.get("first_name", ""),
+            student_number=request.POST.get("student_number", ""),
+            session_info=request.POST.get("session_info", ""),
+        )
+    except PermissionDenied:
+        messages.error(request, "이 계정에 대한 권한이 없습니다.")
+    except (InvalidAccountTransition, User.DoesNotExist) as error:
+        messages.error(request, str(error) or "계정 정보를 저장하지 못했습니다.")
+    else:
+        messages.success(request, "계정 정보를 저장했습니다.")
+    return redirect("accounts:account_admin")
 
 
 @login_required

@@ -104,7 +104,9 @@ class AuditActionLabelTests(TestCase):
 
     RECORDED_ACTIONS = [
         "ACCOUNT_APPROVAL_REVERTED",
+        "ACCOUNT_PASSWORD_RESET",
         "ACCOUNT_PASSWORD_ROTATION_REQUIRED",
+        "ACCOUNT_PROFILE_UPDATED",
         "ACCOUNT_ROLE_CHANGED",
         "CALCULATION_FAILED",
         "CALCULATION_SUCCEEDED",
@@ -119,6 +121,7 @@ class AuditActionLabelTests(TestCase):
         "ROUND_REOPENED",
         "ROUND_REVERTED_TO_DRAFT",
         "ROUND_STARTED",
+        "SOCIAL_ACCOUNT_LINKED",
         "TEAM_CONFIGURATION_SAVED",
         "TUTOR_NOTE_CHANGED",
         "WHITELIST_ADDED",

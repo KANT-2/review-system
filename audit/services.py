@@ -40,6 +40,9 @@ ACTION_LABELS = {
     "ACCOUNT_APPROVAL_REVERTED": "승인 대기로 되돌림",
     "ACCOUNT_ROLE_CHANGED": "역할 변경",
     "ACCOUNT_PASSWORD_ROTATION_REQUIRED": "비밀번호 재설정 요구",
+    "ACCOUNT_PASSWORD_RESET": "비밀번호 재설정",
+    "ACCOUNT_PROFILE_UPDATED": "계정 정보 수정",
+    "SOCIAL_ACCOUNT_LINKED": "소셜 계정 최초 연결",
 }
 
 
