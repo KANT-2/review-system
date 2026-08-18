@@ -222,6 +222,7 @@ def onboarding_view(request):
 def dashboard_view(request):
     if request.user.role in {User.Role.TUTOR, User.Role.ADMIN}:
         return redirect("rounds:dashboard")
+
     if _needs_onboarding(request.user):
         return redirect("accounts:onboarding")
 
@@ -238,17 +239,17 @@ def dashboard_view(request):
         .first()
     )
 
-    recent_notices = Notice.objects.filter(
+    dashboard_notices = Notice.objects.filter(
         is_active=True
-    ).order_by("-created_at")[:3]
+    ).order_by("-created_at")
 
     return render(
         request,
         "accounts/dashboard.html",
-        { 
+        {
             "portal": portal,
             "latest_completed": latest_completed,
-            "recent_notices": recent_notices,
+            "dashboard_notices": dashboard_notices,
         },
     )
 

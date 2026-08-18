@@ -1,217 +1,296 @@
 {% extends "base.html" %}
+
 {% block title %}운영 대시보드 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}운영 대시보드{% endblock %}
-{% block content %}
-{% if latest_completed and not current_round %}
-  <div class="alert alert-primary d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <strong>{{ latest_completed.title }}가 마감되었습니다.</strong>
-      다음 회차를 진행할까요?
-    </div>
 
-    {% if latest_draft %}
-      <a href="{% url 'rounds:edit' latest_draft.pk %}"
-         class="btn btn-ax-primary">
-        진행
-      </a>
-    {% else %}
-      <a href="{% url 'rounds:create' %}"
-         class="btn btn-ax-primary">
-        진행
-      </a>
-    {% endif %}
-  </div>
-{% endif %}
+{% block content %}
+
+  {% if latest_completed and not current_round %}
+    <div class="alert alert-primary d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <strong>{{ latest_completed.title }}가 마감되었습니다.</strong>
+        다음 회차를 진행할까요?
+      </div>
+
+      {% if latest_draft %}
+        <a href="{% url 'rounds:edit' latest_draft.pk %}"
+           class="btn btn-ax-primary">
+          진행
+        </a>
+      {% else %}
+        <a href="{% url 'rounds:create' %}"
+           class="btn btn-ax-primary">
+          진행
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+
+  <!-- 페이지 제목 -->
   <div class="page-header">
     <div>
       <h1 class="page-title">운영 대시보드</h1>
-      <p class="page-desc">회차 준비부터 결과 공개까지 다음 작업을 확인합니다.</p>
+      <p class="page-desc">
+        회차 준비부터 결과 공개까지 다음 작업을 확인합니다.
+      </p>
     </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-ax-secondary"
-              type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#noticeForm">
-        <i class="bi bi-megaphone me-1"></i>
-        공지 작성
-      </button>
 
+    <div class="d-flex gap-2">
       <a href="{% url 'rounds:create' %}"
-        class="btn btn-ax-primary">
+         class="btn btn-ax-primary">
         <i class="bi bi-plus-lg me-1"></i>
         새 회차
       </a>
     </div>
-    {% include "includes/notice_bar.html" %}
   </div>
-  <div class="collapse mb-4" id="noticeForm">
-    <section class="card-custom">
-      <div class="card-header-custom">
-        <div class="card-title-custom">
-          <i class="bi bi-megaphone text-primary"></i>
-          공지 작성
+
+
+  <!-- 상단 공지 바 -->
+  {% include "includes/notice_bar.html" %}
+
+
+  <!-- 대시보드 요약 -->
+  <div class="row g-3 mb-4">
+
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">
+            현재 진행 회차
+          </div>
+
+          <div class="fs-5 fw-bold mt-2">
+            {{ current_round.title|default:"없음" }}
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="card-body-custom">
-        <form method="post">
-          {% csrf_token %}
 
-          <div class="mb-3">
-            <label class="form-label fw-semibold">제목</label>
-            {{ notice_form.title }}
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">
+            가입 승인 대기
           </div>
 
-          <div class="mb-3">
-            <label class="form-label fw-semibold">내용</label>
-            {{ notice_form.content }}
+          <div class="fs-3 fw-bold text-warning">
+            {{ pending_approvals }}명
           </div>
-
-          <div class="text-end">
-            <button type="submit" class="btn btn-ax-primary">
-              <i class="bi bi-send me-1"></i>
-              공지 등록
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
-    </section>
+    </div>
+
+
+    <div class="col-md-4">
+      <div class="card-custom h-100">
+        <div class="card-body-custom">
+          <div class="text-muted small">
+            준비 중 회차
+          </div>
+
+          <div class="fs-5 fw-bold mt-2">
+            {{ latest_draft.title|default:"없음" }}
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  {% if recent_notices %}
+
+  <!-- 진행 중 회차 -->
+  {% if current_round %}
+
     <section class="card-custom mb-4">
+
       <div class="card-header-custom">
         <div class="card-title-custom">
-          <i class="bi bi-megaphone text-primary"></i>
-          최근 공지
+          <i class="bi bi-activity text-primary"></i>
+          {{ current_round.title }}
         </div>
+
+        <span class="badge bg-primary">
+          진행 중
+        </span>
       </div>
 
+
       <div class="card-body-custom">
-        {% for notice in recent_notices %}
-          <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
-            <div class="d-flex justify-content-between align-items-center gap-3">
-    <div class="d-flex align-items-center gap-2">
-      <strong>{{ notice.title }}</strong>
 
-      {% if notice.is_active %}
-        <span class="badge bg-success">공개</span>
-      {% else %}
-        <span class="badge bg-secondary">비공개</span>
-      {% endif %}
-    </div>
+        <div class="row g-3 mb-3">
 
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-muted small">
-        {{ notice.created_at|date:"Y.m.d H:i" }}
-      </span>
-      <a href="{% url 'rounds:notice_edit' notice.pk %}"
-        class="btn btn-sm btn-outline-primary">
-        수정
-      </a>
-      <form method="post"
-            action="{% url 'rounds:notice_toggle' notice.pk %}">
-        {% csrf_token %}
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3">
+              팀 평가
 
-        {% if notice.is_active %}
-          <button type="submit"
-                  class="btn btn-sm btn-outline-secondary">
-            비공개
-          </button>
-        {% else %}
-          <button type="submit"
-                  class="btn btn-sm btn-outline-primary">
-            다시 공개
-          </button>
-        {% endif %}
-      </form>
-
-      <form method="post"
-            action="{% url 'rounds:notice_delete' notice.pk %}"
-            onsubmit="return confirm('이 공지를 삭제하시겠습니까?');">
-        {% csrf_token %}
-        <button type="submit"
-                class="btn btn-sm btn-outline-danger">
-          삭제
-        </button>
-      </form>
-    </div>
-  </div>
-
-            <div class="text-muted mt-1">
-              {{ notice.content|linebreaksbr }}
+              <strong class="float-end">
+                {{ progress.team_completed }}/{{ progress.team_expected }}
+              </strong>
             </div>
           </div>
-        {% endfor %}
+
+
+          <div class="col-md-6">
+            <div class="p-3 border rounded-3">
+              개인 평가
+
+              <strong class="float-end">
+                {{ progress.peer_completed }}/{{ progress.peer_expected }}
+              </strong>
+            </div>
+          </div>
+
+        </div>
+
+
+        <a href="{% url 'rounds:reviews' current_round.pk %}"
+           class="btn btn-ax-primary">
+          제출 현황 및 마감
+        </a>
+
       </div>
+
     </section>
+
+
+  <!-- 준비 중 회차 -->
+  {% elif latest_draft %}
+
+    <section class="card-custom mb-4">
+
+      <div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-3">
+
+        <div>
+          <h2 class="h5 fw-bold">
+            {{ latest_draft.title }} 준비를 이어가세요
+          </h2>
+
+          <p class="text-muted mb-0">
+            참가자와 질문지를 확인한 뒤 팀을 편성합니다.
+          </p>
+        </div>
+
+
+        <a href="{% url 'rounds:edit' latest_draft.pk %}"
+           class="btn btn-ax-primary">
+          회차 설정
+        </a>
+
+      </div>
+
+    </section>
+
+
+  <!-- 회차 없음 -->
+  {% else %}
+
+    <section class="card-custom mb-4">
+
+      <div class="card-body-custom text-center py-5">
+
+        <i class="bi bi-calendar-plus fs-1 text-muted"></i>
+
+        <h2 class="h5 fw-bold mt-3">
+          첫 평가 회차를 만들어 주세요
+        </h2>
+
+        <p class="text-muted">
+          참가자·기간·질문지를 먼저 정합니다.
+        </p>
+
+      </div>
+
+    </section>
+
   {% endif %}
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card-custom h-100">
-        <div class="card-body-custom">
-          <div class="text-muted small">현재 진행 회차</div>
-          <div class="fs-5 fw-bold mt-2">{{ current_round.title|default:"없음" }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card-custom h-100">
-        <div class="card-body-custom">
-          <div class="text-muted small">가입 승인 대기</div>
-          <div class="fs-3 fw-bold text-warning">{{ pending_approvals }}명</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card-custom h-100">
-        <div class="card-body-custom">
-          <div class="text-muted small">준비 중 회차</div>
-          <div class="fs-5 fw-bold mt-2">{{ latest_draft.title|default:"없음" }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% if current_round %}
-    <section class="card-custom mb-4">
-      <div class="card-header-custom">
-        <div class="card-title-custom"><i class="bi bi-activity text-primary"></i>{{ current_round.title }}</div>
-        <span class="badge bg-primary">진행 중</span>
-      </div>
-      <div class="card-body-custom">
-        <div class="row g-3 mb-3">
-          <div class="col-md-6">
-            <div class="p-3 border rounded-3">팀 평가 <strong class="float-end">{{ progress.team_completed }}/{{ progress.team_expected }}</strong></div>
-          </div>
-          <div class="col-md-6">
-            <div class="p-3 border rounded-3">개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong></div>
-          </div>
-        </div>
-        <a href="{% url 'rounds:reviews' current_round.pk %}"
-           class="btn btn-ax-primary">제출 현황 및 마감</a>
-      </div>
-    </section>
-  {% elif latest_draft %}
-    <section class="card-custom mb-4">
-      <div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-          <h2 class="h5 fw-bold">{{ latest_draft.title }} 준비를 이어가세요</h2>
-          <p class="text-muted mb-0">참가자와 질문지를 확인한 뒤 팀을 편성합니다.</p></div><a href="{% url 'rounds:edit' latest_draft.pk %}"
-   class="btn btn-ax-primary">회차 설정</a></div></section>
-  {% else %}
-    <section class="card-custom mb-4">
-      <div class="card-body-custom text-center py-5">
-        <i class="bi bi-calendar-plus fs-1 text-muted"></i>
-        <h2 class="h5 fw-bold mt-3">첫 평가 회차를 만들어 주세요</h2>
-        <p class="text-muted">참가자·기간·질문지를 먼저 정합니다.</p>
-      </div>
-    </section>
-  {% endif %}
+
+  <!-- 최근 완료 회차 -->
   <section class="card-custom">
-    <div class="card-header-custom"><div class="card-title-custom">최근 완료 회차</div><a href="{% url 'rounds:list' %}"
-   class="btn btn-sm btn-outline-secondary">전체 보기</a></div>
-    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>회차</th><th>참가자</th><th>팀</th><th>채점</th><th></th></tr></thead><tbody>{% for item in completed_rounds %}<tr><td>{{ item.title }}</td><td>{{ item.participant_count }}명</td><td>{{ item.team_count }}팀</td><td>{% if item.active_runs %}완료{% else %}대기{% endif %}</td><td class="text-end"><a href="{% url 'rounds:results' item.pk %}"
-   class="btn btn-sm btn-outline-primary">결과 관리</a></td></tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">완료된 회차가 없습니다.</td></tr>{% endfor %}</tbody></table></div>
+
+    <div class="card-header-custom">
+
+      <div class="card-title-custom">
+        최근 완료 회차
+      </div>
+
+      <a href="{% url 'rounds:list' %}"
+         class="btn btn-sm btn-outline-secondary">
+        전체 보기
+      </a>
+
+    </div>
+
+
+    <div class="table-responsive">
+
+      <table class="table align-middle mb-0">
+
+        <thead>
+          <tr>
+            <th>회차</th>
+            <th>참가자</th>
+            <th>팀</th>
+            <th>채점</th>
+            <th></th>
+          </tr>
+        </thead>
+
+
+        <tbody>
+
+          {% for item in completed_rounds %}
+
+            <tr>
+
+              <td>
+                {{ item.title }}
+              </td>
+
+              <td>
+                {{ item.participant_count }}명
+              </td>
+
+              <td>
+                {{ item.team_count }}팀
+              </td>
+
+              <td>
+                {% if item.active_runs %}
+                  완료
+                {% else %}
+                  대기
+                {% endif %}
+              </td>
+
+              <td class="text-end">
+                <a href="{% url 'rounds:results' item.pk %}"
+                   class="btn btn-sm btn-outline-primary">
+                  결과 관리
+                </a>
+              </td>
+
+            </tr>
+
+          {% empty %}
+
+            <tr>
+              <td colspan="5"
+                  class="text-center text-muted py-4">
+                완료된 회차가 없습니다.
+              </td>
+            </tr>
+
+          {% endfor %}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
   </section>
+
 {% endblock %}

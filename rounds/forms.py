@@ -4,9 +4,11 @@ from accounts.models import User
 from rounds.models import EvaluationRound, Notice, QuestionTemplate, TemplateQuestion
 
 class NoticeForm(forms.ModelForm):
+
     class Meta:
         model = Notice
-        fields = ["title", "content"]
+        fields = ["title", "content", "is_active"]
+
         widgets = {
             "title": forms.TextInput(
                 attrs={
@@ -14,6 +16,7 @@ class NoticeForm(forms.ModelForm):
                     "placeholder": "공지 제목을 입력해 주세요.",
                 }
             ),
+
             "content": forms.Textarea(
                 attrs={
                     "class": "form-control",
@@ -21,6 +24,16 @@ class NoticeForm(forms.ModelForm):
                     "placeholder": "공지 내용을 입력해 주세요.",
                 }
             ),
+
+            "is_active": forms.CheckboxInput(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
+        }
+
+        labels = {
+            "is_active": "바로 공개",
         }
 
 class EvaluationRoundForm(forms.ModelForm):

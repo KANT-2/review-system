@@ -36,12 +36,6 @@
                 {{ notice.title }}
               </span>
 
-              <span class="text-muted mx-1">·</span>
-
-              <span class="text-muted">
-                {{ notice.content|striptags|truncatechars:70 }}
-              </span>
-
             </button>
 
           {% endfor %}
@@ -247,6 +241,7 @@
         document.querySelector("[data-notice-counter]");
 
       let currentNoticeIndex = 0;
+      let noticeTimer = null;
 
 
       function showNotice(index) {
@@ -277,12 +272,35 @@
 
 
         if (counter) {
-
           counter.textContent =
             (currentNoticeIndex + 1)
             + " / "
             + noticeItems.length;
+        }
 
+      }
+
+
+      function startNoticeTimer() {
+
+        if (noticeItems.length <= 1) {
+          return;
+        }
+
+        stopNoticeTimer();
+
+        noticeTimer = setInterval(function () {
+          showNotice(currentNoticeIndex + 1);
+        }, 4000);
+
+      }
+
+
+      function stopNoticeTimer() {
+
+        if (noticeTimer) {
+          clearInterval(noticeTimer);
+          noticeTimer = null;
         }
 
       }
@@ -292,6 +310,7 @@
 
         prevButton.addEventListener("click", function () {
           showNotice(currentNoticeIndex - 1);
+          startNoticeTimer();
         });
 
       }
@@ -301,15 +320,12 @@
 
         nextButton.addEventListener("click", function () {
           showNotice(currentNoticeIndex + 1);
+          startNoticeTimer();
         });
 
       }
 
 
-      /*
-       * 전체 공지 목록에서 공지를 클릭했을 때
-       * 목록 모달을 닫은 뒤 상세 모달을 연다.
-       */
       document
         .querySelectorAll("[data-notice-detail-target]")
         .forEach(function (button) {
@@ -363,7 +379,29 @@
         });
 
 
+      document
+        .querySelectorAll(".modal")
+        .forEach(function (modalElement) {
+
+          modalElement.addEventListener(
+            "show.bs.modal",
+            function () {
+              stopNoticeTimer();
+            }
+          );
+
+          modalElement.addEventListener(
+            "hidden.bs.modal",
+            function () {
+              startNoticeTimer();
+            }
+          );
+
+        });
+
+
       showNotice(0);
+      startNoticeTimer();
 
     });
   </script>
