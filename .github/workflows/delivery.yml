@@ -88,7 +88,7 @@ jobs:
             "$remote:$DEPLOY_PATH/shared/.env.production.next"
           ssh -i "$HOME/.ssh/id_ed25519" -p "$DEPLOY_PORT" \
             -o BatchMode=yes -o IdentitiesOnly=yes "$remote" \
-            "chmod 600 '$DEPLOY_PATH/shared/.env.production.next' && mv '$DEPLOY_PATH/shared/.env.production.next' '$DEPLOY_PATH/shared/.env.production'"
+            "chmod 600 '$DEPLOY_PATH/shared/.env.production.next' && mv '$DEPLOY_PATH/shared/.env.production.next' '$DEPLOY_PATH/shared/.env.production' && ln -sfn '$DEPLOY_PATH/shared/.env.production' '$release_dir/.env.production'"
 
       - name: Deploy production services
         run: |
@@ -97,7 +97,7 @@ jobs:
           release_dir="$DEPLOY_PATH/releases/$DEPLOY_SHA"
           ssh -i "$HOME/.ssh/id_ed25519" -p "$DEPLOY_PORT" \
             -o BatchMode=yes -o IdentitiesOnly=yes "$remote" \
-            "cd '$release_dir' && ./deploy/remote_deploy.sh '$DEPLOY_PATH/shared/.env.production'"
+            "cd '$release_dir' && ./deploy/remote_deploy.sh"
 
       - name: Remove rendered production environment
         if: always()
