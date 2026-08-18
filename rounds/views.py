@@ -38,6 +38,7 @@ def operations_dashboard(request):
     current = rounds_dashboard_rows().filter(status=EvaluationRound.Status.IN_PROGRESS).first()
     latest_draft = rounds_dashboard_rows().filter(status=EvaluationRound.Status.DRAFT).first()
     completed = rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED)[:5]
+    latest_completed = (rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED).first())
     progress = get_review_progress(current) if current else None
     # 승인 화면(accounts:tutor_dashboard)이 세는 기준과 같아야 배지 숫자가 목록과 맞는다.
     pending_approvals = User.objects.filter(
@@ -51,6 +52,7 @@ def operations_dashboard(request):
             "current_round": current,
             "latest_draft": latest_draft,
             "completed_rounds": completed,
+            "latest_completed": latest_completed,
             "progress": progress,
             "pending_approvals": pending_approvals,
         },
