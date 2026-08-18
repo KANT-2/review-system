@@ -33,7 +33,11 @@
     <form method="post" class="row g-4">
       {% csrf_token %}
       <div class="col-12 col-lg-8"><section class="card-custom"><div class="card-body-custom">{{ form.non_field_errors }}{% for field in form %}{% if field.name != 'participants' %}<div class="mb-3"><label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endif %}{% endfor %}</div></section></div>
-      <div class="col-12 col-lg-4"><section class="card-custom"><div class="card-header-custom"><div class="card-title-custom">참가 수강생</div></div><div class="card-body-custom participant-checklist">{{ form.participants }}{% for error in form.participants.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div></section><button type="submit" class="btn btn-ax-primary w-100 mt-3">저장</button></div>
+      <div class="col-12 col-lg-4"><section class="card-custom"><div class="card-header-custom"><div class="card-title-custom">참가 수강생</div></div><div class="card-body-custom participant-checklist">{{ form.participants }}{% for error in form.participants.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div></section><button type="submit" class="btn btn-ax-primary w-100 mt-3">저장</button>
+      {% if round_obj and round_obj.status == 'DRAFT' %} <a href="{% url 'rounds:reviews' round_obj.pk %}" class="btn btn-outline-primary w-100 mt-2"
+      style="font-size: 13px; font-weight: 600;">
+      평가 시작 </a> {% endif %}
+    </div>
     </form>
   {% endif %}
 {% endblock %}
