@@ -12,6 +12,11 @@ urlpatterns = [
     path("onboarding/", views.onboarding_view, name="onboarding"),
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("mypage/", views.mypage_view, name="mypage"),
+    path(
+        "mypage/rounds/<int:round_id>/result.csv",
+        views.mypage_round_result_csv,
+        name="mypage_round_result_csv",
+    ),
     path("tutor/accounts/", views.account_admin, name="account_admin"),
     path(
         "tutor/accounts/<int:user_id>/<str:action>/",

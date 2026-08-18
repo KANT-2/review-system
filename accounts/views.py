@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 
 from django.conf import settings
@@ -5,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -18,7 +20,11 @@ from accounts.forms import (
     WhitelistEntryForm,
 )
 from accounts.models import User
-from accounts.portal import build_student_portal, build_student_result_portal
+from accounts.portal import (
+    build_student_portal,
+    build_student_result_portal,
+    round_result_csv_rows,
+)
 from accounts.services import (
     AccountConflictError,
     InvalidAccountTransition,
@@ -238,6 +244,24 @@ def mypage_view(request):
         "accounts/mypage.html",
         {"portal": build_student_result_portal(request.user)},
     )
+
+
+@login_required
+@require_GET
+def mypage_round_result_csv(request, round_id):
+    """마이페이지 주차별 상세 이력의 회차 결과 CSV 다운로드(MVP 의도적 확장 - CONTEXT.md 참고)."""
+    payload = round_result_csv_rows(request.user, round_id)
+    if payload is None:
+        raise Http404
+    buffer = io.StringIO()
+    csv.writer(buffer).writerows(payload["rows"])
+    # BOM은 한 번만 - 응답에 바로 writer.writerows를 걸면 write() 호출마다 BOM이 반복된다.
+    response = HttpResponse(
+        buffer.getvalue().encode("utf-8-sig"), content_type="text/csv; charset=utf-8"
+    )
+    filename = f"{payload['round_name']}_결과.csv".replace(" ", "_")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required

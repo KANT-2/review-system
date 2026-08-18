@@ -49,6 +49,7 @@
                   <th scope="col" class="text-end">순서</th>
                   <th scope="col">문항</th>
                   <th scope="col">응답 형식</th>
+                  <th scope="col">역량</th>
                   <th scope="col" class="text-center">필수</th>
                   <th scope="col" class="text-center">삭제</th>
                 </tr>
@@ -63,6 +64,7 @@
                       {% for error in question_form.prompt.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                     </td>
                     <td>{{ question_form.response_type }}</td>
+                    <td>{{ question_form.competency }}</td>
                     <td class="text-center">{{ question_form.is_required }}</td>
                     <td class="text-center">{% if question_form.instance.pk %}{{ question_form.DELETE }}{% endif %}</td>
                   </tr>
@@ -98,6 +100,7 @@
         <td class="text-end text-muted question-order"></td>
         <td>{{ formset.empty_form.prompt }}</td>
         <td>{{ formset.empty_form.response_type }}</td>
+        <td>{{ formset.empty_form.competency }}</td>
         <td class="text-center">{{ formset.empty_form.is_required }}</td>
         <td class="text-center"></td>
       </tr>
