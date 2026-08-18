@@ -1,0 +1,174 @@
+name: review-system-production
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - data
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    # Explicit mappings let CI/deployment secret stores override only secrets
+    # while the non-secret production defaults continue to come from env_file.
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_EMAIL_BACKEND: ${DJANGO_EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      DJANGO_EMAIL_HOST_PASSWORD: ${DJANGO_EMAIL_HOST_PASSWORD:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import socket; socket.create_connection(('127.0.0.1', 8000), 2).close()
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - edge
+      - data
+      - mail
+
+  caddy:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.caddy
+    image: review-system-caddy:2.11.4
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - production_caddy_data:/data
+      - production_caddy_config:/config
+      - production_mail_acme_challenge:/srv/acme:ro
+    networks:
+      - edge
+
+  mailserver:
+    profiles: ["mail"]
+    image: ghcr.io/docker-mailserver/docker-mailserver:15.1.0@sha256:af51b15dd3fc72153c0e90eb7692bb5e3a463212d87959a80fa7aa89b617d44a
+    # PTR/SMTP banner identity. Clients still connect to mail.oaknamu.com.
+    hostname: oaknamu.com
+    restart: unless-stopped
+    stop_grace_period: 1m
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+    environment:
+      ACCOUNT_PROVISIONER: FILE
+      ENABLE_AMAVIS: "0"
+      ENABLE_CLAMAV: "0"
+      ENABLE_DNSBL: "0"
+      ENABLE_FAIL2BAN: "1"
+      ENABLE_IMAP: "1"
+      ENABLE_OPENDKIM: "0"
+      ENABLE_OPENDMARC: "0"
+      ENABLE_POLICYD_SPF: "0"
+      ENABLE_POP3: "0"
+      ENABLE_POSTGREY: "0"
+      ENABLE_QUOTAS: "1"
+      ENABLE_RSPAMD: "1"
+      ENABLE_RSPAMD_REDIS: "1"
+      ENABLE_SPAMASSASSIN: "0"
+      ENABLE_UPDATE_CHECK: "0"
+      FAIL2BAN_BLOCKTYPE: drop
+      LOG_LEVEL: info
+      MARK_SPAM_AS_READ: "1"
+      MOVE_SPAM_TO_JUNK: "1"
+      PERMIT_DOCKER: none
+      POSTFIX_INET_PROTOCOLS: ipv4
+      POSTFIX_MESSAGE_SIZE_LIMIT: "26214400"
+      POSTMASTER_ADDRESS: postmaster@oaknamu.com
+      POSTSCREEN_ACTION: enforce
+      RSPAMD_GREYLISTING: "1"
+      RSPAMD_LEARN: "1"
+      SPOOF_PROTECTION: "1"
+      SSL_DOMAIN: mail.oaknamu.com
+      SSL_TYPE: letsencrypt
+      TLS_LEVEL: modern
+      TZ: Asia/Seoul
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - production_mail_data:/var/mail
+      - production_mail_state:/var/mail-state
+      - production_mail_logs:/var/log/mail
+      - production_mail_config:/tmp/docker-mailserver
+      - production_mail_letsencrypt:/etc/letsencrypt:ro
+    healthcheck:
+      test: "ss --listening --ipv4 --tcp | grep --silent ':smtp' || exit 1"
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    networks:
+      edge:
+      mail:
+        aliases:
+          - mail.oaknamu.com
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  certbot:
+    profiles: ["mail-admin"]
+    image: certbot/certbot:v5.7.0@sha256:34ee91d2f43008eb78a007d22f23ed4b2eaa9a454cb27ca2c042b49527a695b4
+    volumes:
+      - production_mail_letsencrypt:/etc/letsencrypt
+      - production_mail_certbot_logs:/var/log/letsencrypt
+      - production_mail_acme_challenge:/var/www/certbot
+    networks:
+      - edge
+
+volumes:
+  production_postgres_data:
+  production_caddy_data:
+  production_caddy_config:
+  production_mail_data:
+  production_mail_state:
+  production_mail_logs:
+  production_mail_config:
+  production_mail_letsencrypt:
+  production_mail_certbot_logs:
+  production_mail_acme_challenge:
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  data:
+    internal: true
+  mail:
+    internal: true

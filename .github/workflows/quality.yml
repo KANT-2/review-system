@@ -73,3 +73,17 @@ jobs:
 
       - name: Run tests
         run: python manage.py test
+
+      - name: Validate production Compose configuration
+        env:
+          PRODUCTION_ENV_FILE: .env.production.example
+        run: >-
+          docker compose --env-file .env.production.example
+          -f compose.production.yaml config --quiet
+
+      - name: Build production images
+        env:
+          PRODUCTION_ENV_FILE: .env.production.example
+        run: >-
+          docker compose --env-file .env.production.example
+          -f compose.production.yaml build app caddy

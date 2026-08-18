@@ -187,6 +187,22 @@ if KAKAO_OAUTH_ENABLED:
     }
 SOCIALACCOUNT_REQUESTS_TIMEOUT = env_int("SOCIALACCOUNT_REQUESTS_TIMEOUT", 5)
 
+# Development prints messages to the terminal. Production opts into SMTP with
+# DJANGO_EMAIL_BACKEND and the remaining DJANGO_EMAIL_* variables; credentials
+# are intentionally never stored in this repository.
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+).strip()
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "").strip()
+EMAIL_PORT = env_int("DJANGO_EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("DJANGO_EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = env_int("DJANGO_EMAIL_TIMEOUT", 10)
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "webmaster@localhost").strip()
+ACCOUNT_EMAIL_SUBJECT_PREFIX = os.getenv("DJANGO_ACCOUNT_EMAIL_SUBJECT_PREFIX", "[AX Console] ")
+
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/accounts/dashboard/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
