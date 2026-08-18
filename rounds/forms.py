@@ -69,7 +69,13 @@ class EvaluationRoundForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         # 화면에서 온 값은 무시하고 승인된 활성 수강생 전원으로 다시 채운다.
-        cleaned["participants"] = self.fields["participants"].queryset
+        user_ids = set(self.fields["participants"].queryset.values_list("pk", flat=True))
+        if self.instance.pk:
+            # 이미 참가 중인 사람은 승인·활성 상태가 바뀌었더라도 빼지 않는다. 팀에 배정된
+            # 참가자는 삭제 자체가 막히고(TeamMembership PROTECT), 팀 배정을 조용히 잃는
+            # 것도 곤란하다 - 내보내려면 팀 편성에서 먼저 빼야 한다.
+            user_ids |= set(self.instance.participants.values_list("user_id", flat=True))
+        cleaned["participants"] = User.objects.filter(pk__in=user_ids)
         return cleaned
 
 

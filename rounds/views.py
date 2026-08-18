@@ -111,6 +111,14 @@ def publish_entry(request):
     return redirect("rounds:publish-settings", round_id=latest_completed.pk)
 
 
+def _participant_count(form, round_obj):
+    """회차 설정 화면에 보여줄 참가자 수 - 저장했을 때 실제로 들어갈 인원과 같아야 한다."""
+    user_ids = set(form.fields["participants"].queryset.values_list("pk", flat=True))
+    if round_obj:
+        user_ids |= set(round_obj.participants.values_list("user_id", flat=True))
+    return len(user_ids)
+
+
 def _template_previews():
     """회차 설정 화면의 '미리보기' 창에 넣을 템플릿별 문항 목록.
 
@@ -164,7 +172,7 @@ def round_edit(request, round_id=None):
             "round_obj": round_obj,
             "form": form,
             "read_only": False,
-            "participant_count": form.fields["participants"].queryset.count(),
+            "participant_count": _participant_count(form, round_obj),
             "template_previews": _template_previews(),
         },
     )

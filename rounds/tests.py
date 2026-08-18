@@ -729,6 +729,40 @@ class RoundFormTests(TestCase):
         self.assertEqual(created.participants.count(), len(self.approved))
         self.assertFalse(created.participants.filter(user=self.pending).exists())
 
+    def test_existing_participant_is_kept_even_if_no_longer_eligible(self):
+        """비활성이 된 참가자를 자동으로 빼면 팀 배정 때문에 저장이 막힌다(회귀 방지)."""
+        now = timezone.now()
+        round_obj = EvaluationRound.objects.create(
+            title="기존 참가자 회차",
+            evaluation_start_at=now + timedelta(days=1),
+            evaluation_end_at=now + timedelta(days=2),
+            created_by=self.tutor,
+        )
+        leaver = self.approved[0]
+        participant = RoundParticipant.objects.create(
+            round=round_obj,
+            user=leaver,
+            student_number_snapshot=leaver.student_number,
+            display_name_snapshot=leaver.first_name,
+        )
+        team = Team.objects.create(round=round_obj, team_number=1, name="1팀")
+        TeamMembership.objects.create(team=team, participant=participant)
+        leaver.is_active = False
+        leaver.save(update_fields=["is_active"])
+
+        response = self.client.post(
+            reverse("rounds:edit", kwargs={"round_id": round_obj.pk}),
+            {
+                "title": "기존 참가자 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(round_obj.participants.filter(user=leaver).exists())
+
     def test_round_form_no_longer_shows_target_team_count(self):
         response = self.client.get(reverse("rounds:create"))
 
