@@ -1,0 +1,104 @@
+name: Production delivery
+
+on:
+  workflow_run:
+    workflows: ["Quality checks"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-delivery
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Validate delivery settings
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$DEPLOY_PATH" == "/home/$DEPLOY_USER/services/review-system" ]]
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Render production environment
+        env:
+          DJANGO_EMAIL_HOST_PASSWORD: ${{ secrets.DJANGO_EMAIL_HOST_PASSWORD }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: >-
+          python deploy/render_production_env.py
+          --template .env.production.example
+          --output /tmp/review-system.env.production
+
+      - name: Configure deployment SSH key
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+      - name: Upload tested release
+        run: |
+          set -euo pipefail
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          release_dir="$DEPLOY_PATH/releases/$DEPLOY_SHA"
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes "$remote" \
+            "mkdir -p '$release_dir' '$DEPLOY_PATH/shared'"
+          rsync -az --delete \
+            --exclude '/.env' \
+            --exclude '/.env.production' \
+            --exclude '/.git/' \
+            --exclude '/artifacts/' \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -p $DEPLOY_PORT -o BatchMode=yes -o IdentitiesOnly=yes" \
+            ./ "$remote:$release_dir/"
+          scp -i "$HOME/.ssh/id_ed25519" -P "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            /tmp/review-system.env.production \
+            "$remote:$DEPLOY_PATH/shared/.env.production.next"
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes "$remote" \
+            "chmod 600 '$DEPLOY_PATH/shared/.env.production.next' && mv '$DEPLOY_PATH/shared/.env.production.next' '$DEPLOY_PATH/shared/.env.production'"
+
+      - name: Deploy production services
+        run: |
+          set -euo pipefail
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          release_dir="$DEPLOY_PATH/releases/$DEPLOY_SHA"
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes "$remote" \
+            "cd '$release_dir' && ./deploy/remote_deploy.sh '$DEPLOY_PATH/shared/.env.production'"
+
+      - name: Remove rendered production environment
+        if: always()
+        run: rm -f -- /tmp/review-system.env.production
