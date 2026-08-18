@@ -1,19 +1,75 @@
 {% extends "base.html" %}
-{% block title %}계정 관리 | AX Evaluation Console{% endblock %}
-{% block breadcrumb %}계정 관리{% endblock %}
+{% load static %}
+{% block title %}수강생 관리 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}수강생 관리{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
-      <h1 class="page-title">계정 관리</h1>
-      <p class="page-desc">승인 상태와 활성 여부, 역할을 관리합니다. 상태를 바꾸면 해당 계정의 기존 로그인 세션이 끊깁니다.</p>
+      <h1 class="page-title">수강생 관리</h1>
+      <p class="page-desc">승인 대기, 전체 계정, 사전 등록 명단을 한 화면에서 관리합니다. 상태를 바꾸면 해당 계정의 기존 로그인 세션이 끊깁니다.</p>
     </div>
-    <a href="{% url 'accounts:tutor_dashboard' %}"
-       class="btn btn-ax-secondary">승인 대기 보기</a>
   </div>
-  <section class="card-custom">
+  <section class="card-custom mb-4">
+    <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-person-check-fill text-primary"></i>승인 대기 목록</div>
+      <span class="text-muted font-size-115">{{ pending_users|length }}명</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <colgroup>
+          <col class="ax-col-16">
+          <col class="ax-col-30">
+          <col class="ax-col-14">
+          <col class="ax-col-18">
+          <col class="ax-col-22">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>이메일</th>
+            <th>가입 방식</th>
+            <th>신청 일시</th>
+            <th class="text-end">관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pending_user in pending_head %}
+            {% include "accounts/_pending_user_row.html" %}
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-5">현재 승인 대기 요청이 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        {% if pending_rest %}
+          <tbody class="collapse" id="pendingRestRows">
+            {% for pending_user in pending_rest %}
+              {% include "accounts/_pending_user_row.html" %}
+            {% endfor %}
+          </tbody>
+        {% endif %}
+      </table>
+    </div>
+    {% if pending_rest %}
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#pendingRestRows"
+                data-more-text="나머지 {{ pending_rest|length }}명 더보기"
+                aria-expanded="false"
+                aria-controls="pendingRestRows">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">나머지 {{ pending_rest|length }}명 더보기</span>
+        </button>
+      </div>
+    {% endif %}
+  </section>
+  <section class="card-custom mb-4">
     <div class="card-header-custom">
       <div class="card-title-custom">계정 {{ accounts|length }}건</div>
-      <form method="get" class="d-flex align-items-center gap-2">
+      <form method="get"
+            class="d-flex ax-account-filter-form align-items-center gap-2">
         <label class="visually-hidden" for="role">역할</label>
         <select class="ax-round-select" id="role" name="role">
           <option value="">역할 전체</option>
@@ -42,6 +98,14 @@
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
+        <colgroup>
+          <col class="ax-col-32">
+          <col class="ax-col-10">
+          <col class="ax-col-13">
+          <col class="ax-col-10">
+          <col class="ax-col-13">
+          <col class="ax-col-22">
+        </colgroup>
         <thead>
           <tr>
             <th scope="col">계정</th>
@@ -53,132 +117,124 @@
           </tr>
         </thead>
         <tbody>
-          {% for account in accounts %}
-            <tr>
-              <td>
-                <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
-                <div class="text-muted font-size-115">{{ account.email }}</div>
-                <div class="text-muted font-size-115">
-                  식별번호 {{ account.student_number|default:"미등록" }}
-                  {% if account.session_info %}· {{ account.session_info }}{% endif %}
-                </div>
-                <form method="post"
-                      class="ax-inline-profile-form mt-2"
-                      action="{% url 'accounts:account_profile_update' account.pk %}">
-                  {% csrf_token %}
-                  <label class="visually-hidden" for="name-{{ account.pk }}">이름</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="name-{{ account.pk }}"
-                         name="first_name"
-                         maxlength="150"
-                         placeholder="이름"
-                         value="{{ account.first_name }}">
-                  <label class="visually-hidden" for="number-{{ account.pk }}">식별번호</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="number-{{ account.pk }}"
-                         name="student_number"
-                         maxlength="32"
-                         placeholder="식별번호"
-                         value="{{ account.student_number|default:'' }}">
-                  <label class="visually-hidden" for="session-{{ account.pk }}">기수</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="session-{{ account.pk }}"
-                         name="session_info"
-                         maxlength="50"
-                         placeholder="기수"
-                         value="{{ account.session_info }}">
-                  <button type="submit" class="btn btn-sm btn-ax-secondary flex-shrink-0">저장</button>
-                </form>
-              </td>
-              <td>{{ account.get_role_display }}</td>
-              <td class="text-center">
-                <span class="badge badge-ax {% if account.approval_status == 'approved' %}badge-ax-completed{% elif account.approval_status == 'rejected' %}badge-ax-danger{% else %}badge-ax-pending{% endif %}">
-                  {{ account.get_approval_status_display }}
-                </span>
-              </td>
-              <td class="text-center">
-                {% if account.is_active %}
-                  <span class="badge ax-badge-complete">활성</span>
-                {% else %}
-                  <span class="badge badge-ax badge-ax-danger">비활성</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                {% if account.must_rotate_password %}
-                  <span class="badge ax-badge-partial">재설정 대기</span>
-                {% else %}
-                  <span class="text-muted font-size-115">-</span>
-                {% endif %}
-              </td>
-              <td class="text-end">
-                <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
-                  {% if account.approval_status == 'rejected' %}
-                    <form method="post"
-                          action="{% url 'accounts:account_action' account.pk 'revert-approval' %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-ax-secondary">승인 대기로</button>
-                    </form>
-                  {% endif %}
-                  {% if not account.must_rotate_password %}
-                    <form method="post"
-                          action="{% url 'accounts:account_action' account.pk 'require-password-reset' %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-ax-secondary">비밀번호 재설정 요구</button>
-                    </form>
-                  {% endif %}
-                  {% if can_change_role and account.role != 'admin' %}
-                    {% if account.role == 'student' %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'make-tutor' %}"
-                            onsubmit="return confirm('{{ account.email }} 계정을 튜터로 바꿉니다. 운영 화면 전체에 접근할 수 있게 됩니다. 계속할까요?')">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-secondary">튜터로</button>
-                      </form>
-                    {% else %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'make-student' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-secondary">수강생으로</button>
-                      </form>
-                    {% endif %}
-                  {% endif %}
-                  {% if can_change_role %}
-                    {% if account.is_active %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'deactivate' %}"
-                            onsubmit="return confirm('{{ account.email }} 계정을 비활성화합니다. 즉시 로그아웃되고 다시 로그인할 수 없습니다. 계속할까요?')">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">비활성화</button>
-                      </form>
-                    {% else %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'activate' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-primary">활성화</button>
-                      </form>
-                    {% endif %}
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
+          {% for account in accounts_head %}
+            {% include "accounts/_account_row.html" %}
           {% empty %}
             <tr>
               <td colspan="6" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>
+        {% if accounts_rest %}
+          <tbody class="collapse" id="accountRestRows">
+            {% for account in accounts_rest %}
+              {% include "accounts/_account_row.html" %}
+            {% endfor %}
+          </tbody>
+        {% endif %}
       </table>
     </div>
+    {% if accounts_rest %}
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#accountRestRows"
+                data-more-text="나머지 {{ accounts_rest|length }}건 더보기"
+                aria-expanded="false"
+                aria-controls="accountRestRows">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">나머지 {{ accounts_rest|length }}건 더보기</span>
+        </button>
+      </div>
+    {% endif %}
     {% if not can_change_role %}
       <div class="card-body-custom">
         <p class="text-muted font-size-115 mb-0">
           <i class="bi bi-info-circle"></i>
-          역할 변경과 계정 활성/비활성은 관리자만 할 수 있습니다.
+          계정 삭제와 활성화는 관리자만 할 수 있습니다.
         </p>
       </div>
     {% endif %}
   </section>
+  <section class="card-custom">
+    <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-envelope-paper"></i>사전 등록 명단</div>
+    </div>
+    <div class="card-body-custom">
+      <p class="text-muted font-size-115 mb-3">여기에 등록된 이메일로 가입하면 자동 승인됩니다. 명단에 없으면 위 승인 대기 목록으로 넘어갑니다.</p>
+      <form method="post"
+            action="{% url 'accounts:whitelist_add' %}"
+            class="row g-2 align-items-end mb-3">
+        {% csrf_token %}
+        {% for field in whitelist_form %}
+          <div class="col-md-{% if field.name == 'emails' %}7{% else %}3{% endif %}">
+            <label class="form-label small fw-bold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-ax-primary w-100">등록</button>
+        </div>
+      </form>
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#whitelistEntries"
+                data-more-text="등록된 명단 {{ whitelist_entries|length }}건 보기"
+                aria-expanded="false"
+                aria-controls="whitelistEntries">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">등록된 명단 {{ whitelist_entries|length }}건 보기</span>
+        </button>
+      </div>
+      <div class="collapse" id="whitelistEntries">
+        <div class="table-responsive mt-3">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">이메일</th>
+                <th scope="col">배정 기수</th>
+                <th scope="col" class="text-center">가입 상태</th>
+                <th scope="col">등록일</th>
+                <th scope="col" class="text-end">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in whitelist_entries %}
+                <tr>
+                  <td class="fw-semibold">{{ entry.email }}</td>
+                  <td class="text-muted">{{ entry.session_info|default:"-" }}</td>
+                  <td class="text-center">
+                    {% if entry.account %}
+                      <span class="badge badge-ax badge-ax-completed">{{ entry.account.get_approval_status_display }}</span>
+                    {% else %}
+                      <span class="badge ax-badge-no-data">미가입</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted font-size-115">{{ entry.created_at|date:"Y-m-d" }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'accounts:whitelist_delete' entry.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-5">아직 등록된 이메일이 없습니다.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/account-admin.js' %}"></script>
 {% endblock %}

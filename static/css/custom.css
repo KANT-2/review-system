@@ -899,14 +899,33 @@ tbody.collapse.show { display: table-row-group; }
   outline-offset: 2px;
 }
 
-/* 계정 관리 - 이름·식별번호·기수를 줄 안에서 바로 고친다(ACC-001). */
-.ax-inline-profile-form {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+/* ============================================================
+   수강생 관리 화면 (accounts/account_admin.html)
+   ============================================================ */
+
+/* 필터 폼 - 좁아지면 검색창/버튼 글자가 찌그러지는 대신 다음 줄로 넘어가게 한다. */
+.ax-account-filter-form {
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ax-account-filter-form > * {
+  flex-shrink: 0;
+}
+.ax-account-filter-form input[type="search"] {
+  width: 200px;
 }
 
-.ax-inline-profile-form input {
-  width: 120px;
+/* 계정 목록 셀 - 이름/이메일/기수 줄 사이에 숨 쉴 틈을 준다. */
+.ax-account-cell > div + div {
+  margin-top: 2px;
 }
+
+/* 표 컬럼 너비 - 승인 대기·계정 목록의 colgroup에서 쓴다. */
+.ax-col-10 { width: 10%; }
+.ax-col-13 { width: 13%; }
+.ax-col-14 { width: 14%; }
+.ax-col-16 { width: 16%; }
+.ax-col-18 { width: 18%; }
+.ax-col-22 { width: 22%; }
+.ax-col-30 { width: 30%; }
+.ax-col-32 { width: 32%; }

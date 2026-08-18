@@ -1,0 +1,49 @@
+<tr>
+  <td class="ax-account-cell">
+    <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
+    <div class="text-muted font-size-115">{{ account.email }}</div>
+    {% if account.session_info %}
+      <div class="text-muted font-size-115">{{ account.session_info }}</div>
+    {% endif %}
+  </td>
+  <td>{{ account.get_role_display }}</td>
+  <td class="text-center">
+    <span class="badge badge-ax {% if account.approval_status == 'approved' %}badge-ax-completed{% elif account.approval_status == 'rejected' %}badge-ax-danger{% else %}badge-ax-pending{% endif %}">
+      {{ account.get_approval_status_display }}
+    </span>
+  </td>
+  <td class="text-center">
+    {% if account.is_active %}
+      <span class="badge ax-badge-complete">활성</span>
+    {% else %}
+      <span class="badge badge-ax badge-ax-danger">비활성</span>
+    {% endif %}
+  </td>
+  <td class="text-center">
+    {% if account.must_rotate_password %}
+      <span class="badge ax-badge-partial">재설정 대기</span>
+    {% else %}
+      <span class="text-muted font-size-115">-</span>
+    {% endif %}
+  </td>
+  <td class="text-end">
+    {% if can_change_role %}
+      <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+        {% if account.is_active %}
+          <form method="post"
+                action="{% url 'accounts:account_action' account.pk 'deactivate' %}"
+                onsubmit="return confirm('{{ account.email }} 계정을 삭제합니다. 즉시 로그아웃되고 다시 로그인할 수 없습니다. 계속할까요?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+          </form>
+        {% else %}
+          <form method="post"
+                action="{% url 'accounts:account_action' account.pk 'activate' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-ax-primary">활성화</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+  </td>
+</tr>
