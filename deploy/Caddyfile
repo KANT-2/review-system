@@ -1,0 +1,28 @@
+{
+	email admin@oaknamu.com
+}
+
+oaknamu.com {
+	encode zstd gzip
+
+	request_body {
+		max_size 10MB
+	}
+
+	reverse_proxy app:8000
+}
+
+www.oaknamu.com {
+	redir https://oaknamu.com{uri} permanent
+}
+
+# Certbot owns the mail certificate. This HTTP-only virtual host exposes only
+# the ACME HTTP-01 challenge directory and does not provide webmail.
+http://mail.oaknamu.com {
+	handle /.well-known/acme-challenge/* {
+		root * /srv/acme
+		file_server
+	}
+
+	respond 404
+}
