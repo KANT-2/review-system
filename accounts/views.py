@@ -6,8 +6,9 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.forms import (
@@ -321,9 +322,9 @@ def account_admin(request):
     if status not in dict(User.ApprovalStatus.choices):
         status = ""
 
+    from accounts.models import ScheduledEmail
     from rounds.models import EvaluationRound
     from teams.models import Team
-    from accounts.models import ScheduledEmail
 
     current_round = (
         EvaluationRound.objects.filter(status=EvaluationRound.Status.IN_PROGRESS)
@@ -690,7 +691,9 @@ def send_tutor_announcement_view(request):
     if send_type == "scheduled" and scheduled_at_str:
         try:
             import json
+
             from django.utils.dateparse import parse_datetime
+
             from accounts.models import ScheduledEmail
 
             scheduled_at = parse_datetime(scheduled_at_str)

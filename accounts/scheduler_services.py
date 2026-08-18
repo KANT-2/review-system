@@ -8,8 +8,8 @@ from accounts.email_services import (
     send_tutor_announcement_email,
 )
 from accounts.models import ScheduledEmail, User
-from rounds.models import EvaluationRound
 from reviews.models import ReviewSubmission
+from rounds.models import EvaluationRound
 
 
 def process_scheduled_emails():
@@ -65,7 +65,7 @@ def process_scheduled_emails():
             scheduled_item.sent_at = timezone.now()
             scheduled_item.save(update_fields=["status", "sent_at", "sent_count"])
             processed_count += 1
-        except Exception as e:
+        except Exception:
             scheduled_item.status = ScheduledEmail.Status.FAILED
             scheduled_item.save(update_fields=["status"])
 
