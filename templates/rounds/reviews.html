@@ -5,7 +5,13 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ round_obj.title }} 진행 현황</h1>
-      <p class="page-desc">시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.</p>
+      <p class="page-desc">
+        시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.
+        <span class="badge bg-info text-dark ms-2"><i class="bi bi-clock-history me-1"></i>마감 10분 전 자동 독촉 활성화됨</span>
+        {% if round_obj.auto_reminder_sent_at %}
+          <span class="badge bg-success text-white ms-1"><i class="bi bi-check-circle-fill me-1"></i>자동 독촉 발송완료 ({{ round_obj.auto_reminder_sent_at|date:"H:i" }})</span>
+        {% endif %}
+      </p>
     </div>
     <div class="d-flex gap-2">
       <form action="{% url 'rounds:send_reminders' round_obj.pk %}" method="post" class="d-inline">

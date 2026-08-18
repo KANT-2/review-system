@@ -38,18 +38,31 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-6">
-            <label for="email_subject" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 제목</label>
-            <input type="text" id="email_subject" name="subject" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내" required>
+          <div class="col-md-3">
+            <label for="send_type" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 시점 선택</label>
+            <select id="send_type" name="send_type" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" onchange="toggleScheduleTimeUI(this.value)">
+              <option value="now">⚡ 즉시 발송</option>
+              <option value="scheduled">📅 예약 발송</option>
+            </select>
+          </div>
+          <div class="col-md-3" id="schedule_time_wrapper" style="display: none;">
+            <label for="scheduled_at" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">예약 날짜 & 시간</label>
+            <input type="datetime-local" id="scheduled_at" name="scheduled_at" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;">
           </div>
         </div>
         <div class="row g-3">
           <div class="col-md-9">
-            <label for="email_message" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 내용</label>
-            <input type="text" id="email_message" name="message" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="수강생들에게 발송할 공지 메시지를 입력하세요" required>
+            <label for="email_subject" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 제목</label>
+            <input type="text" id="email_subject" name="subject" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내" required>
           </div>
           <div class="col-md-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold" style="background-color: #1769E0; border: none; padding: 7px 12px;">✉️ 지정 대상에게 이메일 발송</button>
+            <button type="submit" id="submit_email_btn" class="btn btn-primary btn-sm w-100 fw-bold" style="background-color: #1769E0; border: none; padding: 7px 12px;">✉️ 공지 이메일 발송</button>
+          </div>
+        </div>
+        <div class="row g-3 mt-1">
+          <div class="col-md-12">
+            <label for="email_message" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 내용</label>
+            <input type="text" id="email_message" name="message" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="수강생들에게 발송할 공지 메시지를 입력하세요" required>
           </div>
         </div>
         <!-- 체크박스 다중 선택 전송용 숨겨진 input 컨테이너 -->
@@ -57,6 +70,47 @@
       </form>
     </div>
   </section>
+
+  <!-- 📅 예약된 공지 이메일 목록 카드 -->
+  {% if scheduled_emails %}
+  <section class="card-custom mb-4" style="background-color: #0F172A; border: 1px solid #334155; border-radius: 12px; overflow: hidden;">
+    <div class="card-header-custom" style="background-color: #1E293B; border-bottom: 1px solid #334155; padding: 14px 20px;">
+      <div class="card-title-custom" style="color: #FFFFFF; font-weight: 700; font-size: 15px;"><i class="bi bi-calendar-event-fill text-warning me-2"></i> 📅 예약 대기 중인 공지 이메일 ({{ scheduled_emails|length }}건)</div>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 text-white">
+        <thead style="background-color: #1E293B; color: #94A3B8;">
+          <tr>
+            <th scope="col" class="ps-3">예약 시각</th>
+            <th scope="col">발송 대상</th>
+            <th scope="col">메일 제목</th>
+            <th scope="col">메일 내용</th>
+            <th scope="col" class="text-end pe-3">취소 관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in scheduled_emails %}
+            <tr style="border-bottom: 1px solid #334155;">
+              <td class="ps-3 fw-bold text-warning">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
+              <td>
+                <span class="badge bg-secondary">{{ item.get_target_type_display }}</span>
+                {% if item.target_team %}<span class="badge bg-info text-dark ms-1">{{ item.target_team.name }}</span>{% endif %}
+              </td>
+              <td class="fw-semibold">{{ item.subject }}</td>
+              <td class="text-truncate" style="max-width: 250px;">{{ item.message }}</td>
+              <td class="text-end pe-3">
+                <form action="{% url 'accounts:cancel_scheduled_email' item.pk %}" method="post" class="d-inline" onsubmit="return confirm('이 공지 메일 예약을 취소하시겠습니까?')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">예약 취소</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
   <section class="card-custom">
     <div class="card-header-custom">
       <div class="card-title-custom">계정 {{ accounts|length }}건</div>
@@ -269,11 +323,36 @@
       });
     }
 
+    function toggleScheduleTimeUI(val) {
+      var timeWrapper = document.getElementById('schedule_time_wrapper');
+      var submitBtn = document.getElementById('submit_email_btn');
+      if (val === 'scheduled') {
+        timeWrapper.style.display = 'block';
+        if (submitBtn) submitBtn.innerHTML = '📅 이메일 공지 예약하기';
+      } else {
+        timeWrapper.style.display = 'none';
+        var input = document.getElementById('scheduled_at');
+        if (input) input.value = '';
+        if (submitBtn) submitBtn.innerHTML = '✉️ 공지 이메일 발송';
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       var form = document.getElementById('announcement_form');
       if (form) {
         form.addEventListener('submit', function(e) {
           var targetType = document.getElementById('send_target_type').value;
+          var sendType = document.getElementById('send_type').value;
+
+          if (sendType === 'scheduled') {
+            var timeVal = document.getElementById('scheduled_at').value;
+            if (!timeVal) {
+              alert('예약 발송 날짜 및 시각을 입력해 주세요!');
+              e.preventDefault();
+              return false;
+            }
+          }
+
           if (targetType === 'select') {
             var checked = document.querySelectorAll('.student-user-checkbox:checked');
             if (checked.length === 0) {

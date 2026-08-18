@@ -323,6 +323,7 @@ def account_admin(request):
 
     from rounds.models import EvaluationRound
     from teams.models import Team
+    from accounts.models import ScheduledEmail
 
     current_round = (
         EvaluationRound.objects.filter(status=EvaluationRound.Status.IN_PROGRESS)
@@ -346,6 +347,10 @@ def account_admin(request):
         )
         current_round_title = ""
 
+    scheduled_emails = ScheduledEmail.objects.filter(
+        status=ScheduledEmail.Status.PENDING
+    ).order_by("scheduled_at")
+
     return render(
         request,
         "accounts/account_admin.html",
@@ -353,6 +358,7 @@ def account_admin(request):
             "accounts": account_rows(role=role, status=status, query=query),
             "teams": teams,
             "current_round_title": current_round_title,
+            "scheduled_emails": scheduled_emails,
             "selected_role": role,
             "selected_status": status,
             "query": query,
@@ -678,10 +684,84 @@ def send_tutor_announcement_view(request):
         )
         target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
 
+    send_type = request.POST.get("send_type", "now").strip()
+    scheduled_at_str = request.POST.get("scheduled_at", "").strip()
+
+    if send_type == "scheduled" and scheduled_at_str:
+        try:
+            import json
+            from django.utils.dateparse import parse_datetime
+            from accounts.models import ScheduledEmail
+
+            scheduled_at = parse_datetime(scheduled_at_str)
+            if scheduled_at and timezone.is_naive(scheduled_at):
+                scheduled_at = timezone.make_aware(scheduled_at)
+
+            if not scheduled_at or scheduled_at <= timezone.now():
+                messages.error(request, "예약 발송 일시는 현재 시각 이후로 지정해 주세요.")
+                return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+            target_type = ScheduledEmail.TargetType.ALL
+            target_team_obj = None
+            if target_team_id:
+                from teams.models import Team
+
+                target_type = ScheduledEmail.TargetType.TEAM
+                target_team_obj = Team.objects.filter(id=target_team_id).first()
+            elif selected_user_ids:
+                target_type = ScheduledEmail.TargetType.SELECT
+            elif target_user_id:
+                target_type = ScheduledEmail.TargetType.SINGLE
+
+            ScheduledEmail.objects.create(
+                sender=request.user,
+                subject=subject,
+                message=message,
+                target_type=target_type,
+                target_team=target_team_obj,
+                selected_user_ids_json=json.dumps(
+                    selected_user_ids
+                    if selected_user_ids
+                    else ([target_user_id] if target_user_id else [])
+                ),
+                scheduled_at=scheduled_at,
+                status=ScheduledEmail.Status.PENDING,
+            )
+            messages.success(
+                request,
+                f"📅 [{scheduled_at.strftime('%Y-%m-%d %H:%M')}] 시각으로 {target_info_str} 대상 이메일 공지가 성공적으로 예약되었습니다!",
+            )
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+        except Exception as e:
+            messages.error(request, f"예약 일시 처리 중 오류가 발생했습니다: {e}")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
     from accounts.email_services import send_tutor_announcement_email
+
     send_tutor_announcement_email(subject, message, recipient_emails)
     messages.success(request, f"{target_info_str}에게 공지 이메일이 성공적으로 발송되었습니다.")
     return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+
+@login_required
+@require_POST
+def cancel_scheduled_email_view(request, email_id):
+    """예약된 공지 이메일을 발송 취소합니다."""
+    if not (request.user.is_staff or request.user.role in [User.Role.TUTOR, User.Role.ADMIN]):
+        raise PermissionDenied
+
+    from accounts.models import ScheduledEmail
+
+    scheduled_item = get_object_or_404(ScheduledEmail, pk=email_id)
+    if scheduled_item.status == ScheduledEmail.Status.PENDING:
+        scheduled_item.status = ScheduledEmail.Status.CANCELLED
+        scheduled_item.save(update_fields=["status"])
+        messages.success(request, f"'{scheduled_item.subject}' 예약 공지가 취소되었습니다.")
+    else:
+        messages.error(request, "이미 처리되었거나 취소할 수 없는 예약 건입니다.")
+
+    return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
 
 
 
