@@ -589,6 +589,53 @@ class QuestionRowAddingTests(TestCase):
         )
 
 
+class QuestionTemplateDeletionTests(TestCase):
+    """복제한 템플릿이 있으면 원본 삭제가 500이 아니라 안내 메시지로 막혀야 한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="tpl-del-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.template = QuestionTemplate.objects.create(
+            name="원본 템플릿", category="TEAM", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.template, response_type="RATING_5", prompt="문항", display_order=1
+        )
+        self.client.force_login(self.tutor)
+
+    def test_template_with_copies_is_not_deleted(self):
+        self.client.post(reverse("rounds:template-copy", kwargs={"template_id": self.template.pk}))
+
+        response = self.client.post(
+            reverse("rounds:template-delete", kwargs={"template_id": self.template.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(QuestionTemplate.objects.filter(pk=self.template.pk).exists())
+        self.assertContains(response, "복제본을 먼저 삭제해 주세요")
+
+    def test_template_without_copies_is_deleted(self):
+        response = self.client.post(
+            reverse("rounds:template-delete", kwargs={"template_id": self.template.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(QuestionTemplate.objects.filter(pk=self.template.pk).exists())
+
+    def test_delete_button_is_disabled_for_a_copied_template(self):
+        self.client.post(reverse("rounds:template-copy", kwargs={"template_id": self.template.pk}))
+
+        response = self.client.get(reverse("rounds:template-list"))
+
+        self.assertContains(response, "복제본을 먼저 삭제해 주세요")
+
+
 class TutorPeerReviewTests(TestCase):
     """튜터 개인평가 - 튜터가 수강생을 직접 평가하고 언제든 고쳐 쓸 수 있어야 한다."""
 
