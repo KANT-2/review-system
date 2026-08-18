@@ -85,29 +85,38 @@ def ensure_template(*, tutor, name, category, prompts):
     return template
 
 
-def ensure_round(*, title, tutor, students, team_template, peer_template, status):
+def ensure_round(*, title, tutor, students, team_template, peer_template, status, weeks_ago=1):
+    """weeks_ago는 완료된 회차의 완료일을 서로 다르게 벌려서, 점수 추이 그래프의 회차 순서가
+    뒤섞이지 않게 한다(완료일이 같으면 정렬 순서가 안정적이지 않다)."""
     now = timezone.now()
     completed = status == EvaluationRound.Status.COMPLETED
     in_progress = status == EvaluationRound.Status.IN_PROGRESS
+    completed_at = now - timedelta(weeks=weeks_ago)
     defaults = {
         "description": "실제 ORM 흐름을 확인하기 위한 로컬 개발 회차입니다.",
         "evaluation_start_at": (
-            now - timedelta(days=14 if completed else 1)
-            if completed or in_progress
+            completed_at - timedelta(days=7)
+            if completed
+            else now - timedelta(days=1)
+            if in_progress
             else now + timedelta(days=8)
         ),
         "evaluation_end_at": (
-            now - timedelta(days=7) if completed else now + timedelta(days=7 if in_progress else 15)
+            completed_at if completed else now + timedelta(days=7 if in_progress else 15)
         ),
         "target_team_count": 2,
         "team_template": team_template,
         "peer_template": peer_template,
         "created_by": tutor,
         "status": status,
-        "started_at": now - timedelta(days=14 if completed else 1)
-        if completed or in_progress
-        else None,
-        "completed_at": now - timedelta(days=7) if completed else None,
+        "started_at": (
+            completed_at - timedelta(days=7)
+            if completed
+            else now - timedelta(days=1)
+            if in_progress
+            else None
+        ),
+        "completed_at": completed_at if completed else None,
     }
     round_obj, _ = EvaluationRound.objects.get_or_create(title=title, defaults=defaults)
     participants = []
@@ -154,7 +163,10 @@ def ensure_rating_submission(*, round_obj, evaluator, review_type, target, quest
     )
 
 
-def ensure_review_data(*, round_obj, participants, teams, team_question, peer_question, complete):
+def ensure_review_data(
+    *, round_obj, participants, teams, team_question, peer_question, complete, rating_base=4
+):
+    """rating_base(3~4)를 회차마다 다르게 주면 점수 추이 그래프가 오르내리는 모습을 볼 수 있다."""
     team_size = len(participants) // 2
     team_limit = len(participants) if complete else 2
     for index, evaluator in enumerate(participants[:team_limit]):
@@ -165,7 +177,7 @@ def ensure_review_data(*, round_obj, participants, teams, team_question, peer_qu
             review_type=ReviewSubmission.ReviewType.TEAM,
             target=teams[1 - own_team_index],
             question=team_question,
-            rating=4 + (index % 2),
+            rating=min(rating_base + (index % 2), 5),
         )
     peer_pairs = []
     for members in (participants[:team_size], participants[team_size:]):
@@ -184,7 +196,7 @@ def ensure_review_data(*, round_obj, participants, teams, team_question, peer_qu
             review_type=ReviewSubmission.ReviewType.PEER,
             target=target,
             question=peer_question,
-            rating=4 + (index % 2),
+            rating=min(rating_base + (index % 2), 5),
         )
 
 
@@ -238,6 +250,16 @@ def seed():
                 student_number=f"AX2026{index:02d}",
             )
         )
+    students.append(
+        ensure_user(
+            email="test-student@ax.com",
+            name="테스트학생",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            session_info="4기 풀스택 트랙",
+            student_number="AX202607",
+        )
+    )
     for name, email in (
         ("정우성", "woosung.jung@example.com"),
         ("한지민", "jimin.han@example.com"),
@@ -265,41 +287,47 @@ def seed():
     team_question = team_template.questions.first()
     peer_question = peer_template.questions.first()
 
-    completed_round, completed_participants, completed_teams = ensure_round(
-        title="4기 프로젝트 평가 1회차",
-        tutor=tutor,
-        students=students,
-        team_template=team_template,
-        peer_template=peer_template,
-        status=EvaluationRound.Status.COMPLETED,
-    )
-    ensure_review_data(
-        round_obj=completed_round,
-        participants=completed_participants,
-        teams=completed_teams,
-        team_question=team_question,
-        peer_question=peer_question,
-        complete=True,
-    )
-    if not CalculationRun.objects.filter(round=completed_round, is_active=True).exists():
-        calculate_round(round_id=completed_round.pk, actor=tutor)
-    active_run = CalculationRun.objects.get(round=completed_round, is_active=True)
-    for item_key, field_name in (
-        ("team_winner", "winner_published_at"),
-        ("team_ranking", "team_ranking_published_at"),
-        ("my_score", "my_score_published_at"),
-        ("peer_ranking", "peer_ranking_published_at"),
-    ):
-        if getattr(active_run, field_name) is None:
-            toggle_publication(
-                round_id=completed_round.pk,
-                item_key=item_key,
-                actor=tutor,
-            )
-            active_run.refresh_from_db()
+    # 1~5회차를 완료·채점·전체 공개까지 끝내 둔다 - 마이페이지 점수 추이 그래프를 보려면
+    # 완료된 회차가 여러 개 있어야 한다. rating_base를 회차마다 다르게 줘서 그래프가
+    # 오르내리는 모습을 볼 수 있게 한다.
+    for round_number, rating_base in ((1, 4), (2, 3), (3, 4), (4, 3), (5, 4)):
+        completed_round, completed_participants, completed_teams = ensure_round(
+            title=f"4기 프로젝트 평가 {round_number}회차",
+            tutor=tutor,
+            students=students,
+            team_template=team_template,
+            peer_template=peer_template,
+            status=EvaluationRound.Status.COMPLETED,
+            weeks_ago=(6 - round_number),
+        )
+        ensure_review_data(
+            round_obj=completed_round,
+            participants=completed_participants,
+            teams=completed_teams,
+            team_question=team_question,
+            peer_question=peer_question,
+            complete=True,
+            rating_base=rating_base,
+        )
+        if not CalculationRun.objects.filter(round=completed_round, is_active=True).exists():
+            calculate_round(round_id=completed_round.pk, actor=tutor)
+        active_run = CalculationRun.objects.get(round=completed_round, is_active=True)
+        for item_key, field_name in (
+            ("team_winner", "winner_published_at"),
+            ("team_ranking", "team_ranking_published_at"),
+            ("my_score", "my_score_published_at"),
+            ("peer_ranking", "peer_ranking_published_at"),
+        ):
+            if getattr(active_run, field_name) is None:
+                toggle_publication(
+                    round_id=completed_round.pk,
+                    item_key=item_key,
+                    actor=tutor,
+                )
+                active_run.refresh_from_db()
 
     active_round, active_participants, active_teams = ensure_round(
-        title="4기 프로젝트 평가 2회차",
+        title="4기 프로젝트 평가 6회차",
         tutor=tutor,
         students=students,
         team_template=team_template,
@@ -316,7 +344,7 @@ def seed():
     )
 
     ensure_round(
-        title="4기 프로젝트 평가 3회차",
+        title="4기 프로젝트 평가 7회차",
         tutor=tutor,
         students=students,
         team_template=team_template,

@@ -244,6 +244,7 @@ def copy_question_template(*, template_id, actor):
             template=copy,
             response_type=question.response_type,
             prompt=question.prompt,
+            competency=question.competency,
             is_required=question.is_required,
             display_order=question.display_order,
         )

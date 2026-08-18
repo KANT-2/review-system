@@ -67,6 +67,13 @@ class TemplateQuestion(models.Model):
         RATING_5 = "RATING_5", "1~5점"
         TEXT = "TEXT", "자유 서술"
 
+    class Competency(models.TextChoices):
+        TEAMWORK = "TEAMWORK", "팀워크"
+        PROBLEM_SOLVING = "PROBLEM_SOLVING", "문제해결"
+        DEV_UNDERSTANDING = "DEV_UNDERSTANDING", "개발이해도"
+        RESPONSIBILITY = "RESPONSIBILITY", "책임감"
+        COMMUNICATION = "COMMUNICATION", "커뮤니케이션"
+
     template = models.ForeignKey(
         QuestionTemplate, on_delete=models.PROTECT, related_name="questions"
     )
@@ -74,6 +81,8 @@ class TemplateQuestion(models.Model):
     prompt = models.CharField(max_length=500)
     is_required = models.BooleanField(default=True)
     display_order = models.PositiveSmallIntegerField()
+    # 마이페이지 역량 분석(레이더차트)용 - 빈 값이면 그 문항은 역량 집계에서 빠진다.
+    competency = models.CharField(max_length=20, choices=Competency.choices, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

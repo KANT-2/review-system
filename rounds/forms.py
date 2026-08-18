@@ -94,6 +94,9 @@ class TemplateQuestionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["prompt"].required = False
+        self.fields["competency"].choices = [
+            ("", "역량 미지정")
+        ] + TemplateQuestion.Competency.choices
         if not self.instance.pk:
             # 새 줄은 1~5점을 기본으로 둔다 - 점수 문항이 하나도 없으면 회차를 시작할 수 없다.
             self.fields["response_type"].initial = TemplateQuestion.ResponseType.RATING_5
@@ -106,15 +109,21 @@ class TemplateQuestionForm(forms.ModelForm):
 
     class Meta:
         model = TemplateQuestion
-        fields = ("prompt", "response_type", "is_required")
+        fields = ("prompt", "response_type", "competency", "is_required")
         widgets = {
             "prompt": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "예: 결과물의 완성도는 충분한가요?"}
             ),
             "response_type": forms.Select(attrs={"class": "form-select"}),
+            "competency": forms.Select(attrs={"class": "form-select"}),
             "is_required": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
-        labels = {"prompt": "문항", "response_type": "응답 형식", "is_required": "필수"}
+        labels = {
+            "prompt": "문항",
+            "response_type": "응답 형식",
+            "competency": "역량",
+            "is_required": "필수",
+        }
 
 
 class BaseTemplateQuestionFormSet(forms.BaseInlineFormSet):
