@@ -7,7 +7,9 @@
       <h1 class="page-title">계정 관리</h1>
       <p class="page-desc">승인 상태와 활성 여부, 역할을 관리하고 수강생에게 이메일 알림을 보냅니다.</p>
     </div>
-    <a href="{% url 'accounts:tutor_dashboard' %}" class="btn btn-ax-secondary">승인 대기 보기</a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'audit:log' %}" class="btn btn-outline-info"><i class="bi bi-clock-history me-1"></i>📜 감사 로그 보기</a>
+    </div>
   </div>
 
   <!-- 수강생 이메일 공지 발송 폼 카드 -->
