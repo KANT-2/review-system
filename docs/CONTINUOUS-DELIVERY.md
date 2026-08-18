@@ -34,8 +34,10 @@ secret together so the mail server and application remain synchronized.
 
 Each tested commit is uploaded to `DEPLOY_PATH/releases/<commit-sha>`. The
 shared production environment file lives outside release directories at
-`DEPLOY_PATH/shared/.env.production`. After a successful health check,
-`DEPLOY_PATH/current` points to the active release.
+`DEPLOY_PATH/shared/.env.production`. Each release contains a `.env.production`
+symbolic link to that shared mode-`0600` file, so Docker Compose can use its
+default environment-file path without creating another secret copy. After a
+successful health check, `DEPLOY_PATH/current` points to the active release.
 
 The database and named Docker volumes are retained between releases. The
 workflow does not automatically reverse database migrations; review backward

@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "usage: remote_deploy.sh /absolute/path/to/.env.production" >&2
+if [[ $# -ne 0 ]]; then
+  echo "usage: remote_deploy.sh" >&2
   exit 2
 fi
 
 release_dir="$(pwd -P)"
-env_file="$(realpath "$1")"
+release_env="$release_dir/.env.production"
 
 if [[ ! "$release_dir" =~ ^/home/[a-z_][a-z0-9_-]*/services/review-system/releases/[0-9a-f]{40}$ ]]; then
   echo "unexpected release directory: $release_dir" >&2
   exit 2
 fi
+if [[ ! -L "$release_env" ]]; then
+  echo "release .env.production must be a symbolic link" >&2
+  exit 2
+fi
+env_file="$(realpath "$release_env")"
 if [[ ! "$env_file" =~ ^/home/[a-z_][a-z0-9_-]*/services/review-system/shared/\.env\.production$ ]]; then
   echo "unexpected production env path" >&2
   exit 2
@@ -23,8 +28,7 @@ if [[ ! -f "$env_file" || "$(stat -c '%a' "$env_file")" != "600" ]]; then
 fi
 
 deploy_root="$(dirname "$(dirname "$release_dir")")"
-export PRODUCTION_ENV_FILE="$env_file"
-compose=(sudo -n docker compose --env-file "$env_file" -f compose.production.yaml)
+compose=(sudo -n docker compose --env-file .env.production -f compose.production.yaml)
 
 "${compose[@]}" config --quiet
 "${compose[@]}" build app caddy
