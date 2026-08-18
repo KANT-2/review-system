@@ -1,4 +1,6 @@
+import io
 import json
+import tempfile
 import threading
 import time
 from datetime import timedelta
@@ -9,10 +11,12 @@ from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.core import mail
 from django.core.exceptions import PermissionDenied
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, connections, transaction
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from accounts.adapters import CustomSocialAccountAdapter
 from accounts.middleware import TrustedProxyMiddleware
@@ -1384,3 +1388,144 @@ class CompetencyAnalysisTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+
+class BulkApprovalTests(TestCase):
+    """승인 대기 목록 - 체크한 계정만 한 번에 승인·반려한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="bulk-tutor@example.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.pending = [
+            User.objects.create_user(
+                email=f"bulk-pending-{index}@example.com",
+                password=STRONG_PASSWORD,
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.PENDING,
+            )
+            for index in range(3)
+        ]
+
+    def test_checked_accounts_are_approved_together(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "approve", "user_ids": [self.pending[0].pk, self.pending[1].pk]},
+        )
+
+        self.assertRedirects(response, reverse("accounts:account_admin"))
+        for user in self.pending[:2]:
+            user.refresh_from_db()
+            self.assertEqual(user.approval_status, User.ApprovalStatus.APPROVED)
+        self.pending[2].refresh_from_db()
+        self.assertEqual(self.pending[2].approval_status, User.ApprovalStatus.PENDING)
+
+    def test_checked_accounts_can_be_rejected_together(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "reject", "user_ids": [self.pending[0].pk]},
+        )
+
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.REJECTED)
+
+    def test_unknown_decision_changes_nothing(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "delete", "user_ids": [self.pending[0].pk]},
+        )
+
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.PENDING)
+
+    def test_students_cannot_bulk_approve(self):
+        student = User.objects.create_user(
+            email="bulk-student@example.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.client.force_login(student)
+
+        response = self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "approve", "user_ids": [self.pending[0].pk]},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.PENDING)
+
+
+class ProfileImageTests(TestCase):
+    """마이페이지 프로필 사진 업로드."""
+
+    def setUp(self):
+        self.student = User.objects.create_user(
+            email="photo-student@example.com",
+            password=STRONG_PASSWORD,
+            first_name="사진",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.client.force_login(self.student)
+
+    def _png_bytes(self):
+        buffer = io.BytesIO()
+        Image.new("RGB", (8, 8), "blue").save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def test_uploaded_image_is_saved_and_can_be_cleared(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile("me.png", self._png_bytes(), content_type="image/png")
+
+                response = self.client.post(
+                    reverse("accounts:api_update_profile"), {"profile_image": upload}
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.student.refresh_from_db()
+                self.assertTrue(self.student.profile_image)
+
+                self.client.post(
+                    reverse("accounts:api_update_profile"), {"clear_profile_image": "1"}
+                )
+
+                self.student.refresh_from_db()
+                self.assertFalse(self.student.profile_image)
+
+    def test_a_file_that_is_not_an_image_is_rejected(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile(
+                    "fake.png", b"not really an image", content_type="image/png"
+                )
+
+                response = self.client.post(
+                    reverse("accounts:api_update_profile"), {"profile_image": upload}
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.student.refresh_from_db()
+                self.assertFalse(self.student.profile_image)
+
+    def test_profile_text_fields_still_update_without_a_photo(self):
+        response = self.client.post(
+            reverse("accounts:api_update_profile"), {"first_name": "이름변경"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.first_name, "이름변경")

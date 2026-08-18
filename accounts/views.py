@@ -18,6 +18,7 @@ from accounts.forms import (
     PasswordChangeForm,
     SignUpForm,
     WhitelistEntryForm,
+    clean_profile_image,
 )
 from accounts.models import User
 from accounts.portal import (
@@ -44,6 +45,7 @@ from accounts.services import (
     transition_approval,
     whitelist_rows,
 )
+from results.application import save_tutor_note, tutor_notes_by_student
 
 GENERIC_SIGNUP_MESSAGE = "가입 신청을 접수했습니다. 승인 뒤 로그인할 수 있습니다."
 GENERIC_RESET_FAILURE = "이메일과 연락처가 등록된 정보와 일치하지 않습니다."
@@ -237,19 +239,28 @@ def dashboard_view(request):
 
 @login_required
 def mypage_view(request):
+    """마이페이지 - 학생은 프로필과 공개된 결과를, 튜터·관리자는 계정 설정만 본다."""
     if _needs_onboarding(request.user):
         return redirect("accounts:onboarding")
+    is_student = request.user.role == User.Role.STUDENT
+    requested = request.GET.get("round")
+    selected_round_id = int(requested) if requested and requested.isdigit() else None
+    portal = (
+        build_student_result_portal(request.user, selected_round_id=selected_round_id)
+        if is_student
+        else None
+    )
     return render(
         request,
         "accounts/mypage.html",
-        {"portal": build_student_result_portal(request.user)},
+        {"portal": portal, "is_student": is_student},
     )
 
 
 @login_required
 @require_GET
 def mypage_round_result_csv(request, round_id):
-    """마이페이지 주차별 상세 이력의 회차 결과 CSV 다운로드(MVP 의도적 확장 - CONTEXT.md 참고)."""
+    """마이페이지에서 고른 회차의 결과 CSV 다운로드(MVP 의도적 확장 - CONTEXT.md 참고)."""
     payload = round_result_csv_rows(request.user, round_id)
     if payload is None:
         raise Http404
@@ -332,6 +343,7 @@ def account_admin(request):
         request,
         "accounts/account_admin.html",
         {
+            "notes": tutor_notes_by_student(),
             "pending_users": pending_users,
             "pending_head": pending_users[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
             "pending_rest": pending_users[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
@@ -399,6 +411,64 @@ def account_action(request, user_id, action):
     return redirect("accounts:account_admin")
 
 
+@login_required
+@require_POST
+def save_student_note(request, user_id):
+    """수강생별 튜터 전용 메모 저장. 학생 화면에는 어떤 경로로도 노출되지 않는다."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        save_tutor_note(student_id=user_id, body=request.POST.get("body", ""), actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모를 저장했습니다.")
+    return redirect("accounts:account_admin")
+
+
+BULK_APPROVAL_DECISIONS = {
+    "approve": User.ApprovalStatus.APPROVED,
+    "reject": User.ApprovalStatus.REJECTED,
+}
+
+
+@login_required
+@require_POST
+def bulk_approval(request):
+    """승인 대기 목록에서 체크한 계정을 한 번에 승인하거나 반려한다.
+
+    화면에서 확인창을 띄우더라도 서버에서 권한과 상태를 다시 확인한다 - 직접 POST를 보내는
+    경로가 남아 있기 때문이다.
+    """
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    decision = BULK_APPROVAL_DECISIONS.get(request.POST.get("decision"))
+    if decision is None:
+        messages.error(request, "지원하지 않는 동작입니다.")
+        return redirect("accounts:account_admin")
+    user_ids = [value for value in request.POST.getlist("user_ids") if value.isdigit()]
+    if not user_ids:
+        messages.error(request, "처리할 계정을 한 명 이상 선택해 주세요.")
+        return redirect("accounts:account_admin")
+    changed = 0
+    skipped = 0
+    for user_id in user_ids:
+        try:
+            transition_approval(actor=request.user, target_id=int(user_id), decision=decision)
+        except PermissionDenied:
+            raise
+        except (InvalidAccountTransition, User.DoesNotExist):
+            skipped += 1
+        else:
+            changed += 1
+    label = "승인" if decision == User.ApprovalStatus.APPROVED else "반려"
+    if changed:
+        messages.success(request, f"{changed}명을 {label}했습니다.")
+    if skipped:
+        messages.error(request, f"{skipped}명은 이미 처리되었거나 상태가 맞지 않아 건너뛰었습니다.")
+    return redirect("accounts:account_admin")
+
+
 def _html_transition(request, user_id, decision):
     try:
         target = transition_approval(actor=request.user, target_id=user_id, decision=decision)
@@ -447,6 +517,9 @@ def api_onboarding(request):
     return JsonResponse({"success": True, "message": "온보딩이 완료되었습니다."})
 
 
+TRUE_VALUES = {"1", "true", "on", "yes"}
+
+
 @login_required
 @require_POST
 def update_profile_api(request):
@@ -466,6 +539,15 @@ def update_profile_api(request):
                     {"success": False, "message": "입력값이 너무 깁니다."}, status=400
                 )
             setattr(request.user, field, value)
+    # 프로필 사진은 multipart 요청에서만 온다 - JSON으로 프로필만 고치는 기존 경로는 그대로다.
+    uploaded = request.FILES.get("profile_image")
+    if uploaded is not None:
+        try:
+            request.user.profile_image = clean_profile_image(uploaded)
+        except ValidationError as error:
+            return JsonResponse({"success": False, "message": error.messages[0]}, status=400)
+    elif str(data.get("clear_profile_image", "")).lower() in TRUE_VALUES:
+        request.user.profile_image = None
     request.user.save()
     return JsonResponse({"success": True, "message": "프로필이 수정되었습니다."})
 

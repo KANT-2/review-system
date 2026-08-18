@@ -222,6 +222,16 @@
     metric.className = `teams-metric ${hits ? "neutral" : "warn"}`;
   }
 
+  // 저장 뒤 다음 절차 안내 배너. 다시 편집을 시작하면 감춘다 - 저장하지 않은 변경이 있는데
+  // "저장했습니다"가 남아 있으면 잘못 읽힌다.
+  function showSaveNotice(visible) {
+    const notice = byId("saveNotice");
+    if (!notice) return;
+    const link = byId("saveNoticeLink");
+    if (visible && link && config.nextUrl) link.href = config.nextUrl;
+    notice.hidden = !visible || !config.nextUrl;
+  }
+
   function renderTutorBoard() {
     const canEdit = !data.is_read_only;
     renderUnassignedMembers(canEdit);
@@ -229,6 +239,7 @@
     renderSearchMetric();
     byId("cancelButton").disabled = !isDirty;
     byId("saveButton").disabled = !isDirty || data.unassigned_members.length > 0;
+    if (isDirty) showSaveNotice(false);
   }
 
   function participantCount() {
@@ -337,6 +348,7 @@
       saved = structuredClone(data);
       isDirty = false;
       renderTutorBoard();
+      showSaveNotice(true);
     } catch (error) {
       if (
         error.code === "imbalance_confirmation_required" &&

@@ -8,6 +8,13 @@
       <p class="page-desc">시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.</p>
     </div>
     <div class="d-flex gap-2">
+      {% if round_obj.status != 'DRAFT' %}
+        <a href="{% url 'rounds:tutor-review-list' round_obj.pk %}"
+           class="btn btn-ax-secondary">
+          <i class="bi bi-person-check me-1"></i>튜터 개인평가
+          {% if tutor_review_count %}<span class="badge badge-ax badge-ax-completed ms-1">{{ tutor_review_count }}</span>{% endif %}
+        </a>
+      {% endif %}
       <a href="{% url 'rounds:text-answers' round_obj.pk %}"
          class="btn btn-ax-secondary">
         <i class="bi bi-chat-left-text me-1"></i>서술형 응답

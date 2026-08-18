@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -114,6 +115,21 @@ class OnboardingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.required = True
+
+
+def clean_profile_image(uploaded_file):
+    """마이페이지에서 올린 프로필 사진을 검사한다.
+
+    ``forms.ImageField``가 Pillow로 실제 이미지인지 확인하므로 확장자만 바꾼 파일은 걸린다.
+    용량 상한은 화면(accept 속성)만으로 막을 수 없어 서버에서 다시 본다.
+
+    문제가 있으면 ``ValidationError``를 올린다.
+    """
+    image = forms.ImageField().clean(uploaded_file)
+    if image.size > settings.PROFILE_IMAGE_MAX_BYTES:
+        limit_mb = settings.PROFILE_IMAGE_MAX_BYTES // (1024 * 1024)
+        raise ValidationError(f"사진은 {limit_mb}MB 이하만 올릴 수 있습니다.")
+    return image
 
 
 class WhitelistEntryForm(forms.Form):

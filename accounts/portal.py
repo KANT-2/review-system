@@ -4,7 +4,8 @@ from math import ceil
 from django.db.models import Avg, Q
 from django.utils import timezone
 
-from results.models import EvaluationResult
+from results.models import CalculationRun, EvaluationResult
+from results.services import round_to_display
 from reviews.models import ReviewAnswer
 from reviews.services import current_participation, peer_targets, team_targets
 from rounds.models import RoundParticipant, TemplateQuestion
@@ -26,7 +27,7 @@ class EvaluationProgress:
 def _published_result_rows(user, limit=None):
     """공개된 개인 결과 - 최신 회차가 앞에 온다.
 
-    limit을 안 주면 전체를 돌려준다(주차별 상세 이력, 점수 추이 그래프용).
+    limit을 안 주면 전체를 돌려준다(회차 선택 목록, 점수 막대그래프용).
     """
     qs = (
         EvaluationResult.objects.filter(
@@ -152,7 +153,43 @@ def round_result_csv_rows(user, round_id):
     }
 
 
-def build_student_result_portal(user):
+def _score_delta(current, previous):
+    """전 회차 대비 변화 - 방향과 변화폭을 함께 돌려준다(표시 정밀도 기준).
+
+    두 회차 모두 점수가 있어야 비교가 성립한다. 한쪽이라도 N/A면 None을 돌려준다.
+    """
+    if current is None or previous is None:
+        return None
+    delta = round_to_display(current) - round_to_display(previous)
+    if delta > 0:
+        return {"direction": "up", "value": delta}
+    if delta < 0:
+        return {"direction": "down", "value": -delta}
+    return {"direction": "flat", "value": delta}
+
+
+def _published_team_winner(round_id):
+    """그 회차의 1위 팀 - 튜터가 '팀 1위'를 공개한 경우에만 돌려준다."""
+    run = CalculationRun.objects.filter(
+        round_id=round_id, is_active=True, winner_published_at__isnull=False
+    ).first()
+    if not run:
+        return None
+    winner = (
+        run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1)
+        .select_related("team")
+        .first()
+    )
+    if not winner:
+        return None
+    return {"name": winner.team.name, "score": winner.team_score_raw}
+
+
+def build_student_result_portal(user, *, selected_round_id=None):
+    """마이페이지 결과 영역 - 회차를 골라 그 회차 결과와 전 회차 대비 변화를 함께 본다.
+
+    '내 결과' 화면에 있던 내용을 여기로 합쳤다. 개인 순위는 넣지 않는다.
+    """
     rows = _published_result_rows(user)
     if not rows:
         return None
@@ -165,9 +202,31 @@ def build_student_result_portal(user):
         }
         for row in reversed(serialized)
     ]
+    index = 0
+    if selected_round_id is not None:
+        index = next(
+            (
+                position
+                for position, row in enumerate(serialized)
+                if row["round_id"] == selected_round_id
+            ),
+            0,
+        )
+    selected = serialized[index]
+    # 목록은 최신 회차가 앞이므로 바로 다음 항목이 직전 회차다.
+    previous = serialized[index + 1] if index + 1 < len(serialized) else None
     return {
-        "latest_result": serialized[0],
-        "score_history": serialized,
+        "is_demo": False,
+        "selected": selected,
+        "previous": previous,
+        "deltas": {
+            key: _score_delta(selected[key], previous[key] if previous else None)
+            for key in ("team_score", "peer_score", "final_score")
+        },
+        "team_winner": _published_team_winner(selected["round_id"]),
+        "round_options": [
+            {"round_id": row["round_id"], "round_name": row["round_name"]} for row in serialized
+        ],
         "score_trend": trend,
         "competency": _competency_radar(user),
     }

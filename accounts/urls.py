@@ -18,6 +18,8 @@ urlpatterns = [
         name="mypage_round_result_csv",
     ),
     path("tutor/accounts/", views.account_admin, name="account_admin"),
+    # note 경로는 account_action의 <str:action>에 먹히지 않도록 먼저 선언한다.
+    path("tutor/accounts/<int:user_id>/note/", views.save_student_note, name="save_student_note"),
     path(
         "tutor/accounts/<int:user_id>/<str:action>/",
         views.account_action,
@@ -27,6 +29,7 @@ urlpatterns = [
     path("tutor/whitelist/<int:entry_id>/delete/", views.whitelist_delete, name="whitelist_delete"),
     path("tutor/approve/<int:user_id>/", views.approve_user, name="approve_user"),
     path("tutor/reject/<int:user_id>/", views.reject_user, name="reject_user"),
+    path("tutor/approvals/bulk/", views.bulk_approval, name="bulk_approval"),
     path("api/onboarding/", views.api_onboarding, name="api_onboarding"),
     path("api/signup/", views.signup_api, name="api_signup"),
     path(

@@ -132,17 +132,14 @@ class ResultWorkflowTests(TestCase):
         self.assertFalse(run.results.filter(display_score__isnull=True).exists())
 
         self.client.force_login(self.students[0])
-        private_page = self.client.get(reverse("results:me"))
-        self.assertContains(private_page, "비공개")
+        before_publication = self.client.get(reverse("accounts:mypage"))
+        self.assertContains(before_publication, "공개된 평가 결과가 없습니다")
 
         toggle_publication(
             round_id=self.round.pk,
             item_key="my_score",
             actor=self.tutor,
         )
-        public_page = self.client.get(reverse("results:me"))
-        self.assertContains(public_page, "내 점수 구성")
-        self.assertContains(public_page, "4.00/5")
 
         mypage = self.client.get(reverse("accounts:mypage"))
         self.assertContains(mypage, "팀 40% + 개인 60%")
@@ -361,14 +358,11 @@ class ResultWorkflowTests(TestCase):
     def test_tutor_note_is_saved_updated_and_cleared(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
         self.client.force_login(self.tutor)
-        url = reverse(
-            "rounds:save-student-note",
-            kwargs={"round_id": self.round.pk, "participant_id": self.participants[0].pk},
-        )
+        url = reverse("accounts:save_student_note", kwargs={"user_id": self.students[0].pk})
 
         self.client.post(url, {"body": " 개인 사정으로 일부만 제출 "})
 
-        note = TutorNote.objects.get(participant=self.participants[0])
+        note = TutorNote.objects.get(student=self.students[0])
         self.assertEqual(note.body, "개인 사정으로 일부만 제출")
         self.assertEqual(note.author, self.tutor)
 
@@ -385,18 +379,18 @@ class ResultWorkflowTests(TestCase):
     def test_tutor_note_never_reaches_the_student_page(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
         TutorNote.objects.create(
-            participant=self.participants[0], body="학생에게 보이면 안 되는 메모", author=self.tutor
+            student=self.students[0], body="학생에게 보이면 안 되는 메모", author=self.tutor
         )
         toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
         self.client.force_login(self.students[0])
 
-        response = self.client.get(reverse("results:me"))
+        response = self.client.get(reverse("accounts:mypage"))
 
         self.assertNotContains(response, "학생에게 보이면 안 되는 메모")
 
     def test_published_but_missing_values_are_not_labelled_as_unpublished(self):
-        # 개인 평가를 한 건도 못 받은 학생은 공개된 뒤에도 순위가 없다 - 이때 "비공개"가
-        # 아니라 순위 대상이 아니라는 안내가 나와야 한다.
+        # 개인 평가를 한 건도 못 받은 학생은 공개된 뒤에도 점수가 없다 - 이때 "비공개"가
+        # 아니라 데이터가 없다는 뜻의 N/A가 나와야 한다.
         ReviewSubmission.objects.filter(
             review_type="PEER", target_participant=self.participants[0]
         ).delete()
@@ -404,10 +398,9 @@ class ResultWorkflowTests(TestCase):
         toggle_all_publications(round_id=self.round.pk, actor=self.tutor, partial_confirmed=True)
         self.client.force_login(self.students[0])
 
-        response = self.client.get(reverse("results:me"))
+        response = self.client.get(reverse("accounts:mypage"))
 
-        self.assertContains(response, "순위 없음")
-        self.assertContains(response, "받은 개인 평가가 없어 순위 계산에서 빠졌습니다")
+        self.assertContains(response, "N/A")
         self.assertNotContains(response, "비공개")
 
     def test_students_cannot_write_tutor_notes(self):
@@ -415,47 +408,43 @@ class ResultWorkflowTests(TestCase):
         self.client.force_login(self.students[0])
 
         response = self.client.post(
-            reverse(
-                "rounds:save-student-note",
-                kwargs={"round_id": self.round.pk, "participant_id": self.participants[0].pk},
-            ),
+            reverse("accounts:save_student_note", kwargs={"user_id": self.students[0].pk}),
             {"body": "내가 쓰면 안 되는 메모"},
         )
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(TutorNote.objects.exists())
 
-    def test_note_for_another_round_participant_is_rejected(self):
+    def test_note_for_a_non_student_account_is_rejected(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
-        other_round = self._previous_round_with_scores({self.students[0]: Decimal("3.50")})
-        outsider = RoundParticipant.objects.get(round=other_round, user=self.students[0])
         self.client.force_login(self.tutor)
 
         self.client.post(
-            reverse(
-                "rounds:save-student-note",
-                kwargs={"round_id": self.round.pk, "participant_id": outsider.pk},
-            ),
-            {"body": "다른 회차 참가자"},
+            reverse("accounts:save_student_note", kwargs={"user_id": self.tutor.pk}),
+            {"body": "수강생이 아닌 계정"},
         )
 
         self.assertFalse(TutorNote.objects.exists())
 
-    def test_student_page_marks_own_team_and_hides_unpublished_items(self):
-        calculate_round(round_id=self.round.pk, actor=self.tutor)
-        toggle_publication(round_id=self.round.pk, item_key="team_ranking", actor=self.tutor)
+    def test_mypage_shows_team_winner_only_after_publication(self):
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
         self.client.force_login(self.students[0])
 
-        response = self.client.get(reverse("results:me"))
+        before = self.client.get(reverse("accounts:mypage"))
+        self.assertContains(before, "비공개")  # 1등 팀은 아직 공개 전
 
-        self.assertContains(response, "ax-my-team-row")  # 내 팀 강조
-        self.assertContains(response, "내 팀")
-        self.assertContains(response, "비공개")  # 내 최종점수는 아직 비공개
-        self.assertEqual(response.context["my_team_id"], self.teams[0].pk)
+        toggle_publication(round_id=self.round.pk, item_key="team_winner", actor=self.tutor)
+        winner = run.results.select_related("team").get(
+            result_type=EvaluationResult.ResultType.TEAM, primary_rank=1
+        )
+
+        after = self.client.get(reverse("accounts:mypage"))
+        self.assertContains(after, winner.team.name)
 
 
 class StudentResultRoundSelectionTests(TestCase):
-    """내 결과 - 채점이 끝난 회차를 골라서 볼 수 있어야 한다."""
+    """마이페이지 결과 - 채점이 끝난 회차를 골라서 볼 수 있어야 한다."""
 
     def setUp(self):
         self.tutor = User.objects.create_user(
@@ -518,17 +507,36 @@ class StudentResultRoundSelectionTests(TestCase):
         return evaluation_round
 
     def test_defaults_to_the_most_recent_completed_round(self):
-        response = self.client.get(reverse("results:me"))
+        response = self.client.get(reverse("accounts:mypage"))
 
-        self.assertEqual(response.context["participant"].round_id, self.newer.pk)
-        self.assertEqual(len(response.context["available_rounds"]), 2)
+        portal = response.context["portal"]
+        self.assertEqual(portal["selected"]["round_id"], self.newer.pk)
+        self.assertEqual(len(portal["round_options"]), 2)
 
     def test_student_can_open_an_older_round(self):
-        response = self.client.get(reverse("results:me"), {"round": self.older.pk})
+        response = self.client.get(reverse("accounts:mypage"), {"round": self.older.pk})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["participant"].round_id, self.older.pk)
+        self.assertEqual(response.context["portal"]["selected"]["round_id"], self.older.pk)
         self.assertContains(response, "1회차")
+
+    def test_change_against_the_previous_round_is_shown(self):
+        response = self.client.get(reverse("accounts:mypage"))
+
+        delta = response.context["portal"]["deltas"]["final_score"]
+        self.assertEqual(delta["direction"], "up")
+        self.assertEqual(delta["value"], Decimal("1.50"))
+        self.assertContains(response, "전 회차 대비 상승")
+
+    def test_first_round_has_nothing_to_compare(self):
+        response = self.client.get(reverse("accounts:mypage"), {"round": self.older.pk})
+
+        self.assertIsNone(response.context["portal"]["deltas"]["final_score"])
+
+    def test_old_my_results_url_redirects_to_mypage(self):
+        response = self.client.get(reverse("results:me"), {"round": self.older.pk})
+
+        self.assertRedirects(response, f"{reverse('accounts:mypage')}?round={self.older.pk}")
 
     def test_round_a_student_did_not_join_falls_back_to_their_own(self):
         """남의 회차 id를 넣어도 본인이 참가한 회차만 열린다."""
@@ -542,6 +550,6 @@ class StudentResultRoundSelectionTests(TestCase):
             completed_at=timezone.now() - timedelta(days=2),
         )
 
-        response = self.client.get(reverse("results:me"), {"round": outsider_round.pk})
+        response = self.client.get(reverse("accounts:mypage"), {"round": outsider_round.pk})
 
-        self.assertEqual(response.context["participant"].round_id, self.newer.pk)
+        self.assertEqual(response.context["portal"]["selected"]["round_id"], self.newer.pk)

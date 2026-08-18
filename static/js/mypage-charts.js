@@ -1,4 +1,5 @@
-// 마이페이지 전용 스크립트 - 5대 역량 레이더차트와 회차별 점수 추이 막대그래프.
+// 마이페이지 전용 스크립트 - 5대 역량 레이더차트와 회차별 점수 막대그래프.
+// 두 차트 모두 화면 위쪽에 작게 들어가므로 컨테이너 높이를 CSS가 정하고 차트가 따라간다.
 document.addEventListener("DOMContentLoaded", () => {
   if (typeof Chart === "undefined") return;
 
@@ -23,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (radarCanvas && radarData) {
     new Chart(radarCanvas, {
       type: "radar",
+      // 프로필 옆 좁은 자리에 들어가므로 컨테이너 높이에 맞춰 줄어들게 둔다.
       data: {
         labels: radarData.map((entry) => entry.label),
         datasets: [
@@ -36,6 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
         ],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
           r: {
             min: 0,
@@ -43,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ticks: { stepSize: 1, backdropColor: "transparent", color: textColor },
             grid: { color: gridColor },
             angleLines: { color: gridColor },
-            pointLabels: { color: textColor, font: { size: 12 } },
+            pointLabels: { color: textColor, font: { size: 11 } },
           },
         },
         plugins: { legend: { display: false } },
@@ -72,11 +76,20 @@ document.addEventListener("DOMContentLoaded", () => {
         ],
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
-          y: { min: 0, max: 5, ticks: { color: textColor }, grid: { color: gridColor } },
+          y: {
+            min: 0,
+            max: 5,
+            ticks: { color: textColor, stepSize: 1 },
+            grid: { color: gridColor },
+          },
           x: { ticks: { color: textColor }, grid: { display: false } },
         },
-        plugins: { legend: { labels: { color: textColor } } },
+        plugins: {
+          legend: { labels: { color: textColor, boxWidth: 12, font: { size: 11 } } },
+        },
       },
     });
   }

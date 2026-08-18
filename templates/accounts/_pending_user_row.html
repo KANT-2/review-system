@@ -1,14 +1,13 @@
 <tr>
+  <td class="text-center">
+    <input class="form-check-input ax-pending-check"
+           type="checkbox"
+           name="user_ids"
+           value="{{ pending_user.id }}"
+           aria-label="{{ pending_user.email }} 선택">
+  </td>
   <td class="fw-semibold">{{ pending_user.first_name|default:"이름 미입력" }}</td>
   <td>{{ pending_user.email }}</td>
   <td>{{ pending_user.login_provider|upper }}</td>
   <td>{{ pending_user.date_joined|date:"Y-m-d H:i" }}</td>
-  <td class="text-end">
-    <form action="{% url 'accounts:approve_user' pending_user.id %}"
-          method="post"
-          class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-primary" type="submit">승인</button></form>
-    <form action="{% url 'accounts:reject_user' pending_user.id %}"
-          method="post"
-          class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">반려</button></form>
-  </td>
 </tr>

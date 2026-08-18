@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from accounts.models import User
 from audit.services import record_event
 from results.models import CalculationRun, EvaluationResult, TutorNote
 from results.services import (
@@ -19,7 +20,7 @@ from results.services import (
     round_to_display,
 )
 from reviews.models import ReviewSubmission
-from rounds.models import EvaluationRound, RoundParticipant
+from rounds.models import EvaluationRound
 
 # toggle_publication이 "한 번 더 확인이 필요하다"고 알릴 때 쓰는 ValidationError code.
 PARTIAL_CONFIRMATION_REQUIRED = "partial_confirmation_required"
@@ -243,36 +244,41 @@ def toggle_all_publications(*, round_id, actor, partial_confirmed=False):
 
 
 @transaction.atomic
-def save_tutor_note(*, round_id, participant_id, body, actor):
+def save_tutor_note(*, student_id, body, actor):
     """수강생 한 명에 대한 튜터 전용 메모를 저장한다. 빈 내용으로 저장하면 메모를 지운다.
 
-    감사 로그에는 메모 원문을 남기지 않는다 (audit.services.record_event 규칙).
+    회차와 무관하게 학생당 한 건이며 수강생 관리 화면에서만 다룬다. 감사 로그에는 메모
+    원문을 남기지 않는다 (audit.services.record_event 규칙).
     """
-    participant = RoundParticipant.objects.filter(pk=participant_id, round_id=round_id).first()
-    if not participant:
-        raise ValidationError("이 회차의 수강생이 아닙니다.")
+    student = User.objects.filter(pk=student_id, role=User.Role.STUDENT).first()
+    if not student:
+        raise ValidationError("수강생 계정이 아닙니다.")
     body = (body or "").strip()
     if len(body) > TUTOR_NOTE_MAX_LENGTH:
         raise ValidationError(f"메모는 {TUTOR_NOTE_MAX_LENGTH}자까지 저장할 수 있습니다.")
     if body:
         note, _ = TutorNote.objects.update_or_create(
-            participant=participant, defaults={"body": body, "author": actor}
+            student=student, defaults={"body": body, "author": actor}
         )
         cleared = False
     else:
-        note = TutorNote.objects.filter(participant=participant).first()
+        note = TutorNote.objects.filter(student=student).first()
         if not note:
             return None
         TutorNote.objects.filter(pk=note.pk).delete()
         cleared = True
     record_event(
         action="TUTOR_NOTE_CHANGED",
-        target=participant,
+        target=student,
         actor=actor,
-        round_obj=participant.round,
-        summary={"participant_id": participant.pk, "cleared": cleared, "length": len(body)},
+        summary={"student_id": student.pk, "cleared": cleared, "length": len(body)},
     )
     return None if cleared else note
+
+
+def tutor_notes_by_student():
+    """수강생 관리 화면용 - 학생 계정 ID -> 메모 본문."""
+    return dict(TutorNote.objects.values_list("student_id", "body"))
 
 
 def previous_final_scores(round_obj):
