@@ -34,7 +34,7 @@
           <button type="submit" class="btn btn-sm btn-warning fw-semibold">예, 공개합니다</button>
         </form>
         <a class="btn btn-sm btn-ax-secondary"
-           href="{% url 'rounds:results' round_obj.pk %}#publish">취소</a>
+           href="{% url 'rounds:publish-settings' round_obj.pk %}">취소</a>
       </div>
     </div>
   {% endif %}

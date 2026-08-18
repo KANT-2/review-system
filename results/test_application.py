@@ -175,7 +175,7 @@ class ResultWorkflowTests(TestCase):
                 actor=self.tutor,
             )
 
-    def test_manage_screen_renders_ranking_and_publish_controls(self):
+    def test_manage_screen_renders_ranking_controls(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
         self.client.force_login(self.tutor)
 
@@ -183,13 +183,23 @@ class ResultWorkflowTests(TestCase):
 
         self.assertContains(response, "ax-rank-badge")  # 순위 배지
         self.assertContains(response, "ax-filter-chip")  # 데이터 상태 필터
-        self.assertContains(response, "ax-switch")  # 항목별 공개 토글
         self.assertContains(response, "round-switcher")  # 회차 전환
         self.assertEqual(response.context["summary"]["team_count"], 2)
         self.assertEqual(response.context["summary"]["participant_count"], 4)
         # 화면에 노출되는 가중치는 실제 계산식(RES-004)에서 가져온다.
         self.assertEqual(response.context["team_weight_percent"], 40)
         self.assertEqual(response.context["peer_weight_percent"], 60)
+
+    def test_publish_settings_screen_renders_publish_controls(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(
+            reverse("rounds:publish-settings", kwargs={"round_id": self.round.pk})
+        )
+
+        self.assertContains(response, "ax-switch")  # 항목별 공개 토글
+        self.assertContains(response, "round-switcher")  # 회차 전환
 
     def test_results_without_rank_sort_after_ranked_rows(self):
         # 개인 평가를 한 건도 못 받은 학생은 N/A라 순위가 없고, 표 맨 뒤에 와야 한다.
@@ -210,7 +220,7 @@ class ResultWorkflowTests(TestCase):
         ReviewSubmission.objects.filter(review_type="TEAM").first().delete()
         run = calculate_round(round_id=self.round.pk, actor=self.tutor)
         self.client.force_login(self.tutor)
-        results_url = reverse("rounds:results", kwargs={"round_id": self.round.pk})
+        settings_url = reverse("rounds:publish-settings", kwargs={"round_id": self.round.pk})
         publish_url = reverse(
             "rounds:publish-results", kwargs={"round_id": self.round.pk, "item_key": "my_score"}
         )
@@ -218,18 +228,18 @@ class ResultWorkflowTests(TestCase):
         first_attempt = self.client.post(publish_url)
 
         self.assertRedirects(
-            first_attempt, f"{results_url}?confirm=my_score#publish", fetch_redirect_response=False
+            first_attempt, f"{settings_url}?confirm=my_score", fetch_redirect_response=False
         )
         run.refresh_from_db()
         self.assertIsNone(run.my_score_published_at)
 
-        confirm_page = self.client.get(f"{results_url}?confirm=my_score")
+        confirm_page = self.client.get(f"{settings_url}?confirm=my_score")
         self.assertContains(confirm_page, "예, 공개합니다")
         self.assertEqual(confirm_page.context["pending_confirm"], "my_score")
 
         confirmed = self.client.post(publish_url, {"partial_confirmed": "1"})
 
-        self.assertRedirects(confirmed, f"{results_url}#publish", fetch_redirect_response=False)
+        self.assertRedirects(confirmed, settings_url, fetch_redirect_response=False)
         run.refresh_from_db()
         self.assertIsNotNone(run.my_score_published_at)
 
@@ -238,7 +248,7 @@ class ResultWorkflowTests(TestCase):
         self.client.force_login(self.tutor)
 
         response = self.client.get(
-            reverse("rounds:results", kwargs={"round_id": self.round.pk}),
+            reverse("rounds:publish-settings", kwargs={"round_id": self.round.pk}),
             {"confirm": "<script>"},
         )
 
@@ -329,18 +339,18 @@ class ResultWorkflowTests(TestCase):
         ReviewSubmission.objects.filter(review_type="TEAM").first().delete()
         run = calculate_round(round_id=self.round.pk, actor=self.tutor)
         self.client.force_login(self.tutor)
-        results_url = reverse("rounds:results", kwargs={"round_id": self.round.pk})
+        settings_url = reverse("rounds:publish-settings", kwargs={"round_id": self.round.pk})
         url = reverse("rounds:publish-all-results", kwargs={"round_id": self.round.pk})
 
         first_attempt = self.client.post(url)
 
         self.assertRedirects(
-            first_attempt, f"{results_url}?confirm=ALL#publish", fetch_redirect_response=False
+            first_attempt, f"{settings_url}?confirm=ALL", fetch_redirect_response=False
         )
         run.refresh_from_db()
         self.assertIsNone(run.winner_published_at)
 
-        confirm_page = self.client.get(f"{results_url}?confirm=ALL")
+        confirm_page = self.client.get(f"{settings_url}?confirm=ALL")
         self.assertContains(confirm_page, "예, 전체 공개합니다")
 
         self.client.post(url, {"partial_confirmed": "1"})

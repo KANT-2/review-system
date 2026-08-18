@@ -400,13 +400,13 @@
   } else {
     if (!data.is_configured) {
       showEmptyState(
-        "팀 편성 전",
+        "팀 배정 전",
         "현재 배정된 팀이 없습니다",
-        "다음 프로젝트 팀 편성이 완료되면 이곳에서 확인할 수 있습니다.",
+        "다음 프로젝트 팀 배정이 완료되면 이곳에서 확인할 수 있습니다.",
       );
       return;
     }
-    byId("statusBadge").textContent = "팀 편성 완료";
+    byId("statusBadge").textContent = "팀 배정 완료";
     byId("pageDescription").textContent = "현재 프로젝트의 전체 팀과 나의 팀을 확인하세요.";
     byId("legend").textContent = "";
     renderBoard({ showMyTeam: true });
