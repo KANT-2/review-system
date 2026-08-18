@@ -205,3 +205,21 @@ class RoundParticipant(models.Model):
 
     def __str__(self):
         return f"{self.round} / {self.display_name_snapshot}"
+
+
+class Notice(models.Model):
+    title = models.CharField("제목", max_length=200)
+    content = models.TextField("내용")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="notices",
+    )
+    created_at = models.DateTimeField("작성일", auto_now_add=True)
+    is_active = models.BooleanField("공개 여부", default=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title

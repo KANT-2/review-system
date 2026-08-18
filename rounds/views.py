@@ -8,8 +8,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.models import ReviewAnswer, ReviewSubmission
-from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
-from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
+from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet, NoticeForm
+from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion, Notice
 from rounds.services import (
     complete_round,
     copy_question_template,
@@ -45,6 +45,24 @@ def operations_dashboard(request):
         role=User.Role.STUDENT,
         approval_status=User.ApprovalStatus.PENDING,
     ).count()
+    # 공지 작성
+    if request.method == "POST":
+        notice_form = NoticeForm(request.POST)
+
+        if notice_form.is_valid():
+            notice = notice_form.save(commit=False)
+            notice.created_by = request.user
+            notice.save()
+
+            messages.success(request, "공지가 등록되었습니다.")
+            return redirect("rounds:dashboard")
+    else:
+        notice_form = NoticeForm()
+
+    recent_notices = Notice.objects.filter(
+        is_active=True
+    ).order_by("-created_at")[:3]
+
     return render(
         request,
         "rounds/dashboard.html",
@@ -55,6 +73,8 @@ def operations_dashboard(request):
             "latest_completed": latest_completed,
             "progress": progress,
             "pending_approvals": pending_approvals,
+            "notice_form": notice_form,
+            "recent_notices": recent_notices,
         },
     )
 

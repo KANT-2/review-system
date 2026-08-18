@@ -27,8 +27,84 @@
       <h1 class="page-title">운영 대시보드</h1>
       <p class="page-desc">회차 준비부터 결과 공개까지 다음 작업을 확인합니다.</p>
     </div>
-    <a href="{% url 'rounds:create' %}" class="btn btn-ax-primary"><i class="bi bi-plus-lg me-1"></i>새 회차</a>
+    <div class="d-flex gap-2">
+      <button class="btn btn-ax-secondary"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#noticeForm">
+        <i class="bi bi-megaphone me-1"></i>
+        공지 작성
+      </button>
+
+      <a href="{% url 'rounds:create' %}"
+        class="btn btn-ax-primary">
+        <i class="bi bi-plus-lg me-1"></i>
+        새 회차
+      </a>
+    </div>
   </div>
+  <div class="collapse mb-4" id="noticeForm">
+    <section class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          <i class="bi bi-megaphone text-primary"></i>
+          공지 작성
+        </div>
+      </div>
+
+      <div class="card-body-custom">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">제목</label>
+            {{ notice_form.title }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">내용</label>
+            {{ notice_form.content }}
+          </div>
+
+          <div class="text-end">
+            <button type="submit" class="btn btn-ax-primary">
+              <i class="bi bi-send me-1"></i>
+              공지 등록
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  {% if recent_notices %}
+    <section class="card-custom mb-4">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          <i class="bi bi-megaphone text-primary"></i>
+          최근 공지
+        </div>
+      </div>
+
+      <div class="card-body-custom">
+        {% for notice in recent_notices %}
+          <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
+            <div class="d-flex justify-content-between align-items-center gap-3">
+              <strong>{{ notice.title }}</strong>
+              <span class="text-muted small">
+                {{ notice.created_at|date:"Y.m.d H:i" }}
+              </span>
+            </div>
+
+            <div class="text-muted mt-1">
+              {{ notice.content|linebreaksbr }}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card-custom h-100">

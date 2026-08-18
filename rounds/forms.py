@@ -1,8 +1,27 @@
 from django import forms
 
 from accounts.models import User
-from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
+from rounds.models import EvaluationRound, Notice, QuestionTemplate, TemplateQuestion
 
+class NoticeForm(forms.ModelForm):
+    class Meta:
+        model = Notice
+        fields = ["title", "content"]
+        widgets = {
+            "title": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "공지 제목을 입력해 주세요.",
+                }
+            ),
+            "content": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "공지 내용을 입력해 주세요.",
+                }
+            ),
+        }
 
 class EvaluationRoundForm(forms.ModelForm):
     participants = forms.ModelMultipleChoiceField(
