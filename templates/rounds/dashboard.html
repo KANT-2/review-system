@@ -90,11 +90,52 @@
         {% for notice in recent_notices %}
           <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
             <div class="d-flex justify-content-between align-items-center gap-3">
-              <strong>{{ notice.title }}</strong>
-              <span class="text-muted small">
-                {{ notice.created_at|date:"Y.m.d H:i" }}
-              </span>
-            </div>
+    <div class="d-flex align-items-center gap-2">
+      <strong>{{ notice.title }}</strong>
+
+      {% if notice.is_active %}
+        <span class="badge bg-success">공개</span>
+      {% else %}
+        <span class="badge bg-secondary">비공개</span>
+      {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small">
+        {{ notice.created_at|date:"Y.m.d H:i" }}
+      </span>
+      <a href="{% url 'rounds:notice_edit' notice.pk %}"
+        class="btn btn-sm btn-outline-primary">
+        수정
+      </a>
+      <form method="post"
+            action="{% url 'rounds:notice_toggle' notice.pk %}">
+        {% csrf_token %}
+
+        {% if notice.is_active %}
+          <button type="submit"
+                  class="btn btn-sm btn-outline-secondary">
+            비공개
+          </button>
+        {% else %}
+          <button type="submit"
+                  class="btn btn-sm btn-outline-primary">
+            다시 공개
+          </button>
+        {% endif %}
+      </form>
+
+      <form method="post"
+            action="{% url 'rounds:notice_delete' notice.pk %}"
+            onsubmit="return confirm('이 공지를 삭제하시겠습니까?');">
+        {% csrf_token %}
+        <button type="submit"
+                class="btn btn-sm btn-outline-danger">
+          삭제
+        </button>
+      </form>
+    </div>
+  </div>
 
             <div class="text-muted mt-1">
               {{ notice.content|linebreaksbr }}

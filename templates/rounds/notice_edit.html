@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}공지 수정 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}공지 수정{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">공지 수정</h1>
+      <p class="page-desc">등록한 공지의 제목과 내용을 수정합니다.</p>
+    </div>
+  </div>
+
+  <section class="card-custom">
+    <div class="card-header-custom">
+      <div class="card-title-custom">
+        <i class="bi bi-pencil-square text-primary"></i>
+        공지 수정
+      </div>
+    </div>
+
+    <div class="card-body-custom">
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">제목</label>
+          {{ form.title }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">내용</label>
+          {{ form.content }}
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+          <a href="{% url 'rounds:dashboard' %}"
+             class="btn btn-ax-secondary">
+            취소
+          </a>
+
+          <button type="submit" class="btn btn-ax-primary">
+            수정 저장
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

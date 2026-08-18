@@ -45,4 +45,19 @@ urlpatterns = [
         result_views.save_note,
         name="save-student-note",
     ),
+    path(
+    "notices/<int:pk>/toggle/",
+    views.notice_toggle,
+    name="notice_toggle",
+    ),
+    path(
+    "notices/<int:pk>/edit/",
+    views.notice_edit,
+    name="notice_edit",
+    ),
+    path(
+    "notices/<int:pk>/delete/",
+    views.notice_delete,
+    name="notice_delete",
+    ),
 ]

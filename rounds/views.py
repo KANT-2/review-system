@@ -27,6 +27,23 @@ from rounds.services import (
 )
 
 
+@login_required
+def notice_toggle(request, pk):
+    _require_operations(request.user)
+
+    if request.method == "POST":
+        notice = get_object_or_404(Notice, pk=pk)
+
+        notice.is_active = not notice.is_active
+        notice.save(update_fields=["is_active"])
+
+        if notice.is_active:
+            messages.success(request, "공지를 다시 공개했습니다.")
+        else:
+            messages.success(request, "공지를 비공개 처리했습니다.")
+
+    return redirect("rounds:dashboard")
+
 def _require_operations(user):
     if not is_operations_user(user):
         raise PermissionDenied
@@ -59,9 +76,7 @@ def operations_dashboard(request):
     else:
         notice_form = NoticeForm()
 
-    recent_notices = Notice.objects.filter(
-        is_active=True
-    ).order_by("-created_at")[:3]
+    recent_notices = Notice.objects.all().order_by("-created_at")[:5]
 
     return render(
         request,
@@ -357,3 +372,90 @@ def round_reopen(request, round_id):
     return _round_lifecycle_action(
         request, round_id, action=reopen_round, success_message="회차를 다시 열었습니다."
     )
+
+
+@require_POST
+def notice_toggle(request, pk):
+    notice = get_object_or_404(Notice, pk=pk)
+
+    notice.is_active = not notice.is_active
+    notice.save(update_fields=["is_active"])
+
+    if notice.is_active:
+        messages.success(request, "공지를 다시 공개했습니다.")
+    else:
+        messages.success(request, "공지를 비공개했습니다.")
+
+    return redirect("rounds:dashboard")
+
+
+@login_required
+def notice_edit(request, pk):
+    notice = get_object_or_404(Notice, pk=pk)
+
+    if request.method == "POST":
+        form = NoticeForm(request.POST, instance=notice)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "공지가 수정되었습니다.")
+            return redirect("rounds:dashboard")
+    else:
+        form = NoticeForm(instance=notice)
+
+    return render(
+        request,
+        "rounds/notice_edit.html",
+        {
+            "form": form,
+            "notice": notice,
+        },
+    )
+
+@login_required
+def notice_edit(request, pk):
+    _require_operations(request.user)
+
+    notice = get_object_or_404(Notice, pk=pk)
+
+    if request.method == "POST":
+        form = NoticeForm(request.POST, instance=notice)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "공지가 수정되었습니다.")
+            return redirect("rounds:dashboard")
+    else:
+        form = NoticeForm(instance=notice)
+
+    return render(
+        request,
+        "rounds/notice_edit.html",
+        {
+            "form": form,
+            "notice": notice,
+        },
+    )
+
+@login_required
+@require_POST
+def notice_delete(request, pk):
+    _require_operations(request.user)
+
+    notice = get_object_or_404(Notice, pk=pk)
+    notice.delete()
+
+    messages.success(request, "공지가 삭제되었습니다.")
+    return redirect("rounds:dashboard")
+
+
+@login_required
+@require_POST
+def notice_delete(request, pk):
+    _require_operations(request.user)
+
+    notice = get_object_or_404(Notice, pk=pk)
+    notice.delete()
+
+    messages.success(request, "공지가 삭제되었습니다.")
+    return redirect("rounds:dashboard")
