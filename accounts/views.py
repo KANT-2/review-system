@@ -39,6 +39,7 @@ from accounts.services import (
     update_account_profile,
     whitelist_rows,
 )
+from rounds.models import EvaluationRound, RoundParticipant
 
 GENERIC_SIGNUP_MESSAGE = "가입 신청을 접수했습니다. 승인 뒤 로그인할 수 있습니다."
 GENERIC_RESET_FAILURE = "이메일과 연락처가 등록된 정보와 일치하지 않습니다."
@@ -223,10 +224,28 @@ def dashboard_view(request):
         return redirect("rounds:dashboard")
     if _needs_onboarding(request.user):
         return redirect("accounts:onboarding")
+
+    portal = build_student_portal(request.user)
+
+    latest_completed = (
+        RoundParticipant.objects
+        .select_related("round")
+        .filter(
+            user=request.user,
+            round__status=EvaluationRound.Status.COMPLETED,
+        )
+        .order_by("-round__started_at", "-round_id")
+        .first()
+    )
+
+
     return render(
         request,
         "accounts/dashboard.html",
-        {"portal": build_student_portal(request.user)},
+        { 
+            "portal": portal,
+          "latest_completed": latest_completed,
+        },
     )
 
 
