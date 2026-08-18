@@ -60,4 +60,9 @@ urlpatterns = [
     views.notice_delete,
     name="notice_delete",
     ),
+    path(
+    "notices/",
+    views.notice_portal,
+    name="notice_portal",
+    ),
 ]

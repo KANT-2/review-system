@@ -8,8 +8,18 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.models import ReviewAnswer, ReviewSubmission
-from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet, NoticeForm
-from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion, Notice
+from rounds.forms import (
+    EvaluationRoundForm,
+    QuestionTemplateForm,
+    TemplateQuestionFormSet,
+    NoticeForm,
+)
+from rounds.models import (
+    EvaluationRound,
+    QuestionTemplate,
+    TemplateQuestion,
+    Notice,
+)
 from rounds.services import (
     complete_round,
     copy_question_template,
@@ -27,23 +37,6 @@ from rounds.services import (
 )
 
 
-@login_required
-def notice_toggle(request, pk):
-    _require_operations(request.user)
-
-    if request.method == "POST":
-        notice = get_object_or_404(Notice, pk=pk)
-
-        notice.is_active = not notice.is_active
-        notice.save(update_fields=["is_active"])
-
-        if notice.is_active:
-            messages.success(request, "공지를 다시 공개했습니다.")
-        else:
-            messages.success(request, "공지를 비공개 처리했습니다.")
-
-    return redirect("rounds:dashboard")
-
 def _require_operations(user):
     if not is_operations_user(user):
         raise PermissionDenied
@@ -52,31 +45,41 @@ def _require_operations(user):
 @login_required
 def operations_dashboard(request):
     _require_operations(request.user)
-    current = rounds_dashboard_rows().filter(status=EvaluationRound.Status.IN_PROGRESS).first()
-    latest_draft = rounds_dashboard_rows().filter(status=EvaluationRound.Status.DRAFT).first()
-    completed = rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED)[:5]
-    latest_completed = (rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED).first())
+
+    current = (
+        rounds_dashboard_rows()
+        .filter(status=EvaluationRound.Status.IN_PROGRESS)
+        .first()
+    )
+
+    latest_draft = (
+        rounds_dashboard_rows()
+        .filter(status=EvaluationRound.Status.DRAFT)
+        .first()
+    )
+
+    completed = (
+        rounds_dashboard_rows()
+        .filter(status=EvaluationRound.Status.COMPLETED)[:5]
+    )
+
+    latest_completed = (
+        rounds_dashboard_rows()
+        .filter(status=EvaluationRound.Status.COMPLETED)
+        .first()
+    )
+
     progress = get_review_progress(current) if current else None
-    # 승인 화면(accounts:tutor_dashboard)이 세는 기준과 같아야 배지 숫자가 목록과 맞는다.
+
     pending_approvals = User.objects.filter(
         role=User.Role.STUDENT,
         approval_status=User.ApprovalStatus.PENDING,
     ).count()
-    # 공지 작성
-    if request.method == "POST":
-        notice_form = NoticeForm(request.POST)
 
-        if notice_form.is_valid():
-            notice = notice_form.save(commit=False)
-            notice.created_by = request.user
-            notice.save()
-
-            messages.success(request, "공지가 등록되었습니다.")
-            return redirect("rounds:dashboard")
-    else:
-        notice_form = NoticeForm()
-
-    recent_notices = Notice.objects.all().order_by("-created_at")[:5]
+    # 운영 대시보드에서는 학생에게 공개 중인 공지만 조회한다.
+    dashboard_notices = Notice.objects.filter(
+        is_active=True
+    ).order_by("-created_at")
 
     return render(
         request,
@@ -88,8 +91,7 @@ def operations_dashboard(request):
             "latest_completed": latest_completed,
             "progress": progress,
             "pending_approvals": pending_approvals,
-            "notice_form": notice_form,
-            "recent_notices": recent_notices,
+            "dashboard_notices": dashboard_notices,
         },
     )
 
@@ -97,33 +99,69 @@ def operations_dashboard(request):
 @login_required
 def round_list(request):
     _require_operations(request.user)
-    return render(request, "rounds/list.html", {"rounds": rounds_dashboard_rows()})
+
+    return render(
+        request,
+        "rounds/list.html",
+        {
+            "rounds": rounds_dashboard_rows(),
+        },
+    )
 
 
 @login_required
 @require_http_methods(["GET", "POST"])
 def round_edit(request, round_id=None):
     _require_operations(request.user)
-    round_obj = get_object_or_404(EvaluationRound, pk=round_id) if round_id else None
+
+    round_obj = (
+        get_object_or_404(EvaluationRound, pk=round_id)
+        if round_id
+        else None
+    )
+
     if round_obj and round_obj.status != EvaluationRound.Status.DRAFT:
         return render(
             request,
             "rounds/form.html",
-            {"round_obj": round_obj, "read_only": True, "form": None},
+            {
+                "round_obj": round_obj,
+                "read_only": True,
+                "form": None,
+            },
         )
-    form = EvaluationRoundForm(request.POST or None, instance=round_obj)
+
+    form = EvaluationRoundForm(
+        request.POST or None,
+        instance=round_obj,
+    )
+
     if request.method == "POST" and form.is_valid():
         try:
-            saved = save_round(form=form, actor=request.user)
+            saved = save_round(
+                form=form,
+                actor=request.user,
+            )
         except ValidationError as error:
             form.add_error(None, error)
         else:
-            messages.success(request, "회차 정보를 저장했습니다.")
-            return redirect("rounds:edit", round_id=saved.pk)
+            messages.success(
+                request,
+                "회차 정보를 저장했습니다.",
+            )
+            return redirect(
+                "rounds:edit",
+                round_id=saved.pk,
+            )
+
     return render(
         request,
         "rounds/form.html",
-        {"round_obj": round_obj, "form": form, "read_only": False},
+        {
+            "round_obj": round_obj,
+            "form": form,
+            "read_only": False,
+        },
     )
 
 
@@ -131,52 +169,103 @@ def round_edit(request, round_id=None):
 @require_POST
 def round_start(request, round_id):
     _require_operations(request.user)
+
     try:
-        start_round(round_id=round_id, actor=request.user)
+        start_round(
+            round_id=round_id,
+            actor=request.user,
+        )
     except ValidationError as error:
-        messages.error(request, " ".join(error.messages))
+        messages.error(
+            request,
+            " ".join(error.messages),
+        )
     else:
-        messages.success(request, "회차를 시작했습니다. 참가자·팀·질문지가 동결됩니다.")
-    return redirect("rounds:reviews", round_id=round_id)
+        messages.success(
+            request,
+            "회차를 시작했습니다. 참가자·팀·질문지가 동결됩니다.",
+        )
+
+    return redirect(
+        "rounds:reviews",
+        round_id=round_id,
+    )
 
 
 def _participant_progress_rows(round_obj):
     team_count = round_obj.teams.count()
+
     completed = (
         ReviewSubmission.objects.filter(round=round_obj)
-        .values("evaluator_id", "review_type")
+        .values(
+            "evaluator_id",
+            "review_type",
+        )
         .annotate(count=Count("id"))
     )
-    completed_map = {(row["evaluator_id"], row["review_type"]): row["count"] for row in completed}
+
+    completed_map = {
+        (
+            row["evaluator_id"],
+            row["review_type"],
+        ): row["count"]
+        for row in completed
+    }
+
     rows = []
-    participants = round_obj.participants.select_related("team_membership__team").all()
+
+    participants = (
+        round_obj.participants
+        .select_related("team_membership__team")
+        .all()
+    )
+
     for participant in participants:
         team_size = (
             participant.team_membership.team.memberships.count()
             if hasattr(participant, "team_membership")
             else 0
         )
-        team_expected = max(team_count - 1, 0)
-        peer_expected = max(team_size - 1, 0)
+
+        team_expected = max(
+            team_count - 1,
+            0,
+        )
+
+        peer_expected = max(
+            team_size - 1,
+            0,
+        )
+
         rows.append(
             {
                 "participant": participant,
                 "team_expected": team_expected,
                 "team_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
+                    (
+                        participant.pk,
+                        ReviewSubmission.ReviewType.TEAM,
+                    ),
+                    0,
                 ),
                 "peer_expected": peer_expected,
                 "peer_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
+                    (
+                        participant.pk,
+                        ReviewSubmission.ReviewType.PEER,
+                    ),
+                    0,
                 ),
             }
         )
+
     return rows
 
 
 @login_required
 def round_reviews(request, round_id):
     _require_operations(request.user)
+
     round_obj = get_object_or_404(
         EvaluationRound.objects.prefetch_related(
             "participants",
@@ -186,18 +275,26 @@ def round_reviews(request, round_id):
         ),
         pk=round_id,
     )
+
     progress = get_review_progress(round_obj)
+
     return render(
         request,
         "rounds/reviews.html",
         {
             "round_obj": round_obj,
             "progress": progress,
-            "start_errors": round_start_errors(round_obj)
-            if round_obj.status == EvaluationRound.Status.DRAFT
-            else [],
-            "participant_rows": _participant_progress_rows(round_obj),
-            "text_answer_count": _text_answers(round_obj).count(),
+            "start_errors": (
+                round_start_errors(round_obj)
+                if round_obj.status == EvaluationRound.Status.DRAFT
+                else []
+            ),
+            "participant_rows": _participant_progress_rows(
+                round_obj
+            ),
+            "text_answer_count": _text_answers(
+                round_obj
+            ).count(),
         },
     )
 
@@ -205,8 +302,10 @@ def round_reviews(request, round_id):
 def _text_answers(round_obj):
     """회차의 자유 서술형 답변만 모은다.
 
-    빈 문자열 제외는 방어용이다 - reviews_answer_exactly_one_value 제약이 이미 막고 있다.
+    빈 문자열 제외는 방어용이다 -
+    reviews_answer_exactly_one_value 제약이 이미 막고 있다.
     """
+
     return (
         ReviewAnswer.objects.filter(
             submission__round=round_obj,
@@ -219,7 +318,10 @@ def _text_answers(round_obj):
             "submission__target_team",
             "submission__target_participant",
         )
-        .order_by("question__display_order", "submission__submitted_at")
+        .order_by(
+            "question__display_order",
+            "submission__submitted_at",
+        )
     )
 
 
@@ -227,20 +329,31 @@ def _text_answers(round_obj):
 def round_text_answers(request, round_id):
     """서술형 응답 열람 - 운영자 전용(RES-013).
 
-    학생 화면에는 원문도 작성자도 나가지 않는다. 이 화면이 없으면 서술형 문항을 받아도
-    읽을 방법이 없어서 문항 유형 자체가 무의미해진다.
+    학생 화면에는 원문도 작성자도 나가지 않는다.
     """
+
     _require_operations(request.user)
-    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+
+    round_obj = get_object_or_404(
+        EvaluationRound,
+        pk=round_id,
+    )
+
     grouped = {}
+
     for answer in _text_answers(round_obj):
         submission = answer.submission
-        grouped.setdefault(answer.question, []).append(
+
+        grouped.setdefault(
+            answer.question,
+            [],
+        ).append(
             {
                 "evaluator": submission.evaluator.display_name_snapshot,
                 "target": (
                     submission.target_team.name
-                    if submission.review_type == ReviewSubmission.ReviewType.TEAM
+                    if submission.review_type
+                    == ReviewSubmission.ReviewType.TEAM
                     else submission.target_participant.display_name_snapshot
                 ),
                 "review_type": submission.review_type,
@@ -248,15 +361,23 @@ def round_text_answers(request, round_id):
                 "text": answer.text_value,
             }
         )
+
     return render(
         request,
         "rounds/text_answers.html",
         {
             "round_obj": round_obj,
             "question_groups": [
-                {"question": question, "answers": rows} for question, rows in grouped.items()
+                {
+                    "question": question,
+                    "answers": rows,
+                }
+                for question, rows in grouped.items()
             ],
-            "total_count": sum(len(rows) for rows in grouped.values()),
+            "total_count": sum(
+                len(rows)
+                for rows in grouped.values()
+            ),
         },
     )
 
@@ -265,51 +386,128 @@ def round_text_answers(request, round_id):
 @require_POST
 def round_complete(request, round_id):
     _require_operations(request.user)
+
     try:
         complete_round(
             round_id=round_id,
             actor=request.user,
-            force_confirmed=request.POST.get("force_confirmed") == "1",
+            force_confirmed=(
+                request.POST.get("force_confirmed") == "1"
+            ),
         )
     except ValidationError as error:
-        messages.error(request, " ".join(error.messages))
+        messages.error(
+            request,
+            " ".join(error.messages),
+        )
     else:
-        messages.success(request, "회차를 마감했습니다. 이제 채점을 실행할 수 있습니다.")
-        return redirect("rounds:results", round_id=round_id)
-    return redirect("rounds:reviews", round_id=round_id)
+        messages.success(
+            request,
+            "회차를 마감했습니다. 이제 채점을 실행할 수 있습니다.",
+        )
+
+        return redirect(
+            "rounds:results",
+            round_id=round_id,
+        )
+
+    return redirect(
+        "rounds:reviews",
+        round_id=round_id,
+    )
 
 
 @login_required
 def template_list(request):
-    """문항 템플릿 목록 - 운영자가 admin 없이 평가 문항을 관리하는 화면."""
+    """문항 템플릿 목록 -
+    운영자가 admin 없이 평가 문항을 관리하는 화면.
+    """
+
     _require_operations(request.user)
-    return render(request, "rounds/template_list.html", {"templates": question_template_rows()})
+
+    return render(
+        request,
+        "rounds/template_list.html",
+        {
+            "templates": question_template_rows(),
+        },
+    )
 
 
 @login_required
 @require_http_methods(["GET", "POST"])
 def template_edit(request, template_id=None):
     _require_operations(request.user)
-    template = get_object_or_404(QuestionTemplate, pk=template_id) if template_id else None
-    locked = bool(template and template.is_locked)
-    form = QuestionTemplateForm(request.POST or None, instance=template)
-    formset = TemplateQuestionFormSet(request.POST or None, instance=template)
+
+    template = (
+        get_object_or_404(
+            QuestionTemplate,
+            pk=template_id,
+        )
+        if template_id
+        else None
+    )
+
+    locked = bool(
+        template
+        and template.is_locked
+    )
+
+    form = QuestionTemplateForm(
+        request.POST or None,
+        instance=template,
+    )
+
+    formset = TemplateQuestionFormSet(
+        request.POST or None,
+        instance=template,
+    )
+
     if request.method == "POST":
+
         if locked:
-            messages.error(request, "시작된 회차가 사용하는 템플릿은 수정할 수 없습니다.")
-            return redirect("rounds:template-list")
+            messages.error(
+                request,
+                "시작된 회차가 사용하는 템플릿은 수정할 수 없습니다.",
+            )
+
+            return redirect(
+                "rounds:template-list"
+            )
+
         if form.is_valid() and formset.is_valid():
             try:
-                saved = save_question_template(form=form, formset=formset, actor=request.user)
+                saved = save_question_template(
+                    form=form,
+                    formset=formset,
+                    actor=request.user,
+                )
+
             except ValidationError as error:
-                messages.error(request, " ".join(error.messages))
+                messages.error(
+                    request,
+                    " ".join(error.messages),
+                )
+
             else:
-                messages.success(request, f"'{saved.name}' 템플릿을 저장했습니다.")
-                return redirect("rounds:template-list")
+                messages.success(
+                    request,
+                    f"'{saved.name}' 템플릿을 저장했습니다.",
+                )
+
+                return redirect(
+                    "rounds:template-list"
+                )
+
     return render(
         request,
         "rounds/template_form.html",
-        {"form": form, "formset": formset, "template": template, "locked": locked},
+        {
+            "form": form,
+            "formset": formset,
+            "template": template,
+            "locked": locked,
+        },
     )
 
 
@@ -317,41 +515,108 @@ def template_edit(request, template_id=None):
 @require_POST
 def template_copy(request, template_id):
     _require_operations(request.user)
-    copy = copy_question_template(template_id=template_id, actor=request.user)
-    messages.success(request, f"'{copy.name}'으로 복제했습니다. 내용을 수정해 주세요.")
-    return redirect("rounds:template-edit", template_id=copy.pk)
+
+    copy = copy_question_template(
+        template_id=template_id,
+        actor=request.user,
+    )
+
+    messages.success(
+        request,
+        f"'{copy.name}'으로 복제했습니다. 내용을 수정해 주세요.",
+    )
+
+    return redirect(
+        "rounds:template-edit",
+        template_id=copy.pk,
+    )
 
 
 @login_required
 @require_POST
 def template_delete(request, template_id):
     _require_operations(request.user)
+
     try:
-        delete_question_template(template_id=template_id, actor=request.user)
+        delete_question_template(
+            template_id=template_id,
+            actor=request.user,
+        )
+
     except ValidationError as error:
-        messages.error(request, " ".join(error.messages))
+        messages.error(
+            request,
+            " ".join(error.messages),
+        )
+
     else:
-        messages.success(request, "템플릿을 삭제했습니다.")
-    return redirect("rounds:template-list")
+        messages.success(
+            request,
+            "템플릿을 삭제했습니다.",
+        )
+
+    return redirect(
+        "rounds:template-list"
+    )
 
 
-def _round_lifecycle_action(request, round_id, *, action, success_message):
-    """회차 상태를 되돌리는 세 가지 동작이 결과 처리 방식이 같아 한곳에 모았다."""
+def _round_lifecycle_action(
+    request,
+    round_id,
+    *,
+    action,
+    success_message,
+):
+    """회차 상태를 되돌리는 세 가지 동작이
+    결과 처리 방식이 같아 한곳에 모았다.
+    """
+
     _require_operations(request.user)
+
     try:
-        action(round_id=round_id, actor=request.user)
-    except (EvaluationRound.DoesNotExist, ValidationError) as error:
-        messages.error(request, " ".join(getattr(error, "messages", [str(error)])))
-        return redirect("rounds:list")
-    messages.success(request, success_message)
-    return redirect("rounds:list")
+        action(
+            round_id=round_id,
+            actor=request.user,
+        )
+
+    except (
+        EvaluationRound.DoesNotExist,
+        ValidationError,
+    ) as error:
+
+        messages.error(
+            request,
+            " ".join(
+                getattr(
+                    error,
+                    "messages",
+                    [str(error)],
+                )
+            ),
+        )
+
+        return redirect(
+            "rounds:list"
+        )
+
+    messages.success(
+        request,
+        success_message,
+    )
+
+    return redirect(
+        "rounds:list"
+    )
 
 
 @login_required
 @require_POST
 def round_delete(request, round_id):
     return _round_lifecycle_action(
-        request, round_id, action=delete_round, success_message="회차를 삭제했습니다."
+        request,
+        round_id,
+        action=delete_round,
+        success_message="회차를 삭제했습니다.",
     )
 
 
@@ -370,92 +635,164 @@ def round_revert(request, round_id):
 @require_POST
 def round_reopen(request, round_id):
     return _round_lifecycle_action(
-        request, round_id, action=reopen_round, success_message="회차를 다시 열었습니다."
+        request,
+        round_id,
+        action=reopen_round,
+        success_message="회차를 다시 열었습니다.",
     )
 
 
+# =========================================================
+# 공지 포털
+# =========================================================
+
+
+@login_required
+def notice_portal(request):
+    """튜터/운영자 전용 공지 관리 화면."""
+
+    _require_operations(request.user)
+
+    # 공지 포털에서는 공개/비공개 여부와 관계없이
+    # 모든 공지를 관리할 수 있어야 한다.
+    notices = Notice.objects.all().order_by(
+        "-created_at"
+    )
+
+    if request.method == "POST":
+        form = NoticeForm(request.POST)
+
+        if form.is_valid():
+            notice = form.save(
+                commit=False
+            )
+
+            notice.created_by = request.user
+            notice.save()
+
+            messages.success(
+                request,
+                "공지가 등록되었습니다.",
+            )
+
+            return redirect(
+                "rounds:notice_portal"
+            )
+
+    else:
+        form = NoticeForm()
+
+    return render(
+        request,
+        "rounds/notice_portal.html",
+        {
+            "notices": notices,
+            "notice_form": form,
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def notice_edit(request, pk):
+    """공지 수정 - 운영자 전용."""
+
+    _require_operations(request.user)
+
+    notice = get_object_or_404(
+        Notice,
+        pk=pk,
+    )
+
+    if request.method == "POST":
+        form = NoticeForm(
+            request.POST,
+            instance=notice,
+        )
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "공지가 수정되었습니다.",
+            )
+
+            return redirect(
+                "rounds:notice_portal"
+            )
+
+    else:
+        form = NoticeForm(
+            instance=notice
+        )
+
+    return render(
+        request,
+        "rounds/notice_edit.html",
+        {
+            "form": form,
+            "notice": notice,
+        },
+    )
+
+
+@login_required
 @require_POST
 def notice_toggle(request, pk):
-    notice = get_object_or_404(Notice, pk=pk)
+    """공지 공개/비공개 전환 - 운영자 전용."""
 
-    notice.is_active = not notice.is_active
-    notice.save(update_fields=["is_active"])
+    _require_operations(request.user)
+
+    notice = get_object_or_404(
+        Notice,
+        pk=pk,
+    )
+
+    notice.is_active = (
+        not notice.is_active
+    )
+
+    notice.save(
+        update_fields=["is_active"]
+    )
 
     if notice.is_active:
-        messages.success(request, "공지를 다시 공개했습니다.")
+        messages.success(
+            request,
+            "공지를 다시 공개했습니다.",
+        )
+
     else:
-        messages.success(request, "공지를 비공개했습니다.")
+        messages.success(
+            request,
+            "공지를 비공개했습니다.",
+        )
 
-    return redirect("rounds:dashboard")
-
-
-@login_required
-def notice_edit(request, pk):
-    notice = get_object_or_404(Notice, pk=pk)
-
-    if request.method == "POST":
-        form = NoticeForm(request.POST, instance=notice)
-
-        if form.is_valid():
-            form.save()
-            messages.success(request, "공지가 수정되었습니다.")
-            return redirect("rounds:dashboard")
-    else:
-        form = NoticeForm(instance=notice)
-
-    return render(
-        request,
-        "rounds/notice_edit.html",
-        {
-            "form": form,
-            "notice": notice,
-        },
+    return redirect(
+        "rounds:notice_portal"
     )
-
-@login_required
-def notice_edit(request, pk):
-    _require_operations(request.user)
-
-    notice = get_object_or_404(Notice, pk=pk)
-
-    if request.method == "POST":
-        form = NoticeForm(request.POST, instance=notice)
-
-        if form.is_valid():
-            form.save()
-            messages.success(request, "공지가 수정되었습니다.")
-            return redirect("rounds:dashboard")
-    else:
-        form = NoticeForm(instance=notice)
-
-    return render(
-        request,
-        "rounds/notice_edit.html",
-        {
-            "form": form,
-            "notice": notice,
-        },
-    )
-
-@login_required
-@require_POST
-def notice_delete(request, pk):
-    _require_operations(request.user)
-
-    notice = get_object_or_404(Notice, pk=pk)
-    notice.delete()
-
-    messages.success(request, "공지가 삭제되었습니다.")
-    return redirect("rounds:dashboard")
 
 
 @login_required
 @require_POST
 def notice_delete(request, pk):
+    """공지 삭제 - 운영자 전용."""
+
     _require_operations(request.user)
 
-    notice = get_object_or_404(Notice, pk=pk)
+    notice = get_object_or_404(
+        Notice,
+        pk=pk,
+    )
+
     notice.delete()
 
-    messages.success(request, "공지가 삭제되었습니다.")
-    return redirect("rounds:dashboard")
+    messages.success(
+        request,
+        "공지가 삭제되었습니다.",
+    )
+
+    return redirect(
+        "rounds:notice_portal"
+    )

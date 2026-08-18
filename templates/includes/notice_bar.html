@@ -1,0 +1,371 @@
+{% if dashboard_notices %}
+
+  <!-- 공지 한 줄 바 -->
+  <div class="card-custom mb-4">
+    <div class="card-body-custom py-2">
+
+      <div class="d-flex align-items-center gap-2">
+
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <i class="bi bi-megaphone-fill text-primary"></i>
+          <strong class="small">공지</strong>
+        </div>
+
+        <!-- 이전 공지 -->
+        <button type="button"
+                class="btn btn-sm btn-link text-body text-decoration-none p-1 flex-shrink-0"
+                data-notice-prev
+                aria-label="이전 공지">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+
+
+        <!-- 현재 공지 -->
+        <div class="flex-grow-1 overflow-hidden">
+
+          {% for notice in dashboard_notices %}
+
+            <button type="button"
+                    class="notice-dashboard-item btn btn-link text-body text-decoration-none text-start p-0 w-100 {% if not forloop.first %}d-none{% endif %}"
+                    data-notice-item
+                    data-notice-index="{{ forloop.counter0 }}"
+                    data-bs-toggle="modal"
+                    data-bs-target="#noticeDetailModal{{ notice.pk }}">
+
+              <span class="fw-semibold">
+                {{ notice.title }}
+              </span>
+
+              <span class="text-muted mx-1">·</span>
+
+              <span class="text-muted">
+                {{ notice.content|striptags|truncatechars:70 }}
+              </span>
+
+            </button>
+
+          {% endfor %}
+
+        </div>
+
+
+        <!-- 다음 공지 -->
+        <button type="button"
+                class="btn btn-sm btn-link text-body text-decoration-none p-1 flex-shrink-0"
+                data-notice-next
+                aria-label="다음 공지">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+
+
+        <!-- 현재 위치 -->
+        <span class="text-muted small flex-shrink-0"
+              data-notice-counter>
+          1 / {{ dashboard_notices|length }}
+        </span>
+
+
+        <!-- 전체 공지 -->
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                data-bs-toggle="modal"
+                data-bs-target="#noticeListModal">
+          더보기
+        </button>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- 전체 공지 목록 모달 -->
+  <div class="modal fade"
+       id="noticeListModal"
+       tabindex="-1"
+       aria-labelledby="noticeListModalLabel"
+       aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+
+      <div class="modal-content rounded-4 border-0 shadow">
+
+        <div class="modal-header border-bottom px-4 py-3">
+
+          <h6 class="modal-title fw-bold"
+              id="noticeListModalLabel">
+
+            <i class="bi bi-megaphone-fill text-primary me-2"></i>
+            공지사항
+
+          </h6>
+
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="닫기">
+          </button>
+
+        </div>
+
+
+        <div class="modal-body p-0">
+
+          <div class="list-group list-group-flush">
+
+            {% for notice in dashboard_notices %}
+
+              <button type="button"
+                      class="list-group-item list-group-item-action px-4 py-3"
+                      data-notice-detail-target="noticeDetailModal{{ notice.pk }}">
+
+                <div class="d-flex justify-content-between align-items-start gap-3">
+
+                  <div class="overflow-hidden">
+
+                    <div class="fw-semibold">
+                      {{ notice.title }}
+                    </div>
+
+                    <div class="text-muted small mt-1">
+                      {{ notice.content|striptags|truncatechars:90 }}
+                    </div>
+
+                  </div>
+
+                  <span class="text-muted small flex-shrink-0">
+                    {{ notice.created_at|date:"Y.m.d H:i" }}
+                  </span>
+
+                </div>
+
+              </button>
+
+            {% endfor %}
+
+          </div>
+
+        </div>
+
+
+        <div class="modal-footer border-top-0 px-4 pb-3">
+
+          <button type="button"
+                  class="btn btn-ax-secondary"
+                  data-bs-dismiss="modal">
+            닫기
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- 각 공지 상세 모달 -->
+  {% for notice in dashboard_notices %}
+
+    <div class="modal fade"
+         id="noticeDetailModal{{ notice.pk }}"
+         tabindex="-1"
+         aria-labelledby="noticeDetailModalLabel{{ notice.pk }}"
+         aria-hidden="true">
+
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+
+        <div class="modal-content rounded-4 border-0 shadow">
+
+          <div class="modal-header border-bottom px-4 py-3">
+
+            <h6 class="modal-title fw-bold"
+                id="noticeDetailModalLabel{{ notice.pk }}">
+
+              <i class="bi bi-megaphone-fill text-primary me-2"></i>
+              {{ notice.title }}
+
+            </h6>
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기">
+            </button>
+
+          </div>
+
+
+          <div class="modal-body p-4">
+
+            <div class="text-muted small mb-3">
+              {{ notice.created_at|date:"Y.m.d H:i" }}
+            </div>
+
+            <div>
+              {{ notice.content|linebreaksbr }}
+            </div>
+
+          </div>
+
+
+          <div class="modal-footer border-top-0 px-4 pb-3">
+
+            <button type="button"
+                    class="btn btn-ax-secondary"
+                    data-bs-dismiss="modal">
+              닫기
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  {% endfor %}
+
+
+  <!-- 공지 이전 / 다음 및 모달 전환 -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+      const noticeItems = Array.from(
+        document.querySelectorAll("[data-notice-item]")
+      );
+
+      const prevButton =
+        document.querySelector("[data-notice-prev]");
+
+      const nextButton =
+        document.querySelector("[data-notice-next]");
+
+      const counter =
+        document.querySelector("[data-notice-counter]");
+
+      let currentNoticeIndex = 0;
+
+
+      function showNotice(index) {
+
+        if (!noticeItems.length) {
+          return;
+        }
+
+        if (index < 0) {
+          index = noticeItems.length - 1;
+        }
+
+        if (index >= noticeItems.length) {
+          index = 0;
+        }
+
+        currentNoticeIndex = index;
+
+
+        noticeItems.forEach(function (item, itemIndex) {
+
+          item.classList.toggle(
+            "d-none",
+            itemIndex !== currentNoticeIndex
+          );
+
+        });
+
+
+        if (counter) {
+
+          counter.textContent =
+            (currentNoticeIndex + 1)
+            + " / "
+            + noticeItems.length;
+
+        }
+
+      }
+
+
+      if (prevButton) {
+
+        prevButton.addEventListener("click", function () {
+          showNotice(currentNoticeIndex - 1);
+        });
+
+      }
+
+
+      if (nextButton) {
+
+        nextButton.addEventListener("click", function () {
+          showNotice(currentNoticeIndex + 1);
+        });
+
+      }
+
+
+      /*
+       * 전체 공지 목록에서 공지를 클릭했을 때
+       * 목록 모달을 닫은 뒤 상세 모달을 연다.
+       */
+      document
+        .querySelectorAll("[data-notice-detail-target]")
+        .forEach(function (button) {
+
+          button.addEventListener("click", function () {
+
+            const detailModalId =
+              button.dataset.noticeDetailTarget;
+
+            const listModalElement =
+              document.getElementById("noticeListModal");
+
+            const detailModalElement =
+              document.getElementById(detailModalId);
+
+            if (!listModalElement || !detailModalElement) {
+              return;
+            }
+
+
+            const listModal =
+              bootstrap.Modal.getOrCreateInstance(
+                listModalElement
+              );
+
+
+            listModalElement.addEventListener(
+              "hidden.bs.modal",
+              function openDetailModal() {
+
+                listModalElement.removeEventListener(
+                  "hidden.bs.modal",
+                  openDetailModal
+                );
+
+                const detailModal =
+                  bootstrap.Modal.getOrCreateInstance(
+                    detailModalElement
+                  );
+
+                detailModal.show();
+
+              }
+            );
+
+
+            listModal.hide();
+
+          });
+
+        });
+
+
+      showNotice(0);
+
+    });
+  </script>
+
+{% endif %}

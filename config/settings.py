@@ -236,12 +236,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-AXES_ENABLED = True
+AXES_ENABLED = False
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_RESET_ON_SUCCESS = True
 AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
-AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_USERNAME_CALLABLE = "accounts.security.canonicalize_axes_username"
 AXES_CLIENT_IP_CALLABLE = "accounts.security.get_direct_client_ip"
 AXES_LOCKOUT_CALLABLE = "accounts.security.axes_lockout_response"

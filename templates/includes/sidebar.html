@@ -5,6 +5,7 @@
         <i class="bi bi-mortarboard-fill"></i>
         <span class="brand-text">AX Console</span>
       </a>
+
       <button type="button"
               class="btn btn-sm text-white p-0"
               id="sidebar-toggle"
@@ -13,46 +14,190 @@
         <i class="bi bi-list fs-5"></i>
       </button>
     </div>
+
+
     {% if user.role == 'tutor' or user.role == 'admin' %}
+
       <div class="nav-section-title">운영 포털</div>
+
       <ul class="sidebar-nav">
-        <li class="sidebar-nav-item"><a href="{% url 'rounds:dashboard' %}"
-   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span class="nav-text">운영 대시보드</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'rounds:list' %}"
-   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name != 'dashboard' and 'template' not in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-calendar-range"></i><span class="nav-text">평가 회차</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'rounds:template-list' %}"
-   class="sidebar-nav-link {% if 'template' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-card-checklist"></i><span class="nav-text">문항 템플릿</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'accounts:tutor_dashboard' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_dashboard' %}active{% endif %}"><i class="bi bi-person-check-fill"></i><span class="nav-text">수강생 승인</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'accounts:whitelist' %}"
-   class="sidebar-nav-link {% if 'whitelist' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-envelope-paper"></i><span class="nav-text">수강생 명단</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'accounts:account_admin' %}"
-   class="sidebar-nav-link {% if 'account' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-people"></i><span class="nav-text">계정 관리</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'audit:log' %}"
-   class="sidebar-nav-link {% if request.resolver_match.namespace == 'audit' %}active{% endif %}"><i class="bi bi-clock-history"></i><span class="nav-text">감사 로그</span></a></li>
-        {% if user.is_staff %}<li class="sidebar-nav-item"><a href="{% url 'admin:index' %}" class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">템플릿·계정 관리</span></a></li>{% endif %}
+
+        <!-- 운영 대시보드 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'rounds:dashboard' %}"
+             class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-grid-1x2-fill"></i>
+            <span class="nav-text">운영 대시보드</span>
+          </a>
+        </li>
+
+
+        <!-- 평가 회차 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'rounds:list' %}"
+             class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name != 'dashboard' and 'template' not in request.resolver_match.url_name|default_if_none:'' and 'notice' not in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}">
+            <i class="bi bi-calendar-range"></i>
+            <span class="nav-text">평가 회차</span>
+          </a>
+        </li>
+
+
+        <!-- 문항 템플릿 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'rounds:template-list' %}"
+             class="sidebar-nav-link {% if 'template' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}">
+            <i class="bi bi-card-checklist"></i>
+            <span class="nav-text">문항 템플릿</span>
+          </a>
+        </li>
+
+
+        <!-- 공지 포털 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'rounds:notice_portal' %}"
+             class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and 'notice' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}">
+            <i class="bi bi-megaphone-fill"></i>
+            <span class="nav-text">공지 포털</span>
+          </a>
+        </li>
+
+
+        <!-- 수강생 승인 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'accounts:tutor_dashboard' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'tutor_dashboard' %}active{% endif %}">
+            <i class="bi bi-person-check-fill"></i>
+            <span class="nav-text">수강생 승인</span>
+          </a>
+        </li>
+
+
+        <!-- 수강생 명단 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'accounts:whitelist' %}"
+             class="sidebar-nav-link {% if 'whitelist' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}">
+            <i class="bi bi-envelope-paper"></i>
+            <span class="nav-text">수강생 명단</span>
+          </a>
+        </li>
+
+
+        <!-- 계정 관리 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'accounts:account_admin' %}"
+             class="sidebar-nav-link {% if 'account' in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}">
+            <i class="bi bi-people"></i>
+            <span class="nav-text">계정 관리</span>
+          </a>
+        </li>
+
+
+        <!-- 감사 로그 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'audit:log' %}"
+             class="sidebar-nav-link {% if request.resolver_match.namespace == 'audit' %}active{% endif %}">
+            <i class="bi bi-clock-history"></i>
+            <span class="nav-text">감사 로그</span>
+          </a>
+        </li>
+
+
+        <!-- Django 관리자 -->
+        {% if user.is_staff %}
+          <li class="sidebar-nav-item">
+            <a href="{% url 'admin:index' %}"
+               class="sidebar-nav-link">
+              <i class="bi bi-gear-fill"></i>
+              <span class="nav-text">템플릿·계정 관리</span>
+            </a>
+          </li>
+        {% endif %}
+
       </ul>
+
+
     {% else %}
+
       <div class="nav-section-title">학생 포털</div>
+
       <ul class="sidebar-nav">
-        <li class="sidebar-nav-item"><a href="{% url 'accounts:dashboard' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span class="nav-text">홈</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'student-team-page' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'student-team-page' %}active{% endif %}"><i class="bi bi-people-fill"></i><span class="nav-text">내 팀</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'reviews:team-list' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'team-list' or request.resolver_match.url_name == 'team-form' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span class="nav-text">팀 평가</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'reviews:peer-list' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'peer-list' or request.resolver_match.url_name == 'peer-form' %}active{% endif %}"><i class="bi bi-person-check"></i><span class="nav-text">개인 평가</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'reviews:status' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'status' %}active{% endif %}"><i class="bi bi-list-check"></i><span class="nav-text">제출 현황</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'results:me' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'me' %}active{% endif %}"><i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">내 결과</span></a></li>
+
+        <!-- 학생 홈 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'accounts:dashboard' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-grid-1x2-fill"></i>
+            <span class="nav-text">홈</span>
+          </a>
+        </li>
+
+
+        <!-- 내 팀 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'student-team-page' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'student-team-page' %}active{% endif %}">
+            <i class="bi bi-people-fill"></i>
+            <span class="nav-text">내 팀</span>
+          </a>
+        </li>
+
+
+        <!-- 팀 평가 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'reviews:team-list' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'team-list' or request.resolver_match.url_name == 'team-form' %}active{% endif %}">
+            <i class="bi bi-ui-checks-grid"></i>
+            <span class="nav-text">팀 평가</span>
+          </a>
+        </li>
+
+
+        <!-- 개인 평가 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'reviews:peer-list' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'peer-list' or request.resolver_match.url_name == 'peer-form' %}active{% endif %}">
+            <i class="bi bi-person-check"></i>
+            <span class="nav-text">개인 평가</span>
+          </a>
+        </li>
+
+
+        <!-- 제출 현황 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'reviews:status' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'status' %}active{% endif %}">
+            <i class="bi bi-list-check"></i>
+            <span class="nav-text">제출 현황</span>
+          </a>
+        </li>
+
+
+        <!-- 내 결과 -->
+        <li class="sidebar-nav-item">
+          <a href="{% url 'results:me' %}"
+             class="sidebar-nav-link {% if request.resolver_match.url_name == 'me' %}active{% endif %}">
+            <i class="bi bi-bar-chart-line-fill"></i>
+            <span class="nav-text">내 결과</span>
+          </a>
+        </li>
+
       </ul>
+
     {% endif %}
+
+
+    <!-- 공통 계정 메뉴 -->
     <div class="nav-section-title">계정</div>
+
     <ul class="sidebar-nav">
-      <li class="sidebar-nav-item"><a href="{% url 'accounts:mypage' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}"><i class="bi bi-person-lines-fill"></i><span class="nav-text">마이페이지</span></a></li>
+      <li class="sidebar-nav-item">
+        <a href="{% url 'accounts:mypage' %}"
+           class="sidebar-nav-link {% if request.resolver_match.url_name == 'mypage' %}active{% endif %}">
+          <i class="bi bi-person-lines-fill"></i>
+          <span class="nav-text">마이페이지</span>
+        </a>
+      </li>
     </ul>
+
   </div>
 </aside>

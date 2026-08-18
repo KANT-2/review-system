@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}공지 포털 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}공지 포털{% endblock %}
+
+{% block content %}
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">공지 포털</h1>
+      <p class="page-desc">수강생에게 전달할 공지를 작성하고 관리합니다.</p>
+    </div>
+
+    <button class="btn btn-ax-primary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#noticeCreateForm">
+      <i class="bi bi-plus-lg me-1"></i>
+      새 공지 작성
+    </button>
+  </div>
+
+
+  <!-- 새 공지 작성 -->
+  <div class="collapse mb-4" id="noticeCreateForm">
+    <section class="card-custom">
+      <div class="card-header-custom">
+        <div class="card-title-custom">
+          <i class="bi bi-megaphone text-primary"></i>
+          새 공지
+        </div>
+      </div>
+
+      <div class="card-body-custom">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">제목</label>
+            {{ notice_form.title }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">내용</label>
+            {{ notice_form.content }}
+          </div>
+
+          <div class="text-end">
+            <button type="submit" class="btn btn-ax-primary">
+              <i class="bi bi-send me-1"></i>
+              공지 등록
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+
+  <!-- 공지 목록 -->
+  <section class="card-custom">
+
+    <div class="card-header-custom">
+      <div class="card-title-custom">
+        <i class="bi bi-megaphone-fill text-primary"></i>
+        등록된 공지
+      </div>
+
+      <span class="text-muted small">
+        총 {{ notices|length }}건
+      </span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+
+        <thead>
+          <tr>
+            <th>제목</th>
+            <th>상태</th>
+            <th>작성일</th>
+            <th class="text-end">관리</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for notice in notices %}
+            <tr>
+
+              <td>
+                <strong>{{ notice.title }}</strong>
+                <div class="small text-muted mt-1">
+                  {{ notice.content|truncatechars:70 }}
+                </div>
+              </td>
+
+              <td>
+                {% if notice.is_active %}
+                  <span class="badge bg-success">공개</span>
+                {% else %}
+                  <span class="badge bg-secondary">비공개</span>
+                {% endif %}
+              </td>
+
+              <td class="small text-muted">
+                {{ notice.created_at|date:"Y.m.d H:i" }}
+              </td>
+
+              <td class="text-end">
+
+                <div class="d-inline-flex gap-1">
+
+                  <!-- 수정 -->
+                  <a href="{% url 'rounds:notice_edit' notice.pk %}"
+                     class="btn btn-sm btn-outline-primary">
+                    수정
+                  </a>
+
+                  <!-- 공개 / 비공개 -->
+                  <form method="post"
+                        action="{% url 'rounds:notice_toggle' notice.pk %}">
+                    {% csrf_token %}
+
+                    {% if notice.is_active %}
+                      <button type="submit"
+                              class="btn btn-sm btn-outline-secondary">
+                        비공개
+                      </button>
+                    {% else %}
+                      <button type="submit"
+                              class="btn btn-sm btn-outline-primary">
+                        다시 공개
+                      </button>
+                    {% endif %}
+                  </form>
+
+                  <!-- 삭제 -->
+                  <form method="post"
+                        action="{% url 'rounds:notice_delete' notice.pk %}"
+                        onsubmit="return confirm('이 공지를 삭제하시겠습니까?');">
+                    {% csrf_token %}
+
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-danger">
+                      삭제
+                    </button>
+                  </form>
+
+                </div>
+
+              </td>
+            </tr>
+
+          {% empty %}
+
+            <tr>
+              <td colspan="4"
+                  class="text-center text-muted py-5">
+                등록된 공지가 없습니다.
+              </td>
+            </tr>
+
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+
+  </section>
+
+{% endblock %}
