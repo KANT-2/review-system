@@ -919,3 +919,13 @@ tbody.collapse.show { display: table-row-group; }
 .ax-account-cell > div + div {
   margin-top: 2px;
 }
+
+/* 표 컬럼 너비 - 승인 대기·계정 목록의 colgroup에서 쓴다. */
+.ax-col-10 { width: 10%; }
+.ax-col-13 { width: 13%; }
+.ax-col-14 { width: 14%; }
+.ax-col-16 { width: 16%; }
+.ax-col-18 { width: 18%; }
+.ax-col-22 { width: 22%; }
+.ax-col-30 { width: 30%; }
+.ax-col-32 { width: 32%; }
