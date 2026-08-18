@@ -14,42 +14,69 @@
       <div class="card-title-custom"><i class="bi bi-person-check-fill text-primary"></i>승인 대기 목록</div>
       <span class="text-muted font-size-115">{{ pending_users|length }}명</span>
     </div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <colgroup>
-          <col class="ax-col-16">
-          <col class="ax-col-30">
-          <col class="ax-col-14">
-          <col class="ax-col-18">
-          <col class="ax-col-22">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>이름</th>
-            <th>이메일</th>
-            <th>가입 방식</th>
-            <th>신청 일시</th>
-            <th class="text-end">관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for pending_user in pending_head %}
-            {% include "accounts/_pending_user_row.html" %}
-          {% empty %}
+    <form method="post"
+          id="bulkApprovalForm"
+          action="{% url 'accounts:bulk_approval' %}">
+      {% csrf_token %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <colgroup>
+            <col class="ax-col-6">
+            <col class="ax-col-16">
+            <col class="ax-col-30">
+            <col class="ax-col-14">
+            <col class="ax-col-18">
+          </colgroup>
+          <thead>
             <tr>
-              <td colspan="5" class="text-center text-muted py-5">현재 승인 대기 요청이 없습니다.</td>
+              <th class="text-center">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="pendingSelectAll"
+                       aria-label="승인 대기 전체 선택">
+              </th>
+              <th>이름</th>
+              <th>이메일</th>
+              <th>가입 방식</th>
+              <th>신청 일시</th>
             </tr>
-          {% endfor %}
-        </tbody>
-        {% if pending_rest %}
-          <tbody class="collapse" id="pendingRestRows">
-            {% for pending_user in pending_rest %}
+          </thead>
+          <tbody>
+            {% for pending_user in pending_head %}
               {% include "accounts/_pending_user_row.html" %}
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-5">현재 승인 대기 요청이 없습니다.</td>
+              </tr>
             {% endfor %}
           </tbody>
-        {% endif %}
-      </table>
-    </div>
+          {% if pending_rest %}
+            <tbody class="collapse" id="pendingRestRows">
+              {% for pending_user in pending_rest %}
+                {% include "accounts/_pending_user_row.html" %}
+              {% endfor %}
+            </tbody>
+          {% endif %}
+        </table>
+      </div>
+      {% if pending_users %}
+        <div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span class="text-muted font-size-115" id="pendingSelectedCount">선택한 계정이 없습니다.</span>
+          <div class="d-flex gap-2">
+            <button type="submit"
+                    name="decision"
+                    value="reject"
+                    class="btn btn-sm btn-outline-danger ax-bulk-approval"
+                    disabled>선택 반려</button>
+            <button type="submit"
+                    name="decision"
+                    value="approve"
+                    class="btn btn-sm btn-ax-primary ax-bulk-approval"
+                    disabled>선택 승인</button>
+          </div>
+        </div>
+      {% endif %}
+    </form>
     {% if pending_rest %}
       <div class="ax-expand-wrapper">
         <button type="button"
@@ -99,12 +126,13 @@
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <colgroup>
-          <col class="ax-col-32">
-          <col class="ax-col-10">
-          <col class="ax-col-13">
-          <col class="ax-col-10">
-          <col class="ax-col-13">
-          <col class="ax-col-22">
+          <col class="ax-col-30">
+          <col class="ax-col-9">
+          <col class="ax-col-12">
+          <col class="ax-col-9">
+          <col class="ax-col-12">
+          <col class="ax-col-8">
+          <col class="ax-col-20">
         </colgroup>
         <thead>
           <tr>
@@ -113,6 +141,7 @@
             <th scope="col" class="text-center">승인 상태</th>
             <th scope="col" class="text-center">활성</th>
             <th scope="col" class="text-center">비밀번호</th>
+            <th scope="col" class="text-center">메모</th>
             <th scope="col" class="text-end">관리</th>
           </tr>
         </thead>
@@ -121,7 +150,7 @@
             {% include "accounts/_account_row.html" %}
           {% empty %}
             <tr>
-              <td colspan="6" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
+              <td colspan="7" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -234,6 +263,44 @@
       </div>
     </div>
   </section>
+{% endblock %}
+{% block modals %}
+  <div class="modal fade"
+       id="studentNoteModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <form method="post" id="studentNoteForm">
+          {% csrf_token %}
+          <div class="modal-header border-bottom px-4 py-3">
+            <h6 class="modal-title fw-bold">
+              <i class="bi bi-sticky me-2 text-primary"></i>메모 · <span id="noteStudentName"></span>
+            </h6>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4">
+            <p class="text-muted font-size-135">튜터·관리자만 볼 수 있는 메모입니다. 학생 화면에는 표시되지 않습니다.</p>
+            <label class="visually-hidden" for="noteBody">메모 내용</label>
+            <textarea name="body"
+                      id="noteBody"
+                      class="form-control"
+                      rows="4"
+                      maxlength="1000"
+                      placeholder="예: 이번 회차 개인 사정으로 일부만 제출함"></textarea>
+            <p class="text-muted font-size-115 mt-2 mb-0">비우고 저장하면 메모가 삭제됩니다.</p>
+          </div>
+          <div class="modal-footer border-top-0 px-4 pb-3">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-ax-primary">저장</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 {% block extra_js %}
   <script src="{% static 'js/account-admin.js' %}"></script>

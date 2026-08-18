@@ -3,6 +3,7 @@ from typing import Protocol
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from teams.application import (
@@ -196,6 +197,8 @@ def management_team_page(request: HttpRequest, round_id: int) -> HttpResponse:
             "my_participant_id": None,
             "auto_url": f"/teams/manage/rounds/{round_id}/teams/auto/",
             "save_url": f"/teams/manage/rounds/{round_id}/teams/save/",
+            # 저장 뒤 무엇을 해야 하는지 화면에서 바로 알려주기 위한 다음 단계 주소다.
+            "next_url": reverse("rounds:reviews", kwargs={"round_id": round_id}),
             "preview_mode": False,
         },
     )

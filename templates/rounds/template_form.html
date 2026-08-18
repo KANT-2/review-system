@@ -66,7 +66,18 @@
                     <td>{{ question_form.response_type }}</td>
                     <td>{{ question_form.competency }}</td>
                     <td class="text-center">{{ question_form.is_required }}</td>
-                    <td class="text-center">{% if question_form.instance.pk %}{{ question_form.DELETE }}{% endif %}</td>
+                    <td class="text-center">
+                      {% comment %}저장된 문항은 DELETE 체크박스를 숨겨 두고 버튼이 대신 켠다.{% endcomment %}
+                      <span class="d-none">{% if question_form.instance.pk %}{{ question_form.DELETE }}{% endif %}</span>
+                      {% if not locked %}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger ax-remove-question"
+                                aria-label="문항 삭제"
+                                title="문항 삭제">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      {% endif %}
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -102,7 +113,14 @@
         <td>{{ formset.empty_form.response_type }}</td>
         <td>{{ formset.empty_form.competency }}</td>
         <td class="text-center">{{ formset.empty_form.is_required }}</td>
-        <td class="text-center"></td>
+        <td class="text-center">
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger ax-remove-question"
+                  aria-label="문항 삭제"
+                  title="문항 삭제">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
       </tr>
     </template>
   {% endif %}
@@ -114,13 +132,40 @@
     const rowTemplate = document.getElementById('questionRowTemplate');
     const rows = document.getElementById('questionRows');
     const totalForms = document.querySelector("[name$='-TOTAL_FORMS']");
-    if (!addButton || !rowTemplate || !rows || !totalForms) return;
+    if (!rows) return;
 
     const renumber = () => {
-      rows.querySelectorAll('.question-order').forEach((cell, index) => {
-        cell.textContent = String(index + 1);
+      let order = 0;
+      rows.querySelectorAll('tr').forEach((row) => {
+        if (row.classList.contains('d-none')) return;
+        order += 1;
+        const cell = row.querySelector('.question-order');
+        if (cell) cell.textContent = String(order);
       });
     };
+
+    // 문항 줄 삭제. 저장된 문항은 DELETE 체크박스를 켜서 저장 때 지우고, 아직 저장되지 않은
+    // 줄은 내용을 비워 둔다 - 빈 줄은 저장에서 무시되므로 인덱스를 건드리지 않아도 된다.
+    const removeRow = (row) => {
+      const promptField = row.querySelector("[name$='-prompt']");
+      const deleteField = row.querySelector("[name$='-DELETE']");
+      const hasText = Boolean(promptField && promptField.value.trim());
+      if (hasText && !window.confirm('이 문항을 삭제할까요?')) return;
+      if (deleteField) {
+        deleteField.checked = true;
+      } else if (promptField) {
+        promptField.value = '';
+      }
+      row.classList.add('d-none');
+      renumber();
+    };
+
+    rows.addEventListener('click', (event) => {
+      const button = event.target.closest('.ax-remove-question');
+      if (button) removeRow(button.closest('tr'));
+    });
+
+    if (!addButton || !rowTemplate || !totalForms) return;
 
     addButton.addEventListener('click', () => {
       const index = Number(totalForms.value);

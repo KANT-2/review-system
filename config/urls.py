@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
@@ -28,3 +30,8 @@ urlpatterns = [
     path("manage/audit/", include("audit.urls")),
     path("", account_views.home_view, name="home"),
 ]
+
+if settings.DEBUG:
+    # 개발 서버에서만 업로드된 프로필 사진을 직접 내려준다.
+    # 운영에서는 Caddy/whitenoise 등 앞단이 MEDIA_ROOT를 서빙해야 한다.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

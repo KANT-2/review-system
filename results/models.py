@@ -50,12 +50,12 @@ class CalculationRun(models.Model):
 class TutorNote(models.Model):
     """수강생 한 명에 대한 튜터 전용 메모.
 
-    결과·공개 화면(운영자 전용)에서만 읽고 쓴다 - 학생 화면과 학생용 조회 경로에서는
-    절대 노출하지 않는다. 회차마다 따로 남기므로 회차 참가자(RoundParticipant) 단위다.
+    수강생 관리 화면(운영자 전용)에서만 읽고 쓴다 - 학생 화면과 학생용 조회 경로에서는
+    절대 노출하지 않는다. 회차와 무관하게 학생 한 명당 한 건만 남는다.
     """
 
-    participant = models.OneToOneField(
-        "rounds.RoundParticipant", on_delete=models.CASCADE, related_name="tutor_note"
+    student = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tutor_note"
     )
     body = models.TextField(max_length=1000)
     author = models.ForeignKey(
@@ -65,13 +65,13 @@ class TutorNote(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("participant__student_number_snapshot",)
+        ordering = ("student__email",)
         constraints = [
             models.CheckConstraint(condition=~Q(body=""), name="results_tutor_note_not_blank"),
         ]
 
     def __str__(self):
-        return f"{self.participant} 메모"
+        return f"{self.student} 메모"
 
 
 class EvaluationResult(models.Model):

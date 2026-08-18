@@ -5,10 +5,17 @@ from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
 
 
 class EvaluationRoundForm(forms.ModelForm):
+    """회차 기본 정보 폼.
+
+    참가 수강생은 화면에서 고르지 않는다 - 승인된 활성 수강생 전원이 자동으로 참가자가 된다.
+    필드 자체는 save_round가 쓰기 때문에 남겨 두되, 값은 clean에서 서버가 채운다.
+    """
+
     participants = forms.ModelMultipleChoiceField(
         label="참가 수강생",
         queryset=User.objects.none(),
-        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        widget=forms.MultipleHiddenInput,
     )
 
     class Meta:
@@ -18,7 +25,6 @@ class EvaluationRoundForm(forms.ModelForm):
             "description",
             "evaluation_start_at",
             "evaluation_end_at",
-            "target_team_count",
             "team_template",
             "peer_template",
         )
@@ -32,7 +38,6 @@ class EvaluationRoundForm(forms.ModelForm):
             "description": "설명",
             "evaluation_start_at": "평가 시작",
             "evaluation_end_at": "평가 종료",
-            "target_team_count": "목표 팀 수",
             "team_template": "팀 평가 템플릿",
             "peer_template": "개인 평가 템플릿",
         }
@@ -63,14 +68,31 @@ class EvaluationRoundForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        participants = cleaned.get("participants")
-        team_count = cleaned.get("target_team_count")
-        if participants is not None and team_count and team_count > participants.count():
-            self.add_error("target_team_count", "팀 수는 참가자 수보다 많을 수 없습니다.")
+        # 화면에서 온 값은 무시하고 승인된 활성 수강생 전원으로 다시 채운다.
+        user_ids = set(self.fields["participants"].queryset.values_list("pk", flat=True))
+        if self.instance.pk:
+            # 이미 참가 중인 사람은 승인·활성 상태가 바뀌었더라도 빼지 않는다. 팀에 배정된
+            # 참가자는 삭제 자체가 막히고(TeamMembership PROTECT), 팀 배정을 조용히 잃는
+            # 것도 곤란하다 - 내보내려면 팀 편성에서 먼저 빼야 한다.
+            user_ids |= set(self.instance.participants.values_list("user_id", flat=True))
+        cleaned["participants"] = User.objects.filter(pk__in=user_ids)
         return cleaned
 
 
 class QuestionTemplateForm(forms.ModelForm):
+    """템플릿 기본 정보 폼.
+
+    평가 유형은 빈 선택("---------") 없이 팀 평가를 기본값으로 둔다 - 유형을 고르지 않은
+    템플릿은 어차피 저장할 수 없어서 빈 선택지가 실수만 늘린다.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        category = self.fields["category"]
+        category.choices = QuestionTemplate.Category.choices
+        if not self.instance.pk:
+            category.initial = QuestionTemplate.Category.TEAM
+
     class Meta:
         model = QuestionTemplate
         fields = ("name", "description", "category")

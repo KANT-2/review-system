@@ -53,21 +53,4 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
     new bootstrap.Tooltip(element);
   });
-
-  // 튜터 전용 메모 모달 - 클릭한 학생의 이름/기존 메모/저장 주소를 폼에 채워 넣는다.
-  const noteModal = document.getElementById("studentNoteModal");
-  if (noteModal) {
-    const form = noteModal.querySelector("#studentNoteForm");
-    const nameLabel = noteModal.querySelector("#noteStudentName");
-    const bodyField = noteModal.querySelector("#noteBody");
-
-    noteModal.addEventListener("show.bs.modal", (event) => {
-      const button = event.relatedTarget;
-      if (!button) return;
-      nameLabel.textContent = button.dataset.studentName || "";
-      bodyField.value = button.dataset.studentNote || "";
-      form.action = button.dataset.noteAction || "";
-    });
-    noteModal.addEventListener("shown.bs.modal", () => bodyField.focus());
-  }
 });

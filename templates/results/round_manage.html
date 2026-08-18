@@ -87,10 +87,12 @@
         </div>
       </div>
     </div>
-    <div class="alert alert-light border font-size-135">
-      활성 계산 버전 <strong>v{{ run.version }}</strong> · {{ run.finished_at|date:"Y-m-d H:i" }} · 공식 {{ run.formula_version }}
-      {% if has_partial %}<span class="badge badge-ax badge-ax-pending ms-2">일부 제출 포함</span>{% endif %}
-    </div>
+    {% if has_partial %}
+      <div class="alert alert-light border font-size-135">
+        <span class="badge badge-ax badge-ax-pending">일부 제출 포함</span>
+        일부만 제출된 팀·학생이 있습니다.
+      </div>
+    {% endif %}
     <section class="card-custom" data-result-table>
       <div class="card-header-custom">
         <div class="card-title-custom">팀 순위</div>
@@ -170,7 +172,6 @@
               </th>
               <th scope="col" class="text-end">최종점수 (5점 만점)</th>
               <th scope="col" class="text-center">개인 평가 제출 현황</th>
-              <th scope="col" class="text-center">메모</th>
             </tr>
           </thead>
           <tbody>
@@ -178,7 +179,7 @@
               {% include "results/_result_student_row.html" %}
             {% empty %}
               <tr>
-                <td colspan="7" class="text-center text-muted py-4">개인 결과가 없습니다.</td>
+                <td colspan="6" class="text-center text-muted py-4">개인 결과가 없습니다.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -209,46 +210,6 @@
         <p class="text-muted font-size-115 mb-0">"평가 없음"은 0점이 아니라 미제출 상태이며, 순위 계산에서 빠집니다.</p>
       </div>
     </section>
-  {% endif %}
-{% endblock %}
-{% block modals %}
-  {% if run %}
-    <div class="modal fade"
-         id="studentNoteModal"
-         tabindex="-1"
-         aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-          <form method="post" id="studentNoteForm">
-            {% csrf_token %}
-            <div class="modal-header border-bottom px-4 py-3">
-              <h6 class="modal-title fw-bold">
-                <i class="bi bi-sticky me-2 text-primary"></i>메모 · <span id="noteStudentName"></span>
-              </h6>
-              <button type="button"
-                      class="btn-close"
-                      data-bs-dismiss="modal"
-                      aria-label="닫기"></button>
-            </div>
-            <div class="modal-body p-4">
-              <p class="text-muted font-size-135">튜터·관리자만 볼 수 있는 메모입니다. 학생 화면에는 표시되지 않습니다.</p>
-              <label class="visually-hidden" for="noteBody">메모 내용</label>
-              <textarea name="body"
-                        id="noteBody"
-                        class="form-control"
-                        rows="4"
-                        maxlength="1000"
-                        placeholder="예: 이번 회차 개인 사정으로 일부만 제출함"></textarea>
-              <p class="text-muted font-size-115 mt-2 mb-0">비우고 저장하면 메모가 삭제됩니다.</p>
-            </div>
-            <div class="modal-footer border-top-0 px-4 pb-3">
-              <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="submit" class="btn btn-ax-primary">저장</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
   {% endif %}
 {% endblock %}
 {% block extra_js %}

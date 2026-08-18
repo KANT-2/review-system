@@ -95,6 +95,10 @@ Update `.env` with your local PostgreSQL connection information and other requir
 
 Do not commit `.env` or real credentials.
 
+Uploaded files (profile photos) are stored under `MEDIA_ROOT`, which defaults to `media/` in the
+project directory and is served by the development server only. Set `DJANGO_MEDIA_ROOT` to a
+persistent volume path in production and let the web server in front of Django serve `MEDIA_URL`.
+
 ### 5. Prepare PostgreSQL
 
 The Docker Compose stack provides PostgreSQL.

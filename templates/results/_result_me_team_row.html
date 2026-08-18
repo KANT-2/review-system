@@ -1,9 +1,0 @@
-{% load results_extras %}
-<tr {% if result.team_id == my_team_id %}class="ax-my-team-row"{% endif %}>
-  <td class="text-end">{% include "results/_rank_cell.html" with rank=result.primary_rank tied=result.is_tied %}</td>
-  <td class="fw-semibold">
-    {{ result.team.name }}
-    {% if result.team_id == my_team_id %}<span class="badge badge-ax badge-ax-pending ms-1">내 팀</span>{% endif %}
-  </td>
-  <td class="text-end">{% include "results/_score_bar_cell.html" with value=result.team_score_raw %}</td>
-</tr>

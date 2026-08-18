@@ -231,6 +231,39 @@ main { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
   font-size: 13px;
 }
 
+/* 학생 대시보드의 팀·개인 평가 진행률 상자 - 눌러서 해당 평가 화면으로 간다. */
+.ax-progress-link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+.ax-progress-link:hover {
+  color: inherit;
+  border-color: var(--ax-primary);
+  box-shadow: 0 4px 14px rgba(23, 105, 224, 0.14);
+}
+
+/* 프로필 사진을 올린 경우 - 아바타 원 안을 사진으로 채운다. */
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* 마이페이지 차트는 프로필과 나란히 놓기 위해 작게 유지한다. */
+.ax-radar-compact {
+  position: relative;
+  height: 190px;
+}
+.ax-trend-compact {
+  position: relative;
+  height: 160px;
+}
+.min-width-0 {
+  min-width: 0;
+}
+
 /* 커스텀 슬림 스크롤바 */
 .custom-scroll::-webkit-scrollbar { width: 6px; }
 .custom-scroll::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 4px; }
@@ -957,7 +990,12 @@ tbody.collapse.show { display: table-row-group; }
 }
 
 /* 표 컬럼 너비 - 승인 대기·계정 목록의 colgroup에서 쓴다. */
+.ax-col-6 { width: 6%; }
+.ax-col-8 { width: 8%; }
+.ax-col-9 { width: 9%; }
 .ax-col-10 { width: 10%; }
+.ax-col-12 { width: 12%; }
+.ax-col-20 { width: 20%; }
 .ax-col-13 { width: 13%; }
 .ax-col-14 { width: 14%; }
 .ax-col-16 { width: 16%; }

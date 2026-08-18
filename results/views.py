@@ -14,13 +14,12 @@ from results.application import (
     PUBLICATION_FIELDS,
     calculate_round,
     previous_final_scores,
-    save_tutor_note,
     toggle_all_publications,
     toggle_publication,
 )
-from results.models import CalculationRun, EvaluationResult, TutorNote
-from results.services import PEER_WEIGHT, TEAM_WEIGHT, reveal_if_published, round_to_display
-from rounds.models import EvaluationRound, RoundParticipant
+from results.models import CalculationRun, EvaluationResult
+from results.services import PEER_WEIGHT, TEAM_WEIGHT, round_to_display
+from rounds.models import EvaluationRound
 
 # 상위 몇 개까지 펼친 채로 접을지 (팀 순위 / 개인 결과 공통).
 VISIBLE_ROW_COUNT = 3
@@ -88,7 +87,6 @@ def manage_results(request, round_id):
             "round_obj": round_obj,
             "round_options": EvaluationRound.objects.order_by("-created_at").only("id", "title"),
             "run": run,
-            "notes": _notes_by_participant(individual_results),
             "team_results": team_results,
             "individual_results": individual_results,
             "team_head": team_results[:VISIBLE_ROW_COUNT],
@@ -172,16 +170,6 @@ def _attach_trend(results, previous_scores):
         else:
             result.trend_direction = "flat"
     return results
-
-
-def _notes_by_participant(individual_results):
-    """참가자 ID -> 튜터 메모 본문. 운영자 화면에서만 조회한다."""
-    participant_ids = [result.participant_id for result in individual_results]
-    return dict(
-        TutorNote.objects.filter(participant_id__in=participant_ids).values_list(
-            "participant_id", "body"
-        )
-    )
 
 
 def _build_summary(round_obj, team_results, individual_results):
@@ -271,97 +259,12 @@ def publish_all(request, round_id):
 
 
 @login_required
-@require_POST
-def save_note(request, round_id, participant_id):
-    """수강생별 튜터 전용 메모 저장. 학생 화면에는 노출되지 않는다."""
-    if not is_operations_user(request.user):
-        raise PermissionDenied
-    try:
-        save_tutor_note(
-            round_id=round_id,
-            participant_id=participant_id,
-            body=request.POST.get("body", ""),
-            actor=request.user,
-        )
-    except ValidationError as error:
-        messages.error(request, " ".join(error.messages))
-    else:
-        messages.success(request, "메모를 저장했습니다.")
-    return redirect(reverse("rounds:results", kwargs={"round_id": round_id}))
-
-
-@login_required
 def my_results(request):
+    """'내 결과' 화면은 마이페이지로 합쳤다 - 기존 주소는 마이페이지로 보낸다."""
     if not is_student_user(request.user):
         raise PermissionDenied
-    # 채점이 끝난 회차는 모두 열어 둔다 - 최신 회차만 보이면 지난 결과를 다시 볼 수 없다.
-    available = list(
-        RoundParticipant.objects.filter(
-            user=request.user,
-            round__status=EvaluationRound.Status.COMPLETED,
-            round__calculation_runs__is_active=True,
-        )
-        .select_related("round", "team_membership__team")
-        .order_by("-round__completed_at")
-    )
-    if not available:
-        return render(
-            request, "results/student_me.html", {"participant": None, "available_rounds": []}
-        )
-    requested = request.GET.get("round")
-    participant = None
-    if requested and requested.isdigit():
-        participant = next((row for row in available if row.round_id == int(requested)), None)
-    if participant is None:
-        participant = available[0]
-    run = CalculationRun.objects.get(round=participant.round, is_active=True)
-    my_result = run.results.filter(
-        result_type=EvaluationResult.ResultType.INDIVIDUAL, participant=participant
-    ).first()
-    team_results = (
-        _mark_ties(
-            list(
-                run.results.filter(result_type=EvaluationResult.ResultType.TEAM)
-                .select_related("team")
-                .order_by(F("primary_rank").asc(nulls_last=True), "team__team_number")
-            )
-        )
-        if run.team_ranking_published_at
-        else []
-    )
-    winner = (
-        run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1)
-        .select_related("team")
-        .first()
-        if run.winner_published_at
-        else None
-    )
-    my_team = getattr(participant, "team_membership", None)
-    return render(
-        request,
-        "results/student_me.html",
-        {
-            "participant": participant,
-            "available_rounds": available,
-            "selected_round_id": participant.round_id,
-            "run": run,
-            # 항목별 공개 게이트(RES-010) - 공개 시각이 없으면 값 자체를 넘기지 않는다.
-            "my_result": reveal_if_published(my_result, run.my_score_published_at),
-            "my_rank": (
-                reveal_if_published(my_result.peer_rank, run.peer_ranking_published_at)
-                if my_result
-                else None
-            ),
-            "winner": winner,
-            "team_results": team_results,
-            "team_head": team_results[:VISIBLE_ROW_COUNT],
-            "team_rest": team_results[VISIBLE_ROW_COUNT:],
-            "my_team_id": my_team.team_id if my_team else None,
-            # 공개했는데 값이 N/A인 경우를 "비공개"와 구분해 안내하기 위해 공개 여부도 넘긴다.
-            "published": {
-                key: getattr(run, field) is not None for key, field in PUBLICATION_FIELDS.items()
-            },
-            "team_weight_percent": int(TEAM_WEIGHT * 100),
-            "peer_weight_percent": int(PEER_WEIGHT * 100),
-        },
-    )
+    round_id = request.GET.get("round")
+    target = reverse("accounts:mypage")
+    if round_id and round_id.isdigit():
+        target = f"{target}?round={round_id}"
+    return redirect(target)

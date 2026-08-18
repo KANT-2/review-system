@@ -21,6 +21,16 @@ urlpatterns = [
     path("rounds/<int:round_id>/start/", views.round_start, name="start"),
     path("rounds/<int:round_id>/reviews/", views.round_reviews, name="reviews"),
     path("rounds/<int:round_id>/answers/", views.round_text_answers, name="text-answers"),
+    path(
+        "rounds/<int:round_id>/tutor-review/",
+        views.tutor_review_list,
+        name="tutor-review-list",
+    ),
+    path(
+        "rounds/<int:round_id>/tutor-review/<int:participant_id>/",
+        views.tutor_review_form,
+        name="tutor-review-form",
+    ),
     path("rounds/<int:round_id>/complete/", views.round_complete, name="complete"),
     path("rounds/<int:round_id>/delete/", views.round_delete, name="delete"),
     path("rounds/<int:round_id>/revert/", views.round_revert, name="revert"),
@@ -46,10 +56,5 @@ urlpatterns = [
         "rounds/<int:round_id>/results/publish-all/",
         result_views.publish_all,
         name="publish-all-results",
-    ),
-    path(
-        "rounds/<int:round_id>/results/notes/<int:participant_id>/",
-        result_views.save_note,
-        name="save-student-note",
     ),
 ]

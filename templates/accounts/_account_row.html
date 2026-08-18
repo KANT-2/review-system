@@ -1,3 +1,4 @@
+{% load results_extras %}
 <tr>
   <td class="ax-account-cell">
     <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
@@ -22,6 +23,25 @@
   <td class="text-center">
     {% if account.must_rotate_password %}
       <span class="badge ax-badge-partial">재설정 대기</span>
+    {% else %}
+      <span class="text-muted font-size-115">-</span>
+    {% endif %}
+  </td>
+  <td class="text-center">
+    {% if account.role == 'student' %}
+      {% with note=notes|get_item:account.pk %}
+        <button type="button"
+                class="ax-note-btn {% if note %}ax-note-btn--filled{% endif %}"
+                data-bs-toggle="modal"
+                data-bs-target="#studentNoteModal"
+                data-student-name="{{ account.first_name|default:account.email }}"
+                data-student-note="{{ note|default:'' }}"
+                data-note-action="{% url 'accounts:save_student_note' account.pk %}"
+                title="{% if note %}메모 보기{% else %}메모 남기기{% endif %}"
+                aria-label="{{ account.email }} 메모">
+          <i class="bi {% if note %}bi-sticky-fill{% else %}bi-sticky{% endif %}"></i>
+        </button>
+      {% endwith %}
     {% else %}
       <span class="text-muted font-size-115">-</span>
     {% endif %}

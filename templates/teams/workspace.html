@@ -35,6 +35,14 @@
               disabled>변경 취소</button>
       <button id="saveButton" class="btn btn-primary btn-sm" type="button" disabled>저장</button>
     </section>
+    <div id="saveNotice"
+         class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-3"
+         hidden>
+      <span>
+        <i class="bi bi-check-circle-fill me-1"></i>팀 편성을 저장했습니다. 다음은 회차 시작입니다.
+      </span>
+      <a id="saveNoticeLink" class="btn btn-sm btn-primary" href="#">다음 단계: 회차 진행 현황</a>
+    </div>
     <div id="unassignedArea"></div>
     <section id="board" class="teams-board">
       <div id="teamRows"></div>
@@ -49,6 +57,6 @@
   </div>
   {{ team_data|json_script:"teams-initial-data" }}
   {% comment %}CSRF 쿠키가 HttpOnly라 스크립트가 읽을 수 없으므로 토큰을 페이지로 내려준다.{% endcomment %}
-  <script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }},csrfToken:"{{ csrf_token }}"};</script>
+  <script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",nextUrl:"{{ next_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }},csrfToken:"{{ csrf_token }}"};</script>
   <script src="{% static 'teams/js/workspace.js' %}"></script>
 {% endblock %}

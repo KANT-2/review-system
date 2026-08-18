@@ -56,7 +56,7 @@
                     {% csrf_token %}
                     <button type="submit"
                             class="btn btn-sm btn-outline-danger"
-                            {% if template.locked %}disabled title="사용 중인 템플릿은 삭제할 수 없습니다."{% endif %}>삭제</button>
+                            {% if template.locked %}disabled title="사용 중인 템플릿은 삭제할 수 없습니다."{% elif template.has_copies %}disabled title="이 템플릿을 복제한 템플릿이 있어 삭제할 수 없습니다. 복제본을 먼저 삭제해 주세요."{% endif %}>삭제</button>
                   </form>
                 </div>
               </td>

@@ -7,7 +7,15 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
 from accounts.permissions import is_operations_user
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.forms import ReviewForm
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
+from reviews.services import (
+    get_tutor_review,
+    submit_tutor_review,
+    tutor_review_questions,
+    tutor_review_targets,
+    tutor_reviewable,
+)
 from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
 from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
 from rounds.services import (
@@ -103,6 +111,40 @@ def publish_entry(request):
     return redirect("rounds:publish-settings", round_id=latest_completed.pk)
 
 
+def _participant_count(form, round_obj):
+    """회차 설정 화면에 보여줄 참가자 수 - 저장했을 때 실제로 들어갈 인원과 같아야 한다."""
+    user_ids = set(form.fields["participants"].queryset.values_list("pk", flat=True))
+    if round_obj:
+        user_ids |= set(round_obj.participants.values_list("user_id", flat=True))
+    return len(user_ids)
+
+
+def _template_previews():
+    """회차 설정 화면의 '미리보기' 창에 넣을 템플릿별 문항 목록.
+
+    선택하기 전에 어떤 문항이 들어 있는지 확인할 수 있어야 잘못된 템플릿을 붙이지 않는다.
+    """
+    return {
+        str(template.pk): {
+            "name": template.name,
+            "category": template.get_category_display(),
+            "description": template.description,
+            "questions": [
+                {
+                    "prompt": question.prompt,
+                    "response_type": question.get_response_type_display(),
+                    "competency": (
+                        question.get_competency_display() if question.competency else ""
+                    ),
+                    "is_required": question.is_required,
+                }
+                for question in template.questions.all()
+            ],
+        }
+        for template in QuestionTemplate.objects.prefetch_related("questions")
+    }
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def round_edit(request, round_id=None):
@@ -121,12 +163,18 @@ def round_edit(request, round_id=None):
         except ValidationError as error:
             form.add_error(None, error)
         else:
-            messages.success(request, "회차 정보를 저장했습니다.")
-            return redirect("rounds:edit", round_id=saved.pk)
+            messages.success(request, "회차 정보를 저장했습니다. 이제 팀을 편성해 주세요.")
+            return redirect("rounds:teams", round_id=saved.pk)
     return render(
         request,
         "rounds/form.html",
-        {"round_obj": round_obj, "form": form, "read_only": False},
+        {
+            "round_obj": round_obj,
+            "form": form,
+            "read_only": False,
+            "participant_count": _participant_count(form, round_obj),
+            "template_previews": _template_previews(),
+        },
     )
 
 
@@ -201,6 +249,9 @@ def round_reviews(request, round_id):
             else [],
             "participant_rows": _participant_progress_rows(round_obj),
             "text_answer_count": _text_answers(round_obj).count(),
+            "tutor_review_count": TutorReview.objects.filter(
+                round=round_obj, evaluator=request.user
+            ).count(),
         },
     )
 
@@ -260,6 +311,78 @@ def round_text_answers(request, round_id):
                 {"question": question, "answers": rows} for question, rows in grouped.items()
             ],
             "total_count": sum(len(rows) for rows in grouped.values()),
+        },
+    )
+
+
+@login_required
+def tutor_review_list(request, round_id):
+    """튜터 개인평가 - 회차 참가자 목록에서 한 명씩 평가한다.
+
+    학생끼리 하는 개인 평가와 저장 위치가 다르고(reviews.TutorReview), 지금은 기록만 남는다
+    - 최종점수 계산에는 반영하지 않는다.
+    """
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = tutor_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    return render(
+        request,
+        "rounds/tutor_review_list.html",
+        {
+            "round_obj": round_obj,
+            "targets": targets,
+            "completed_count": sum(target.completed for target in targets),
+            "editable": tutor_reviewable(round_obj),
+            "has_questions": tutor_review_questions(round_obj).exists(),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tutor_review_form(request, round_id, participant_id):
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = tutor_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    target = next((row for row in targets if row.pk == participant_id), None)
+    if not target:
+        raise PermissionDenied("평가할 수 없는 대상입니다.")
+    existing = get_tutor_review(round_obj, request.user, participant_id)
+    questions = list(tutor_review_questions(round_obj))
+    initial = None
+    if existing:
+        initial = {
+            f"question_{answer.question_id}": (
+                answer.rating_value if answer.rating_value is not None else answer.text_value
+            )
+            for answer in existing.answers.all()
+        }
+    form = ReviewForm(request.POST or None, questions=questions, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        try:
+            submit_tutor_review(
+                round_obj=round_obj,
+                tutor=request.user,
+                participant_id=participant_id,
+                answers=form.answer_values(),
+            )
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(
+                request,
+                "평가를 수정했습니다." if existing else "평가를 저장했습니다.",
+            )
+            return redirect("rounds:tutor-review-list", round_id=round_obj.pk)
+    return render(
+        request,
+        "rounds/tutor_review_form.html",
+        {
+            "round_obj": round_obj,
+            "target": target,
+            "form": form,
+            "questions": questions,
+            "existing": existing,
         },
     )
 

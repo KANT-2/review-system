@@ -9,7 +9,7 @@ from django.utils import timezone
 from accounts.models import User
 from audit.models import AuditEvent
 from results.models import CalculationRun
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from rounds.services import start_round
 from teams.models import Team, TeamMembership
@@ -587,3 +587,231 @@ class QuestionRowAddingTests(TestCase):
             [question.prompt for question in template.questions.order_by("display_order")],
             prompts,
         )
+
+
+class QuestionTemplateDeletionTests(TestCase):
+    """복제한 템플릿이 있으면 원본 삭제가 500이 아니라 안내 메시지로 막혀야 한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="tpl-del-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.template = QuestionTemplate.objects.create(
+            name="원본 템플릿", category="TEAM", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.template, response_type="RATING_5", prompt="문항", display_order=1
+        )
+        self.client.force_login(self.tutor)
+
+    def test_template_with_copies_is_not_deleted(self):
+        self.client.post(reverse("rounds:template-copy", kwargs={"template_id": self.template.pk}))
+
+        response = self.client.post(
+            reverse("rounds:template-delete", kwargs={"template_id": self.template.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(QuestionTemplate.objects.filter(pk=self.template.pk).exists())
+        self.assertContains(response, "복제본을 먼저 삭제해 주세요")
+
+    def test_template_without_copies_is_deleted(self):
+        response = self.client.post(
+            reverse("rounds:template-delete", kwargs={"template_id": self.template.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(QuestionTemplate.objects.filter(pk=self.template.pk).exists())
+
+    def test_delete_button_is_disabled_for_a_copied_template(self):
+        self.client.post(reverse("rounds:template-copy", kwargs={"template_id": self.template.pk}))
+
+        response = self.client.get(reverse("rounds:template-list"))
+
+        self.assertContains(response, "복제본을 먼저 삭제해 주세요")
+
+
+class TutorPeerReviewTests(TestCase):
+    """튜터 개인평가 - 튜터가 수강생을 직접 평가하고 언제든 고쳐 쓸 수 있어야 한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="tpr-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="tpr-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            student_number="T100",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.peer_template = QuestionTemplate.objects.create(
+            name="개인 평가", category="PEER", created_by=self.tutor
+        )
+        self.question = TemplateQuestion.objects.create(
+            template=self.peer_template,
+            response_type="RATING_5",
+            prompt="맡은 일을 끝까지 해냈나요?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="튜터 평가 회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            evaluation_end_at=now + timedelta(days=1),
+            peer_template=self.peer_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(hours=1),
+        )
+        self.participant = RoundParticipant.objects.create(
+            round=self.round,
+            user=self.student,
+            student_number_snapshot=self.student.student_number,
+            display_name_snapshot=self.student.first_name,
+        )
+
+    def _form_url(self):
+        return reverse(
+            "rounds:tutor-review-form",
+            kwargs={"round_id": self.round.pk, "participant_id": self.participant.pk},
+        )
+
+    def test_tutor_can_write_and_rewrite_a_peer_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        review = TutorReview.objects.get(round=self.round, target_participant=self.participant)
+        self.assertEqual(review.evaluator, self.tutor)
+        self.assertEqual(review.answers.get().rating_value, 4)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "5"})
+
+        self.assertEqual(TutorReview.objects.count(), 1)
+        self.assertEqual(review.answers.get().rating_value, 5)
+
+    def test_students_cannot_open_tutor_peer_review(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(self._form_url())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorReview.objects.exists())
+
+    def test_draft_round_cannot_be_reviewed_yet(self):
+        # 준비 중 회차는 참가자와 질문지가 아직 바뀔 수 있어 평가를 받지 않는다.
+        self.round.status = EvaluationRound.Status.DRAFT
+        self.round.save(update_fields=["status"])
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorReview.objects.exists())
+
+    def test_tutor_review_is_not_counted_as_a_student_peer_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertFalse(ReviewSubmission.objects.exists())
+
+
+class RoundFormTests(TestCase):
+    """회차 설정 - 목표 팀 수 없이 저장되고 참가자는 승인된 수강생 전원이 된다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="rf-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.approved = [
+            User.objects.create_user(
+                email=f"rf-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"RF{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            )
+            for index in range(1, 4)
+        ]
+        self.pending = User.objects.create_user(
+            email="rf-pending@example.com",
+            password="strong-test-password",
+            first_name="대기",
+            student_number="RF900",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.PENDING,
+        )
+        self.client.force_login(self.tutor)
+
+    def test_saving_a_round_adds_every_approved_student(self):
+        now = timezone.now()
+        response = self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "자동 참가자 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        created = EvaluationRound.objects.get(title="자동 참가자 회차")
+        self.assertRedirects(response, reverse("rounds:teams", kwargs={"round_id": created.pk}))
+        self.assertEqual(created.participants.count(), len(self.approved))
+        self.assertFalse(created.participants.filter(user=self.pending).exists())
+
+    def test_existing_participant_is_kept_even_if_no_longer_eligible(self):
+        """비활성이 된 참가자를 자동으로 빼면 팀 배정 때문에 저장이 막힌다(회귀 방지)."""
+        now = timezone.now()
+        round_obj = EvaluationRound.objects.create(
+            title="기존 참가자 회차",
+            evaluation_start_at=now + timedelta(days=1),
+            evaluation_end_at=now + timedelta(days=2),
+            created_by=self.tutor,
+        )
+        leaver = self.approved[0]
+        participant = RoundParticipant.objects.create(
+            round=round_obj,
+            user=leaver,
+            student_number_snapshot=leaver.student_number,
+            display_name_snapshot=leaver.first_name,
+        )
+        team = Team.objects.create(round=round_obj, team_number=1, name="1팀")
+        TeamMembership.objects.create(team=team, participant=participant)
+        leaver.is_active = False
+        leaver.save(update_fields=["is_active"])
+
+        response = self.client.post(
+            reverse("rounds:edit", kwargs={"round_id": round_obj.pk}),
+            {
+                "title": "기존 참가자 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(round_obj.participants.filter(user=leaver).exists())
+
+    def test_round_form_no_longer_shows_target_team_count(self):
+        response = self.client.get(reverse("rounds:create"))
+
+        self.assertNotContains(response, "목표 팀 수")
+        self.assertContains(response, "참가 수강생은")

@@ -173,15 +173,19 @@ def rounds_dashboard_rows():
 
 
 def question_template_rows():
-    """템플릿 목록 화면용 - 문항 수와 사용 중(잠금) 여부를 함께 계산한다."""
+    """템플릿 목록 화면용 - 문항 수, 사용 중(잠금) 여부, 복제본 유무를 함께 계산한다."""
     templates = (
-        QuestionTemplate.objects.annotate(question_count=Count("questions"))
+        QuestionTemplate.objects.annotate(
+            question_count=Count("questions", distinct=True),
+            copy_count=Count("copies", distinct=True),
+        )
         .select_related("created_by")
         .order_by("category", "name")
     )
     rows = []
     for template in templates:
         template.locked = template.is_locked
+        template.has_copies = template.copy_count > 0
         rows.append(template)
     return rows
 
@@ -264,6 +268,12 @@ def delete_question_template(*, template_id, actor):
         raise ValidationError("시작된 회차가 사용하는 템플릿은 삭제할 수 없습니다.")
     if template.team_rounds.exists() or template.peer_rounds.exists():
         raise ValidationError("준비 중인 회차가 사용하고 있어 삭제할 수 없습니다.")
+    # copied_from은 복제 계보를 남기는 PROTECT FK다(docs/DATABASE-DESIGN.md). 원본을 그냥
+    # 지우면 DB가 막아 500이 나므로, 화면에서 무엇을 먼저 지워야 하는지 알려준다.
+    if template.copies.exists():
+        raise ValidationError(
+            "이 템플릿을 복제한 템플릿이 있어 삭제할 수 없습니다. 복제본을 먼저 삭제해 주세요."
+        )
     record_event(
         action="QUESTION_TEMPLATE_DELETED",
         target=template,
