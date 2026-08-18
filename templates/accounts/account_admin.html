@@ -5,11 +5,58 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">계정 관리</h1>
-      <p class="page-desc">승인 상태와 활성 여부, 역할을 관리합니다. 상태를 바꾸면 해당 계정의 기존 로그인 세션이 끊깁니다.</p>
+      <p class="page-desc">승인 상태와 활성 여부, 역할을 관리하고 수강생에게 이메일 알림을 보냅니다.</p>
     </div>
-    <a href="{% url 'accounts:tutor_dashboard' %}"
-       class="btn btn-ax-secondary">승인 대기 보기</a>
+    <a href="{% url 'accounts:tutor_dashboard' %}" class="btn btn-ax-secondary">승인 대기 보기</a>
   </div>
+
+  <!-- 수강생 이메일 공지 발송 폼 카드 -->
+  <section class="card-custom mb-4" style="background-color: #0F172A; border: 1px solid #1E293B; border-radius: 12px; overflow: hidden;">
+    <div class="card-header-custom" style="background-color: #1E293B; border-bottom: 1px solid #334155; padding: 14px 20px;">
+      <div class="card-title-custom" style="color: #FFFFFF; font-weight: 700; font-size: 15px;"><i class="bi bi-envelope-fill text-primary me-2"></i> 📢 수강생 공지 이메일 발송</div>
+    </div>
+    <div class="card-body-custom p-4" style="background-color: #0F172A;">
+      <form action="{% url 'accounts:send_announcement' %}" method="post" id="announcement_form">
+        {% csrf_token %}
+        <div class="row g-3 mb-3">
+          <div class="col-md-3">
+            <label for="send_target_type" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 대상 선택</label>
+            <select id="send_target_type" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" onchange="toggleSendTargetUI(this.value)">
+              <option value="all">👥 전체 수강생 대상 발송</option>
+              <option value="team">🏕️ 특정 조(팀) 선택 발송</option>
+              <option value="select">☑️ 아래 목록에서 체크한 개인 수강생 발송</option>
+            </select>
+          </div>
+          <div class="col-md-3" id="team_select_wrapper" style="display: none;">
+            <label for="target_team_id" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 대상 조(팀) {% if current_round_title %}<span class="badge bg-info text-dark font-size-115">{{ current_round_title }}</span>{% endif %}</label>
+            <select id="target_team_id" name="target_team_id" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;">
+              <option value="">-- 발송할 조(팀) 선택 --</option>
+              {% for team in teams %}
+                <option value="{{ team.pk }}">{{ team.name }} (팀원 {{ team.memberships.count }}명)</option>
+              {% empty %}
+                <option value="">현재 회차에 배정된 조(팀)가 없습니다</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="email_subject" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 제목</label>
+            <input type="text" id="email_subject" name="subject" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내" required>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-9">
+            <label for="email_message" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 내용</label>
+            <input type="text" id="email_message" name="message" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="수강생들에게 발송할 공지 메시지를 입력하세요" required>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold" style="background-color: #1769E0; border: none; padding: 7px 12px;">✉️ 지정 대상에게 이메일 발송</button>
+          </div>
+        </div>
+        <!-- 체크박스 다중 선택 전송용 숨겨진 input 컨테이너 -->
+        <div id="selected_users_container"></div>
+      </form>
+    </div>
+  </section>
   <section class="card-custom">
     <div class="card-header-custom">
       <div class="card-title-custom">계정 {{ accounts|length }}건</div>
@@ -44,6 +91,9 @@
       <table class="table align-middle mb-0">
         <thead>
           <tr>
+            <th scope="col" class="text-center" style="width: 45px;">
+              <input type="checkbox" class="form-check-input" id="check_all_users" onclick="toggleAllCheckboxes(this)" title="전체 선택/해제">
+            </th>
             <th scope="col">계정</th>
             <th scope="col">역할</th>
             <th scope="col" class="text-center">승인 상태</th>
@@ -55,6 +105,9 @@
         <tbody>
           {% for account in accounts %}
             <tr>
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input student-user-checkbox" value="{{ account.pk }}" onchange="updateSelectedUserInputs()">
+              </td>
               <td>
                 <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
                 <div class="text-muted font-size-115">{{ account.email }}</div>
@@ -181,4 +234,63 @@
       </div>
     {% endif %}
   </section>
+
+  <script>
+    function toggleSendTargetUI(val) {
+      var teamWrapper = document.getElementById('team_select_wrapper');
+      if (val === 'team') {
+        teamWrapper.style.display = 'block';
+      } else {
+        teamWrapper.style.display = 'none';
+        var select = document.getElementById('target_team_id');
+        if (select) select.value = '';
+      }
+    }
+
+    function toggleAllCheckboxes(master) {
+      var checkboxes = document.querySelectorAll('.student-user-checkbox');
+      checkboxes.forEach(function(cb) {
+        cb.checked = master.checked;
+      });
+      updateSelectedUserInputs();
+    }
+
+    function updateSelectedUserInputs() {
+      var container = document.getElementById('selected_users_container');
+      if (!container) return;
+      container.innerHTML = '';
+      var checkboxes = document.querySelectorAll('.student-user-checkbox:checked');
+      checkboxes.forEach(function(cb) {
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'selected_user_ids';
+        hidden.value = cb.value;
+        container.appendChild(hidden);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var form = document.getElementById('announcement_form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          var targetType = document.getElementById('send_target_type').value;
+          if (targetType === 'select') {
+            var checked = document.querySelectorAll('.student-user-checkbox:checked');
+            if (checked.length === 0) {
+              alert('발송할 수강생을 아래 목록에서 최소 1명 이상 체크해 주세요!');
+              e.preventDefault();
+              return false;
+            }
+          } else if (targetType === 'team') {
+            var teamId = document.getElementById('target_team_id').value;
+            if (!teamId) {
+              alert('발송할 조(팀)를 선택해 주세요!');
+              e.preventDefault();
+              return false;
+            }
+          }
+        });
+      }
+    });
+  </script>
 {% endblock %}

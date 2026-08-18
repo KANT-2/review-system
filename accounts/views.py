@@ -17,7 +17,7 @@ from accounts.forms import (
     SignUpForm,
     WhitelistEntryForm,
 )
-from accounts.models import User, WhitelistEmail
+from accounts.models import EmailVerificationCode, User, WhitelistEmail
 from accounts.portal import build_student_portal, build_student_result_portal
 from accounts.services import (
     AccountConflictError,
@@ -320,11 +320,39 @@ def account_admin(request):
         role = ""
     if status not in dict(User.ApprovalStatus.choices):
         status = ""
+
+    from rounds.models import EvaluationRound
+    from teams.models import Team
+
+    current_round = (
+        EvaluationRound.objects.filter(status=EvaluationRound.Status.IN_PROGRESS)
+        .order_by("-id")
+        .first()
+        or EvaluationRound.objects.order_by("-id").first()
+    )
+
+    if current_round:
+        teams = list(
+            Team.objects.filter(round=current_round)
+            .prefetch_related("memberships")
+            .order_by("team_number")
+        )
+        current_round_title = current_round.title
+    else:
+        teams = list(
+            Team.objects.select_related("round")
+            .prefetch_related("memberships")
+            .order_by("-round_id", "team_number")
+        )
+        current_round_title = ""
+
     return render(
         request,
         "accounts/account_admin.html",
         {
             "accounts": account_rows(role=role, status=status, query=query),
+            "teams": teams,
+            "current_round_title": current_round_title,
             "selected_role": role,
             "selected_status": status,
             "query": query,
@@ -553,3 +581,107 @@ def password_change_view(request):
             messages.success(request, "비밀번호를 변경했습니다.")
             return redirect("accounts:mypage")
     return render(request, "accounts/password_change.html", {"form": form})
+
+
+@require_POST
+def api_send_email_code(request):
+    """6자리 본인 인증 이메일 코드를 발송합니다."""
+    data = _safe_json(request)
+    if not data:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+
+    email = data.get("email", "").strip()
+    purpose = data.get("purpose", "").strip()
+
+    if not email or "@" not in email:
+        return JsonResponse({"success": False, "message": "올바른 이메일 주소를 입력해 주세요."}, status=400)
+
+    if purpose not in [EmailVerificationCode.Purpose.SIGNUP, EmailVerificationCode.Purpose.PASSWORD_RESET]:
+        return JsonResponse({"success": False, "message": "올바르지 않은 인증 목적입니다."}, status=400)
+
+    if purpose == EmailVerificationCode.Purpose.PASSWORD_RESET:
+        if not User.objects.filter(email=email).exists():
+            return JsonResponse({"success": False, "message": "등록되지 않은 이메일 주소입니다."}, status=404)
+
+    try:
+        from accounts.email_services import send_email_verification_code
+        send_email_verification_code(email, purpose)
+        return JsonResponse({"success": True, "message": "6자리 인증코드가 이메일로 발송되었습니다. (유효시간 5분)"})
+    except Exception as error:
+        return JsonResponse({"success": False, "message": f"이메일 발송 오류: {error}"}, status=500)
+
+
+@require_POST
+def api_verify_email_code(request):
+    """입력한 6자리 이메일 인증코드를 검증합니다."""
+    data = _safe_json(request)
+    if not data:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+
+    email = data.get("email", "").strip()
+    code = data.get("code", "").strip()
+    purpose = data.get("purpose", "").strip()
+
+    if not email or not code:
+        return JsonResponse({"success": False, "message": "이메일과 6자리 인증코드를 모두 입력해 주세요."}, status=400)
+
+    from accounts.email_services import verify_email_code
+    success = verify_email_code(email, code, purpose)
+
+    if success:
+        return JsonResponse({"success": True, "message": "이메일 본인 인증이 성공적으로 완료되었습니다."})
+    return JsonResponse({"success": False, "message": "인증코드가 올바르지 않거나 5분 유효시간이 만료되었습니다."}, status=400)
+
+
+@login_required
+@require_POST
+def send_tutor_announcement_view(request):
+    """튜터/관리자가 선택된 수강생 개인들 또는 전체에게 공지/안내 이메일을 발송합니다."""
+    if not (request.user.is_staff or request.user.role in [User.Role.TUTOR, User.Role.ADMIN]):
+        raise PermissionDenied
+
+    subject = request.POST.get("subject", "").strip()
+    message = request.POST.get("message", "").strip()
+    target_user_id = request.POST.get("target_user_id", "").strip()
+    target_team_id = request.POST.get("target_team_id", "").strip()
+    selected_user_ids = request.POST.getlist("selected_user_ids")
+
+    if not subject or not message:
+        messages.error(request, "제목과 내용을 모두 입력해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+    if target_team_id:
+        from teams.models import Team
+        team = Team.objects.filter(id=target_team_id).first()
+        if team:
+            recipient_emails = list(
+                team.memberships.values_list("participant__user__email", flat=True)
+            )
+            team_name = team.name
+        else:
+            recipient_emails = []
+            team_name = "선택한 조"
+        target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
+    elif selected_user_ids:
+        recipient_emails = list(
+            User.objects.filter(id__in=selected_user_ids, is_active=True).values_list("email", flat=True)
+        )
+        target_info_str = f"선택한 수강생 (총 {len(recipient_emails)}명)"
+    elif target_user_id:
+        target_user = User.objects.filter(id=target_user_id).first()
+        recipient_emails = [target_user.email] if target_user else []
+        name = target_user.first_name if target_user and target_user.first_name else target_user.email
+        target_info_str = f"수강생 {name}님"
+    else:
+        recipient_emails = list(
+            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list("email", flat=True)
+        )
+        target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
+
+    from accounts.email_services import send_tutor_announcement_email
+    send_tutor_announcement_email(subject, message, recipient_emails)
+    messages.success(request, f"{target_info_str}에게 공지 이메일이 성공적으로 발송되었습니다.")
+    return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+
+

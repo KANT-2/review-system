@@ -335,3 +335,25 @@ def round_reopen(request, round_id):
     return _round_lifecycle_action(
         request, round_id, action=reopen_round, success_message="회차를 다시 열었습니다."
     )
+
+
+@login_required
+@require_POST
+def send_submission_reminders_view(request, round_id):
+    """특정 회차 미제출 수강생들에게 독촉 이메일을 일괄 발송합니다."""
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+
+    from accounts.email_services import send_submission_reminder_email
+    from accounts.models import User
+
+    students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
+    sent_count = 0
+    for student in students:
+        name = student.first_name if student.first_name else student.email
+        send_submission_reminder_email(round_obj, name, student.email)
+        sent_count += 1
+
+    messages.success(request, f"총 {sent_count}명의 미제출 수강생에게 독촉 이메일이 발송되었습니다.")
+    return redirect("rounds:reviews", round_id=round_id)
+

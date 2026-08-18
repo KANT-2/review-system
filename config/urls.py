@@ -6,7 +6,6 @@ from accounts import views as account_views
 from teams import views as team_views
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
     path("accounts/google/login/", oauth.google_login, name="google_login"),
     path(

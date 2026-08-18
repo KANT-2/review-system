@@ -38,5 +38,9 @@ urlpatterns = [
     path("api/password/reset/", views.password_reset_api, name="api_password_reset"),
     path("api/users/<int:user_id>/approve/", views.approve_user_api, name="api_approve_user"),
     path("api/users/<int:user_id>/reject/", views.reject_user_api, name="api_reject_user"),
+    path("tutor/announcement/send/", views.send_tutor_announcement_view, name="send_announcement"),
     path("api/profile/update/", views.update_profile_api, name="api_update_profile"),
+    path("api/email/send-code/", views.api_send_email_code, name="api_send_email_code"),
+    path("api/email/verify-code/", views.api_verify_email_code, name="api_verify_email_code"),
 ]
+

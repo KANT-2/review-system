@@ -8,14 +8,18 @@
       <p class="page-desc">시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.</p>
     </div>
     <div class="d-flex gap-2">
-      <a href="{% url 'rounds:text-answers' round_obj.pk %}"
-         class="btn btn-ax-secondary">
+      <form action="{% url 'rounds:send_reminders' round_obj.pk %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning fw-bold text-dark">
+          ⏰ 미제출자 독촉 메일 발송
+        </button>
+      </form>
+      <a href="{% url 'rounds:text-answers' round_obj.pk %}" class="btn btn-ax-secondary">
         <i class="bi bi-chat-left-text me-1"></i>서술형 응답
         {% if text_answer_count %}<span class="badge badge-ax badge-ax-pending ms-1">{{ text_answer_count }}</span>{% endif %}
       </a>
       {% if round_obj.status == 'COMPLETED' %}
-        <a href="{% url 'rounds:results' round_obj.pk %}"
-           class="btn btn-ax-primary">결과·공개</a>
+        <a href="{% url 'rounds:results' round_obj.pk %}" class="btn btn-ax-primary">결과·공개</a>
       {% endif %}
     </div>
   </div>

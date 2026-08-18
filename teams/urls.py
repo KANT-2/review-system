@@ -28,6 +28,11 @@ urlpatterns = [
         views.save_team_view,
         name="save-team",
     ),
+    path(
+        "teams/<int:team_id>/announcement/send/",
+        views.send_team_announcement_view,
+        name="send_team_announcement",
+    ),
 ]
 
 if settings.DEBUG:

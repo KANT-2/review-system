@@ -181,3 +181,25 @@ class AuthThrottleBucket(models.Model):
 
     def __str__(self):
         return f"{self.event_kind}:{self.scope_kind}:{self.window_started_at.isoformat()}"
+
+
+class EmailVerificationCode(models.Model):
+    class Purpose(models.TextChoices):
+        SIGNUP = "SIGNUP", _("회원가입")
+        PASSWORD_RESET = "PASSWORD_RESET", _("비밀번호 재설정")
+
+    email = models.EmailField(_("이메일"))
+    code = models.CharField(_("인증코드 6자리"), max_length=6)
+    purpose = models.CharField(_("인증 목적"), max_length=20, choices=Purpose.choices)
+    is_verified = models.BooleanField(_("인증 완료 여부"), default=False)
+    created_at = models.DateTimeField(_("생성 일시"), auto_now_add=True)
+    expires_at = models.DateTimeField(_("만료 일시"), db_index=True)
+
+    class Meta:
+        verbose_name = _("이메일 인증코드")
+        verbose_name_plural = _("이메일 인증코드 목록")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.get_purpose_display()}] {self.email} - {self.code}"
+

@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from rounds.models import EvaluationRound
 from teams.models import Team, TeamMembership
@@ -20,10 +20,43 @@ class TeamMembershipInline(admin.TabularInline):
 class TeamAdmin(admin.ModelAdmin):
     list_display = ("round", "team_number", "name", "member_count")
     inlines = (TeamMembershipInline,)
+    actions = ["create_next_team", "send_announcement_to_team"]
 
     @admin.display(description="인원")
     def member_count(self, obj):
         return obj.memberships.count()
+
+    @admin.action(description="➕ 새로운 조(팀) 다음 번호로 빠른 자동 추가")
+    def create_next_team(self, request, queryset):
+        existing_count = Team.objects.count()
+        next_name = f"{existing_count + 1}조"
+        new_team = Team.objects.create(name=next_name)
+        self.message_user(
+            request,
+            f"새로운 '{new_team.name}'이(가) 성공적으로 생성되었습니다!",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="📢 선택한 조(팀) 팀원 전원에게 공지 메일 일괄 발송")
+    def send_announcement_to_team(self, request, queryset):
+        from accounts.email_services import send_tutor_announcement_email
+        total_sent = 0
+        for team in queryset:
+            student_emails = [
+                m.participant.email for m in team.memberships.select_related("participant") if m.participant and m.participant.email
+            ]
+            if student_emails:
+                sent = send_tutor_announcement_email(
+                    subject=f"[{team.name}] 발표 평가 관련 안내드립니다.",
+                    message=f"안녕하세요 {team.name} 팀원 여러분,\n튜터 공지사항입니다. 평가 일정을 다시 한 번 확인해 주시기 바랍니다.",
+                    recipient_emails=student_emails,
+                )
+                total_sent += sent
+        self.message_user(
+            request,
+            f"선택한 조 팀원들에게 총 {total_sent}건의 공지 이메일이 발송되었습니다.",
+            messages.SUCCESS,
+        )
 
     def has_add_permission(self, request):
         return False

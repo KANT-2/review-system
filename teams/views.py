@@ -307,3 +307,30 @@ def _service_unavailable_response() -> JsonResponse:
         "팀 편성 데이터 연결이 아직 준비되지 않았습니다.",
         503,
     )
+
+
+@require_POST
+def send_team_announcement_view(request: HttpRequest, team_id: int) -> HttpResponse:
+    """선택한 조(팀)의 모든 팀원들에게 일괄 공지 이메일을 발송합니다."""
+    from django.contrib import messages
+    from django.shortcuts import get_object_or_404, redirect
+
+    from accounts.email_services import send_tutor_announcement_email
+    from teams.models import Team
+
+    permission_error = _permission_error(request, allowed_roles={"tutor"})
+    if permission_error is not None:
+        return permission_error
+
+    team = get_object_or_404(Team, pk=team_id)
+    subject = request.POST.get("subject", f"[{team.name}] 팀 공지사항").strip()
+    message = request.POST.get("message", f"안녕하세요, {team.name} 팀원 공지사항입니다.").strip()
+
+    recipient_emails = list(team.memberships.values_list("participant__user__email", flat=True))
+    sent_count = send_tutor_announcement_email(subject, message, recipient_emails)
+
+    messages.success(
+        request, f"'{team.name}' 팀원 총 {sent_count}명에게 공지 메일이 성공적으로 발송되었습니다."
+    )
+    return redirect(request.META.get("HTTP_REFERER", "/manage/"))
+
