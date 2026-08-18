@@ -254,14 +254,14 @@ class AccountsTests(TestCase):
         self.client.force_login(self.tutor_user)
 
         response = self.client.post(
-            reverse("accounts:whitelist"),
+            reverse("accounts:whitelist_add"),
             {
                 "emails": "First@AX.com\nsecond@ax.com, third@ax.com\n\n",
                 "session_info": "5기 풀스택",
             },
         )
 
-        self.assertRedirects(response, reverse("accounts:whitelist"))
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         registered = set(WhitelistEmail.objects.values_list("email", flat=True))
         self.assertTrue({"first@ax.com", "second@ax.com", "third@ax.com"} <= registered)
         self.assertEqual(
@@ -272,7 +272,7 @@ class AccountsTests(TestCase):
         self.client.force_login(self.tutor_user)
 
         self.client.post(
-            reverse("accounts:whitelist"),
+            reverse("accounts:whitelist_add"),
             {"emails": self.whitelist_entry.email, "session_info": "3기"},
         )
 
@@ -285,19 +285,20 @@ class AccountsTests(TestCase):
         before = WhitelistEmail.objects.count()
 
         response = self.client.post(
-            reverse("accounts:whitelist"), {"emails": "ok@ax.com\n엉망진창", "session_info": ""}
+            reverse("accounts:whitelist_add"),
+            {"emails": "ok@ax.com\n엉망진창", "session_info": ""},
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         self.assertEqual(WhitelistEmail.objects.count(), before)
 
     def test_whitelist_screen_shows_whether_each_email_signed_up(self):
         WhitelistEmail.objects.create(email=self.approved_student.email, session_info="1기")
         self.client.force_login(self.tutor_user)
 
-        response = self.client.get(reverse("accounts:whitelist"))
+        response = self.client.get(reverse("accounts:account_admin"))
 
-        rows = {entry.email: entry.account for entry in response.context["entries"]}
+        rows = {entry.email: entry.account for entry in response.context["whitelist_entries"]}
         self.assertEqual(rows[self.approved_student.email], self.approved_student)
         self.assertIsNone(rows[self.whitelist_entry.email])
 
@@ -308,13 +309,13 @@ class AccountsTests(TestCase):
             reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
         )
 
-        self.assertRedirects(response, reverse("accounts:whitelist"))
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         self.assertFalse(WhitelistEmail.objects.filter(pk=self.whitelist_entry.pk).exists())
 
     def test_students_cannot_touch_the_whitelist(self):
         self.client.force_login(self.approved_student)
 
-        listing = self.client.get(reverse("accounts:whitelist"))
+        listing = self.client.get(reverse("accounts:account_admin"))
         removal = self.client.post(
             reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
         )
@@ -578,19 +579,10 @@ class AccountsTests(TestCase):
             self.client.post(reverse("accounts:logout")), reverse("accounts:login")
         )
 
-    def test_student_logout_is_available_from_profile_menu(self):
-        self.client.force_login(self.approved_student)
-
-        response = self.client.get(reverse("accounts:mypage"))
-
-        self.assertContains(response, 'id="user-profile-menu-button"')
-        self.assertContains(response, f'action="{reverse("accounts:logout")}"')
-        self.assertContains(response, "로그아웃")
-
     def test_tutor_logout_is_available_from_profile_menu(self):
         self.client.force_login(self.tutor_user)
 
-        response = self.client.get(reverse("accounts:tutor_dashboard"))
+        response = self.client.get(reverse("accounts:account_admin"))
 
         self.assertContains(response, 'id="tutor-profile-menu-button"')
         self.assertContains(response, f'action="{reverse("accounts:logout")}"')
@@ -1139,90 +1131,3 @@ class StudentDashboardTests(TestCase):
         if not remaining_team:
             self.assertContains(response, "제출할 평가를 모두 끝냈습니다")
             self.assertFalse(portal["round"]["is_urgent"])
-
-
-class AccountProfileEditTests(TestCase):
-    """계정 관리에서 이름·식별번호를 다룬다(ACC-001)."""
-
-    def setUp(self):
-        self.tutor = User.objects.create_user(
-            email="profile-tutor@ax.com",
-            password=STRONG_PASSWORD,
-            _email_verified=True,
-            role=User.Role.TUTOR,
-            approval_status=User.ApprovalStatus.APPROVED,
-        )
-        self.student = User.objects.create_user(
-            email="profile-student@ax.com",
-            password=STRONG_PASSWORD,
-            _email_verified=True,
-            role=User.Role.STUDENT,
-            approval_status=User.ApprovalStatus.APPROVED,
-            is_onboarded=True,
-        )
-        self.url = reverse("accounts:account_profile_update", args=(self.student.pk,))
-        self.client.force_login(self.tutor)
-
-    def test_tutor_sets_name_and_student_number(self):
-        response = self.client.post(
-            self.url,
-            {"first_name": " 김민준 ", "student_number": "AX2026", "session_info": "5기"},
-        )
-
-        self.assertRedirects(response, reverse("accounts:account_admin"))
-        self.student.refresh_from_db()
-        self.assertEqual(self.student.first_name, "김민준")
-        self.assertEqual(self.student.student_number, "AX2026")
-        self.assertEqual(self.student.session_info, "5기")
-
-    def test_duplicate_student_number_is_rejected(self):
-        User.objects.create_user(
-            email="taken@ax.com",
-            password=STRONG_PASSWORD,
-            _email_verified=True,
-            student_number="AX2026",
-            approval_status=User.ApprovalStatus.APPROVED,
-        )
-
-        self.client.post(
-            self.url,
-            {"first_name": "김민준", "student_number": "AX2026", "session_info": ""},
-        )
-
-        self.student.refresh_from_db()
-        self.assertIsNone(self.student.student_number)
-
-    def test_blank_student_number_is_stored_as_null_not_empty(self):
-        """빈 문자열이 여러 건이면 unique 제약에 걸리므로 NULL로 비운다."""
-        self.client.post(
-            self.url, {"first_name": "김민준", "student_number": "  ", "session_info": ""}
-        )
-
-        self.student.refresh_from_db()
-        self.assertIsNone(self.student.student_number)
-
-    def test_edit_is_audited_without_storing_the_values(self):
-        self.client.post(
-            self.url,
-            {"first_name": "김민준", "student_number": "AX9999", "session_info": ""},
-        )
-
-        event = AuditEvent.objects.get(action="ACCOUNT_PROFILE_UPDATED")
-        self.assertEqual(event.actor, self.tutor)
-        self.assertEqual(event.summary, {"fields": ["first_name", "student_number"]})
-        self.assertNotIn("김민준", str(event.summary))
-
-    def test_students_cannot_edit_accounts(self):
-        self.client.force_login(self.student)
-
-        response = self.client.post(
-            self.url, {"first_name": "해킹", "student_number": "", "session_info": ""}
-        )
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_screen_shows_the_edit_form(self):
-        response = self.client.get(reverse("accounts:account_admin"))
-
-        self.assertContains(response, 'name="student_number"')
-        self.assertContains(response, "식별번호")

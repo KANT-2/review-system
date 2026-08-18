@@ -17,7 +17,7 @@ from accounts.forms import (
     SignUpForm,
     WhitelistEntryForm,
 )
-from accounts.models import User, WhitelistEmail
+from accounts.models import User
 from accounts.portal import build_student_portal, build_student_result_portal
 from accounts.services import (
     AccountConflictError,
@@ -36,7 +36,6 @@ from accounts.services import (
     set_account_active,
     start_password_reset,
     transition_approval,
-    update_account_profile,
     whitelist_rows,
 )
 
@@ -242,56 +241,31 @@ def mypage_view(request):
 
 
 @login_required
-def tutor_dashboard(request):
-    if not _can_manage_approvals(request.user):
-        raise PermissionDenied
-    pending_users = User.objects.filter(
-        role=User.Role.STUDENT,
-        approval_status=User.ApprovalStatus.PENDING,
-    ).order_by("-date_joined")
-    return render(
-        request,
-        "accounts/tutor_dashboard.html",
-        {
-            "pending_users": pending_users,
-            "approved_students_count": User.objects.filter(
-                role=User.Role.STUDENT,
-                approval_status=User.ApprovalStatus.APPROVED,
-            ).count(),
-            "whitelist_count": WhitelistEmail.objects.count(),
-        },
-    )
-
-
-@login_required
-@require_http_methods(["GET", "POST"])
-def whitelist_view(request):
-    """수강생 명단(화이트리스트) 관리.
+@require_POST
+def whitelist_add(request):
+    """수강생 관리 화면의 명단 등록 - 화이트리스트에 이메일을 추가한다.
 
     여기에 등록된 이메일로 가입하면 이메일 확인만으로 자동 승인된다 - 운영자가 미리 명단을
     넣어두면 한 명씩 승인할 필요가 없다.
     """
     if not _can_manage_approvals(request.user):
         raise PermissionDenied
-    form = WhitelistEntryForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        added, updated = add_whitelist_emails(
-            emails=form.cleaned_data["emails"],
-            session_info=form.cleaned_data["session_info"],
-            actor=request.user,
-        )
-        parts = []
-        if added:
-            parts.append(f"{len(added)}건 등록")
-        if updated:
-            parts.append(f"{len(updated)}건 기수 갱신")
-        messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
-        return redirect("accounts:whitelist")
-    return render(
-        request,
-        "accounts/whitelist.html",
-        {"form": form, "entries": whitelist_rows()},
+    form = WhitelistEntryForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, next(iter(form.errors.values()))[0])
+        return redirect("accounts:account_admin")
+    added, updated = add_whitelist_emails(
+        emails=form.cleaned_data["emails"],
+        session_info=form.cleaned_data["session_info"],
+        actor=request.user,
     )
+    parts = []
+    if added:
+        parts.append(f"{len(added)}건 등록")
+    if updated:
+        parts.append(f"{len(updated)}건 기수 갱신")
+    messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
+    return redirect("accounts:account_admin")
 
 
 @login_required
@@ -305,12 +279,15 @@ def whitelist_delete(request, entry_id):
         messages.error(request, str(error))
     else:
         messages.success(request, f"{entry.email}을 명단에서 지웠습니다.")
-    return redirect("accounts:whitelist")
+    return redirect("accounts:account_admin")
+
+
+ACCOUNT_ADMIN_VISIBLE_ROW_COUNT = 8
 
 
 @login_required
 def account_admin(request):
-    """계정 관리 - 승인 상태·활성 여부·역할을 화면에서 다룬다."""
+    """수강생 관리 - 승인 대기, 사전 등록 명단, 전체 계정을 한 화면에서 다룬다."""
     if not _can_manage_approvals(request.user):
         raise PermissionDenied
     role = request.GET.get("role") or ""
@@ -320,11 +297,25 @@ def account_admin(request):
         role = ""
     if status not in dict(User.ApprovalStatus.choices):
         status = ""
+    pending_users = list(
+        User.objects.filter(
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.PENDING,
+        ).order_by("-date_joined")
+    )
+    accounts = list(account_rows(role=role, status=status, query=query))
     return render(
         request,
         "accounts/account_admin.html",
         {
-            "accounts": account_rows(role=role, status=status, query=query),
+            "pending_users": pending_users,
+            "pending_head": pending_users[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
+            "pending_rest": pending_users[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
+            "whitelist_form": WhitelistEntryForm(),
+            "whitelist_entries": whitelist_rows(),
+            "accounts": accounts,
+            "accounts_head": accounts[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
+            "accounts_rest": accounts[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
             "selected_role": role,
             "selected_status": status,
             "query": query,
@@ -333,29 +324,6 @@ def account_admin(request):
             "can_change_role": request.user.is_application_admin,
         },
     )
-
-
-@login_required
-@require_POST
-def account_profile_update(request, user_id):
-    """계정 관리 화면의 이름·식별번호·기수 수정(ACC-001)."""
-    if not _can_manage_approvals(request.user):
-        raise PermissionDenied
-    try:
-        update_account_profile(
-            actor=request.user,
-            target_id=user_id,
-            first_name=request.POST.get("first_name", ""),
-            student_number=request.POST.get("student_number", ""),
-            session_info=request.POST.get("session_info", ""),
-        )
-    except PermissionDenied:
-        messages.error(request, "이 계정에 대한 권한이 없습니다.")
-    except (InvalidAccountTransition, User.DoesNotExist) as error:
-        messages.error(request, str(error) or "계정 정보를 저장하지 못했습니다.")
-    else:
-        messages.success(request, "계정 정보를 저장했습니다.")
-    return redirect("accounts:account_admin")
 
 
 @login_required
@@ -416,7 +384,7 @@ def _html_transition(request, user_id, decision):
         messages.error(request, "이미 처리되었거나 승인할 수 없는 계정입니다.")
     else:
         messages.success(request, f"{target.email} 계정 상태를 변경했습니다.")
-    return redirect("accounts:tutor_dashboard")
+    return redirect("accounts:account_admin")
 
 
 @login_required
