@@ -1111,3 +1111,35 @@ tbody.collapse.show { display: table-row-group; }
 .ax-col-22 { width: 22%; }
 .ax-col-30 { width: 30%; }
 .ax-col-32 { width: 32%; }
+
+/* ============================================================
+   오류 화면 (400/403/404/500)
+   ============================================================ */
+
+/* 로그인 셸에서는 카드가 이미 화면 가운데에 놓이므로 위아래 여백만 더한다. */
+.ax-error-page { padding: 32px 0; }
+.ax-error-card { max-width: 460px; }
+
+.ax-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+.ax-error-icon--info { background: var(--ax-primary-container); color: var(--ax-primary); }
+.ax-error-icon--warning { background: var(--ax-warning-bg); color: var(--ax-warning); }
+.ax-error-icon--error { background: var(--ax-error-bg); color: var(--ax-error); }
+
+/* 상태 코드는 먼저 눈에 들어오되 제목보다 세지 않게 muted로 둔다. */
+.ax-error-code {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--ax-text-muted);
+  margin: 0 0 8px;
+}

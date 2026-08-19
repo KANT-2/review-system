@@ -1,0 +1,45 @@
+{% comment %}
+  오류 화면 공통 카드.
+  base.html은 로그인 여부에 따라 앱 셸(content)과 로그인 셸(auth_content) 중
+  한쪽만 그리므로, 각 오류 템플릿은 두 블록 모두에서 이 파일을 include 한다 -
+  실제로 화면에 나오는 것은 언제나 한 벌뿐이다.
+  받는 값: code, title, message, icon, tone(info|warning|error)
+  선택 값: hide_back(되돌아가도 같은 오류가 나는 화면에서 쓴다),
+           action_url·action_label·action_icon(주 버튼을 홈 대신 다른 곳으로 보낼 때)
+{% endcomment %}
+{% url "home" as home_url %}
+{% firstof action_url home_url as primary_url %}
+{% firstof action_icon "bi-house" as primary_icon %}
+{% firstof action_label "홈으로 가기" as primary_label %}
+<div class="ax-error-page">
+  <div class="card-custom ax-error-card mx-auto">
+    <div class="card-body-custom text-center">
+      <div class="ax-error-icon ax-error-icon--{{ tone|default:"info" }}">
+        <i class="bi {{ icon }}"></i>
+      </div>
+      <p class="ax-error-code">{{ code }}</p>
+      <h1 class="page-title">{{ title }}</h1>
+      <p class="page-desc">{{ message }}</p>
+      <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+        {% if not hide_back %}
+          <button type="button" class="btn btn-ax-secondary" id="axErrorBack">
+            <i class="bi bi-arrow-left me-1"></i>이전 페이지
+          </button>
+        {% endif %}
+        <a href="{{ primary_url }}" class="btn btn-ax-primary"><i class="bi {{ primary_icon }} me-1"></i>{{ primary_label }}</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// 주소를 직접 열어 들어온 경우엔 돌아갈 기록이 없어 '이전 페이지'가 아무 일도 하지 않는다 - 그럴 땐 버튼을 뺀다.
+(() => {
+  const backButton = document.getElementById('axErrorBack');
+  if (!backButton) return;
+  if (window.history.length <= 1) {
+    backButton.remove();
+    return;
+  }
+  backButton.addEventListener('click', () => window.history.back());
+})();
+</script>
