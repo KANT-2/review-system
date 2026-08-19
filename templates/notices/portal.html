@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}공지 포털 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}공지 포털{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">공지 포털</h1>
+      <p class="page-desc">학생·튜터 대시보드에 노출할 공지를 등록하고 공개 상태를 관리합니다.</p>
+    </div>
+    <button type="button"
+            class="btn btn-ax-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#noticeFormModal"
+            data-mode="create"
+            data-form-action="{% url 'notices:notice-create' %}">
+      <i class="bi bi-plus-lg me-1"></i>새 공지 작성
+    </button>
+  </div>
+  <section class="card-custom">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">제목</th>
+            <th scope="col">상태</th>
+            <th scope="col">작성일</th>
+            <th scope="col" class="text-end">관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for notice in notices %}
+            <tr>
+              <td>
+                <strong>{{ notice.title }}</strong>
+                <div class="small text-muted">{{ notice.content|truncatechars:60 }}</div>
+              </td>
+              <td>
+                <span class="badge badge-ax {% if notice.is_published %}badge-ax-completed{% else %}badge-ax-expired{% endif %}">
+                  {% if notice.is_published %}공개{% else %}비공개{% endif %}
+                </span>
+              </td>
+              <td class="small text-muted">{{ notice.created_at|date:"Y-m-d H:i" }}</td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <button type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#noticeFormModal"
+                          data-mode="edit"
+                          data-form-action="{% url 'notices:notice-edit' notice.pk %}"
+                          data-notice-title="{{ notice.title }}"
+                          data-notice-content="{{ notice.content }}"
+                          data-notice-published="{{ notice.is_published|yesno:'1,0' }}">수정</button>
+                  <form method="post"
+                        action="{% url 'notices:notice-toggle-publish' notice.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                      {% if notice.is_published %}비공개로 전환{% else %}공개하기{% endif %}
+                    </button>
+                  </form>
+                  <form method="post"
+                        action="{% url 'notices:notice-delete' notice.pk %}"
+                        onsubmit="return confirm('&quot;{{ notice.title|escapejs }}&quot; 공지를 삭제합니다. 되돌릴 수 없습니다. 계속할까요?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4">
+                <div class="ax-empty-state">
+                  <i class="bi bi-megaphone"></i>
+                  <p class="fw-semibold mb-2">등록된 공지가 없습니다</p>
+                  <p class="text-muted mb-3">새 공지를 작성해 학생·튜터 대시보드에 알려 보세요.</p>
+                  <button type="button"
+                          class="btn btn-ax-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#noticeFormModal"
+                          data-mode="create"
+                          data-form-action="{% url 'notices:notice-create' %}">새 공지 작성</button>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+{% block modals %}
+  <div class="modal fade"
+       id="noticeFormModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <form method="post" id="noticeForm">
+          {% csrf_token %}
+          <div class="modal-header border-bottom px-4 py-3">
+            <h6 class="modal-title fw-bold" id="noticeFormModalLabel">
+              <i class="bi bi-megaphone-fill me-2 text-primary"></i>새 공지 작성
+            </h6>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold" for="noticeTitleInput">제목</label>
+              <input type="text"
+                     name="title"
+                     id="noticeTitleInput"
+                     class="form-control"
+                     maxlength="200"
+                     required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold" for="noticeContentInput">내용</label>
+              <textarea name="content"
+                        id="noticeContentInput"
+                        class="form-control"
+                        rows="6"
+                        required></textarea>
+            </div>
+            <div class="form-check">
+              <input type="checkbox"
+                     name="is_published"
+                     id="noticePublishInput"
+                     class="form-check-input">
+              <label class="form-check-label small" for="noticePublishInput">바로 공개 (선택하지 않으면 비공개로 저장합니다)</label>
+            </div>
+          </div>
+          <div class="modal-footer border-top-0 px-4 pb-3">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-ax-primary" id="noticeFormSubmit">등록</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/notice-portal.js' %}"></script>
+{% endblock %}
