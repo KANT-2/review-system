@@ -4,6 +4,9 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from accounts.models import User
+from notifications.models import Notification
+from notifications.services import notify_users
 from reviews.models import (
     ReviewAnswer,
     ReviewFinalSubmission,
@@ -14,6 +17,7 @@ from reviews.models import (
     TutorTeamReviewAnswer,
 )
 from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
+from rounds.services import is_participant_complete
 from teams.models import Team
 
 
@@ -286,6 +290,7 @@ def submit_review(*, participant, review_type, target_id, answers):
     target = _validate_target(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
     answer_rows = validated_answer_rows(questions, answers)
+    was_complete = is_participant_complete(participant)
     with transaction.atomic():
         # 최종 제출 전이면 다시 저장할 수 있다 - 기존 답변을 지우고 새로 쓴다.
         submission = _get_or_create_submission(participant, review_type, target)
@@ -301,7 +306,21 @@ def submit_review(*, participant, review_type, target_id, answers):
                 for question, rating, text in answer_rows
             ]
         )
-        return submission
+    if not was_complete and is_participant_complete(participant):
+        _notify_tutors_of_completion(participant)
+    return submission
+
+
+def _notify_tutors_of_completion(participant):
+    notify_users(
+        User.objects.filter(role__in=[User.Role.TUTOR, User.Role.ADMIN], is_active=True),
+        category=Notification.Category.PARTICIPANT_COMPLETED,
+        title="학생이 평가를 모두 제출했습니다",
+        message=(
+            f"{participant.display_name_snapshot}님이 "
+            f"'{participant.round.title}' 팀·개인 평가를 모두 제출했습니다."
+        ),
+    )
 
 
 # --- 튜터 개인평가 -------------------------------------------------------------

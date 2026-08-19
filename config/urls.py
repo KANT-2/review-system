@@ -29,6 +29,7 @@ urlpatterns = [
     path("manage/", include("rounds.urls")),
     path("manage/audit/", include("audit.urls")),
     path("manage/notices/", include("notices.urls")),
+    path("notifications/", include("notifications.urls")),
     path("", account_views.home_view, name="home"),
 ]
 

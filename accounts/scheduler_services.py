@@ -8,6 +8,8 @@ from accounts.email_services import (
     send_tutor_announcement_email,
 )
 from accounts.models import ScheduledEmail, User
+from notifications.models import Notification
+from notifications.services import notify_users
 from rounds.models import EvaluationRound
 from rounds.services import pending_participant_rows
 
@@ -94,12 +96,23 @@ def process_auto_submission_reminders():
 
     auto_reminded_rounds = 0
     for round_obj in rounds_to_remind:
+        pending_students = []
         for row in pending_participant_rows(round_obj):
             student = row["participant"].user
-            if not student.is_active or not student.email:
+            if not student.is_active:
+                continue
+            pending_students.append(student)
+            if not student.email:
                 continue
             name = student.first_name if student.first_name else student.email
             send_submission_reminder_email(round_obj, name, student.email)
+
+        notify_users(
+            pending_students,
+            category=Notification.Category.SUBMISSION_REMINDER,
+            title="마감이 얼마 남지 않았습니다",
+            message=f"'{round_obj.title}' 회차의 팀·개인 평가를 아직 제출하지 않았습니다.",
+        )
 
         round_obj.auto_reminder_sent_at = now
         round_obj.save(update_fields=["auto_reminder_sent_at"])

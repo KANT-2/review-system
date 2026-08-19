@@ -6,6 +6,8 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from audit.services import record_event
+from notifications.models import Notification
+from notifications.services import notify_users
 from results.models import EvaluationResult
 from reviews.models import ReviewSubmission
 from rounds.models import (
@@ -40,6 +42,7 @@ def participant_snapshot_values(user):
 @transaction.atomic
 def save_round(*, form, actor):
     round_obj = form.save(commit=False)
+    is_create = round_obj.pk is None
     if round_obj.pk:
         current = EvaluationRound.objects.select_for_update().get(pk=round_obj.pk)
         if current.status != EvaluationRound.Status.DRAFT:
@@ -62,6 +65,13 @@ def save_round(*, form, actor):
             participant.save(update_fields=(*values.keys(),))
         else:
             RoundParticipant.objects.create(round=round_obj, user=user, **values)
+    if is_create and selected_users:
+        notify_users(
+            selected_users,
+            category=Notification.Category.ROUND_CREATED,
+            title="새 평가 회차가 생성되었습니다",
+            message=f"'{round_obj.title}' 회차가 생성되었습니다.",
+        )
     return round_obj
 
 
@@ -206,6 +216,26 @@ def participant_progress_rows(round_obj):
     return rows
 
 
+def is_participant_complete(participant):
+    """이 참가자 한 명만 팀·개인 평가를 다 제출했는지 확인한다.
+
+    participant_progress_rows는 회차 전체를 훑어야 해서, 제출 한 건마다 완료 여부만
+    가볍게 확인하려는 곳(예: 완료 알림)에는 이 쪽이 낫다.
+    """
+    if not hasattr(participant, "team_membership"):
+        return False
+    round_obj = participant.round
+    team_expected = max(round_obj.teams.count() - 1, 0)
+    peer_expected = max(participant.team_membership.team.memberships.count() - 1, 0)
+    team_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.TEAM
+    ).count()
+    peer_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.PEER
+    ).count()
+    return team_completed == team_expected and peer_completed == peer_expected
+
+
 def pending_participant_rows(round_obj):
     """팀·개인 평가 중 하나라도 덜 제출한 참가자 행만 반환한다."""
     return [
@@ -233,6 +263,12 @@ def complete_round(*, round_id, actor, force_confirmed=False):
         actor=actor,
         round_obj=round_obj,
         summary={"missing_count": progress.missing_count, "confirmed": bool(force_confirmed)},
+    )
+    notify_users(
+        (participant.user for participant in round_obj.participants.select_related("user")),
+        category=Notification.Category.ROUND_COMPLETED,
+        title="평가가 종료되었습니다",
+        message=f"'{round_obj.title}' 회차 평가가 종료되었습니다.",
     )
     return round_obj
 
