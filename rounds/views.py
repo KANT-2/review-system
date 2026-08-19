@@ -7,6 +7,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from notices.services import active_notices
+from notifications.models import Notification
+from notifications.services import notify_users
 from reviews.forms import ReviewForm
 from reviews.models import TutorReview
 from reviews.services import (
@@ -506,14 +508,25 @@ def send_submission_reminders_view(request, round_id):
 
     from accounts.email_services import send_submission_reminder_email
 
+    pending_students = []
     sent_count = 0
     for row in pending_participant_rows(round_obj):
         student = row["participant"].user
-        if not student.is_active or not student.email:
+        if not student.is_active:
+            continue
+        pending_students.append(student)
+        if not student.email:
             continue
         name = student.first_name if student.first_name else student.email
         send_submission_reminder_email(round_obj, name, student.email)
         sent_count += 1
+
+    notify_users(
+        pending_students,
+        category=Notification.Category.SUBMISSION_REMINDER,
+        title="아직 제출하지 않은 평가가 있습니다",
+        message=f"'{round_obj.title}' 회차의 팀·개인 평가를 확인해 주세요.",
+    )
 
     messages.success(
         request, f"총 {sent_count}명의 미제출 수강생에게 제출 안내 이메일이 발송되었습니다."

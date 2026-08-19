@@ -154,9 +154,21 @@ class RoundCompletionNotificationTests(TestCase):
                 student_number_snapshot=user.student_number,
                 display_name_snapshot=user.first_name,
             )
+        # pending_participant_rows는 팀 기대치가 0이면 아무도 미제출로 안 잡으니,
+        # 미제출자 알림 테스트를 위해 팀을 최소한으로 만들어 둔다.
+        Team.objects.create(round=self.round, team_number=1, name="1팀")
+        Team.objects.create(round=self.round, team_number=2, name="2팀")
 
     def test_completing_a_round_notifies_its_participants(self):
         complete_round(round_id=self.round.pk, actor=self.tutor, force_confirmed=True)
+
+        self.assertEqual(unread_count(self.students[0]), 1)
+        self.assertEqual(unread_count(self.students[1]), 1)
+
+    def test_manual_reminder_button_notifies_pending_students(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(reverse("rounds:send_reminders", kwargs={"round_id": self.round.pk}))
 
         self.assertEqual(unread_count(self.students[0]), 1)
         self.assertEqual(unread_count(self.students[1]), 1)

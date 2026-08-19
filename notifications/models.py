@@ -8,6 +8,8 @@ class Notification(models.Model):
         ROUND_CREATED = "ROUND_CREATED", "새 회차"
         TEAM_CREATED = "TEAM_CREATED", "새 팀"
         ROUND_COMPLETED = "ROUND_COMPLETED", "평가 종료"
+        SUBMISSION_REMINDER = "SUBMISSION_REMINDER", "제출 안내"
+        PARTICIPANT_COMPLETED = "PARTICIPANT_COMPLETED", "제출 완료"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -15,7 +17,7 @@ class Notification(models.Model):
         related_name="notifications",
         verbose_name="수신자",
     )
-    category = models.CharField("종류", max_length=20, choices=Category.choices)
+    category = models.CharField("종류", max_length=30, choices=Category.choices)
     title = models.CharField("제목", max_length=200)
     message = models.CharField("내용", max_length=300, blank=True)
     link = models.CharField("이동 경로", max_length=300, blank=True)

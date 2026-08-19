@@ -215,6 +215,26 @@ def participant_progress_rows(round_obj):
     return rows
 
 
+def is_participant_complete(participant):
+    """이 참가자 한 명만 팀·개인 평가를 다 제출했는지 확인한다.
+
+    participant_progress_rows는 회차 전체를 훑어야 해서, 제출 한 건마다 완료 여부만
+    가볍게 확인하려는 곳(예: 완료 알림)에는 이 쪽이 낫다.
+    """
+    if not hasattr(participant, "team_membership"):
+        return False
+    round_obj = participant.round
+    team_expected = max(round_obj.teams.count() - 1, 0)
+    peer_expected = max(participant.team_membership.team.memberships.count() - 1, 0)
+    team_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.TEAM
+    ).count()
+    peer_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.PEER
+    ).count()
+    return team_completed == team_expected and peer_completed == peer_expected
+
+
 def pending_participant_rows(round_obj):
     """팀·개인 평가 중 하나라도 덜 제출한 참가자 행만 반환한다."""
     return [
