@@ -378,8 +378,8 @@ class AccountsTests(TestCase):
         self.approved_student.refresh_from_db()
         self.assertTrue(self.approved_student.must_rotate_password)
 
-    def test_tutor_cannot_deactivate_or_change_roles(self):
-        """계정 비활성화와 역할 변경은 관리자만 - 튜터에게는 버튼도 보이지 않는다."""
+    def test_tutor_can_deactivate_a_student_but_not_change_roles(self):
+        """튜터는 수강생 계정을 삭제(비활성화)할 수 있지만 역할 변경은 여전히 관리자만."""
         self.client.force_login(self.tutor_user)
 
         page = self.client.get(reverse("accounts:account_admin"))
@@ -390,13 +390,34 @@ class AccountsTests(TestCase):
             reverse("accounts:account_action", args=[self.approved_student.pk, "make-tutor"])
         )
 
-        self.assertFalse(page.context["can_change_role"])
-        self.assertContains(page, "관리자만 할 수 있습니다")
+        self.assertContains(page, "삭제")
         self.approved_student.refresh_from_db()
-        self.assertTrue(self.approved_student.is_active)
+        self.assertFalse(self.approved_student.is_active)
         self.assertEqual(self.approved_student.role, User.Role.STUDENT)
         self.assertRedirects(deactivate, reverse("accounts:account_admin"))
         self.assertRedirects(promote, reverse("accounts:account_admin"))
+
+    def test_tutor_cannot_deactivate_another_tutor(self):
+        """튜터·관리자 계정의 삭제·활성화는 여전히 관리자 전용."""
+        other_tutor = User.objects.create_user(
+            email="other-tutor@ax.com",
+            password=STRONG_PASSWORD,
+            _email_verified=True,
+            first_name="이튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.tutor_user)
+
+        page = self.client.get(reverse("accounts:account_admin"))
+        deactivate = self.client.post(
+            reverse("accounts:account_action", args=[other_tutor.pk, "deactivate"])
+        )
+
+        self.assertContains(page, "관리자만 할 수 있습니다")
+        other_tutor.refresh_from_db()
+        self.assertTrue(other_tutor.is_active)
+        self.assertRedirects(deactivate, reverse("accounts:account_admin"))
 
     def test_admin_deactivates_account_and_ends_its_sessions(self):
         admin = User.objects.create_superuser(
