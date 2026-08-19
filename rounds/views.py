@@ -34,6 +34,9 @@ from rounds.services import (
     start_round,
 )
 
+# 진행 현황 표에서 접지 않고 바로 보여줄 참가자 수 - 이보다 많으면 나머지는 접힌다.
+VISIBLE_PARTICIPANT_ROWS = 6
+
 
 def _require_operations(user):
     if not is_operations_user(user):
@@ -178,6 +181,11 @@ def round_start(request, round_id):
 
 
 def _participant_progress_rows(round_obj):
+    """진행 현황 표에 쓸 참가자별 행 - 미완료(미배정 포함)가 항상 위로 오도록 정렬한다.
+
+    튜터가 스크롤 없이 누가 아직 안 했는지부터 보게 하려는 것이라, 그 안에서는
+    기존처럼 학번순을 유지한다.
+    """
     team_count = round_obj.teams.count()
     completed = (
         ReviewSubmission.objects.filter(round=round_obj)
@@ -192,20 +200,24 @@ def _participant_progress_rows(round_obj):
         team_size = 0 if is_unassigned else participant.team_membership.team.memberships.count()
         team_expected = max(team_count - 1, 0)
         peer_expected = max(team_size - 1, 0)
+        team_completed = completed_map.get((participant.pk, ReviewSubmission.ReviewType.TEAM), 0)
+        peer_completed = completed_map.get((participant.pk, ReviewSubmission.ReviewType.PEER), 0)
         rows.append(
             {
                 "participant": participant,
                 "is_unassigned": is_unassigned,
                 "team_expected": team_expected,
-                "team_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
-                ),
+                "team_completed": team_completed,
                 "peer_expected": peer_expected,
-                "peer_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
+                "peer_completed": peer_completed,
+                "is_complete": (
+                    not is_unassigned
+                    and team_completed == team_expected
+                    and peer_completed == peer_expected
                 ),
             }
         )
+    rows.sort(key=lambda row: (row["is_complete"], row["participant"].student_number_snapshot))
     return rows
 
 
@@ -225,6 +237,7 @@ def round_reviews(request, round_id):
     start_checks = (
         round_start_checks(round_obj) if round_obj.status == EvaluationRound.Status.DRAFT else []
     )
+    participant_rows = _participant_progress_rows(round_obj)
     return render(
         request,
         "rounds/reviews.html",
@@ -233,7 +246,8 @@ def round_reviews(request, round_id):
             "progress": progress,
             "start_blocking": [check.message for check in start_checks if not check.confirmable],
             "start_confirmable": [check.message for check in start_checks if check.confirmable],
-            "participant_rows": _participant_progress_rows(round_obj),
+            "participant_head": participant_rows[:VISIBLE_PARTICIPANT_ROWS],
+            "participant_rest": participant_rows[VISIBLE_PARTICIPANT_ROWS:],
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user
             ).count(),
