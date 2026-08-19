@@ -111,4 +111,5 @@ class ServiceTeamsBackend:
             self.unit_of_work_factory(),
             actor_id=actor_id,
             imbalance_confirmed=request_data.imbalance_confirmed,
+            unassigned_confirmed=request_data.unassigned_confirmed,
         )

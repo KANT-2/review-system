@@ -246,7 +246,10 @@
     renderBoard({ canEdit });
     renderSearchMetric();
     byId("cancelButton").disabled = !isDirty;
-    byId("saveButton").disabled = !isDirty || data.unassigned_members.length > 0;
+    // 미배정 인원이 있어도 저장은 할 수 있다 - saveConfiguration이 확인창을 띄운
+    // 뒤 재확인 값을 담아 다시 보낸다. 팀이 하나도 없는 등 저장 자체가 불가능한
+    // 경우는 서버가 막는다.
+    byId("saveButton").disabled = !isDirty;
     if (isDirty) showSaveNotice(false);
   }
 
@@ -332,10 +335,11 @@
     renderTutorBoard();
   }
 
-  function savePayload(imbalanceConfirmed) {
+  function savePayload(imbalanceConfirmed, unassignedConfirmed) {
     return {
       lock_version: data.lock_version,
       imbalance_confirmed: imbalanceConfirmed,
+      unassigned_confirmed: unassignedConfirmed,
       teams: data.teams.map((team) => ({
         team_number: team.team_number,
         name: team.name,
@@ -344,7 +348,7 @@
     };
   }
 
-  async function saveConfiguration(imbalanceConfirmed = false) {
+  async function saveConfiguration(imbalanceConfirmed = false, unassignedConfirmed = false) {
     if (config.previewMode) {
       saved = structuredClone(data);
       isDirty = false;
@@ -352,18 +356,34 @@
       return;
     }
     try {
-      const result = await post(config.saveUrl, savePayload(imbalanceConfirmed));
+      const result = await post(
+        config.saveUrl,
+        savePayload(imbalanceConfirmed, unassignedConfirmed),
+      );
       data.lock_version = result.lock_version;
       saved = structuredClone(data);
       isDirty = false;
       renderTutorBoard();
       showSaveNotice(true);
     } catch (error) {
+      // 미배정 인원과 인원 불균형은 각자 별도로 확인받는다 - 하나만 확인하고 넘어가면
+      // 나머지 경고를 놓칠 수 있어서, 서버가 알려주는 대로 하나씩 다시 확인한다.
+      if (
+        error.code === "unassigned_confirmation_required" &&
+        window.confirm(
+          `미배정 학생 ${data.unassigned_members.length}명은 팀 없이 저장됩니다. ` +
+            "이 상태로는 회차를 시작할 수 없고, 나중에 다시 편성해서 배정을 마쳐야 합니다. " +
+            "그래도 지금 저장할까요?",
+        )
+      ) {
+        await saveConfiguration(imbalanceConfirmed, true);
+        return;
+      }
       if (
         error.code === "imbalance_confirmation_required" &&
         window.confirm("팀별 인원 차이가 큽니다. 현재 구성으로 저장하시겠습니까?")
       ) {
-        await saveConfiguration(true);
+        await saveConfiguration(true, unassignedConfirmed);
         return;
       }
       throw error;

@@ -26,7 +26,11 @@ from teams.queries import (
     RoundParticipantNotFoundError,
     StudentTeamView,
 )
-from teams.services import AssignmentValidationError, ImbalanceConfirmationRequired
+from teams.services import (
+    AssignmentValidationError,
+    ImbalanceConfirmationRequired,
+    UnassignedParticipantsConfirmationRequired,
+)
 
 
 class TeamsHttpBackend(Protocol):
@@ -264,6 +268,8 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
         return JsonResponse(saved_team_board_response(board))
     except ImbalanceConfirmationRequired as error:
         return _error_response("imbalance_confirmation_required", str(error), 409)
+    except UnassignedParticipantsConfirmationRequired as error:
+        return _error_response("unassigned_confirmation_required", str(error), 409)
     except TeamVersionConflictError as error:
         return _error_response("version_conflict", str(error), 409)
     except RoundNotEditableError as error:

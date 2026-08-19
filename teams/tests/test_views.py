@@ -20,7 +20,7 @@ from teams.queries import (
     TeamMemberView,
     TeamView,
 )
-from teams.services import ImbalanceConfirmationRequired
+from teams.services import ImbalanceConfirmationRequired, UnassignedParticipantsConfirmationRequired
 from teams.views import (
     auto_assignment_view,
     management_team_page,
@@ -251,6 +251,17 @@ class TeamsHttpViewTests(TestCase):
         self.assertEqual(
             json.loads(response.content)["error"]["code"],
             "imbalance_confirmation_required",
+        )
+
+    def test_unassigned_confirmation_receives_409(self):
+        self.backend.save_error = UnassignedParticipantsConfirmationRequired("confirm unassigned")
+
+        response = save_team_view(self._save_request(), 10)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            json.loads(response.content)["error"]["code"],
+            "unassigned_confirmation_required",
         )
 
     def test_version_conflict_receives_409(self):
