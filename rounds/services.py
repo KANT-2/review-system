@@ -8,6 +8,7 @@ from django.utils import timezone
 from audit.services import record_event
 from notifications.models import Notification
 from notifications.services import notify_users
+from results.models import EvaluationResult
 from reviews.models import ReviewSubmission
 from rounds.models import (
     EvaluationRound,
@@ -397,28 +398,36 @@ def delete_question_template(*, template_id, actor):
 
 @transaction.atomic
 def delete_round(*, round_id, actor):
-    """준비 중인 회차를 지운다.
+    """회차를 지운다 - 준비 중(DRAFT)이거나 완료(COMPLETED)된 회차만 대상이다.
 
-    시작된 회차는 참가자 스냅샷이 동결되고 제출·채점이 붙기 때문에 지울 수 없다. 준비 중
-    회차는 팀·구성원·참가자를 함께 정리해야 지워진다(모두 PROTECT로 묶여 있다).
+    진행 중(IN_PROGRESS) 회차는 실시간으로 쓰이고 있어 지우지 않는다(먼저 마감하거나
+    준비 중으로 되돌려야 한다).
 
-    한 번 시작됐다가 되돌려진(revert_round_to_draft) 회차는 튜터 개인/팀평가
-    (TutorReview/TutorTeamReview)가 남아 있을 수 있다 - 이것들도 참가자·팀을 PROTECT로
-    참조하므로, 먼저 지우지 않으면 팀·참가자 삭제에서 ProtectedError가 난다.
+    완료된 회차는 채점 결과·평가 제출·튜터 개인/팀평가·감사 로그까지 팀·참가자·회차를
+    PROTECT로 참조하고 있어서, 그 역순(자식 -> 부모)으로 하나씩 정리해야 삭제 시
+    ProtectedError 없이 끝까지 지워진다. 감사 로그(AuditEvent)는 내용은 남기고
+    round만 비워서(nullable) 회차 삭제 뒤에도 "누가 언제 무엇을 했는지" 기록 자체는
+    보존한다.
     """
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
-    if round_obj.status != EvaluationRound.Status.DRAFT:
-        raise ValidationError("준비 중인 회차만 삭제할 수 있습니다.")
-    if round_obj.review_submissions.exists() or round_obj.calculation_runs.exists():
-        raise ValidationError("제출이나 채점 기록이 있는 회차는 삭제할 수 없습니다.")
+    if round_obj.status == EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError(
+            "진행 중인 회차는 삭제할 수 없습니다. 먼저 마감하거나 준비 중으로 되돌려 주세요."
+        )
     record_event(
         action="ROUND_DELETED",
         target=round_obj,
         actor=actor,
         summary={"title": round_obj.title, "participant_count": round_obj.participants.count()},
     )
-    round_obj.tutor_reviews.all().delete()
+
+    EvaluationResult.objects.filter(calculation_run__round=round_obj).delete()
+    round_obj.calculation_runs.all().delete()
+    round_obj.review_final_submissions.all().delete()
+    round_obj.review_submissions.all().delete()
     round_obj.tutor_team_reviews.all().delete()
+    round_obj.tutor_reviews.all().delete()
+    round_obj.audit_events.update(round=None)
     for team in round_obj.teams.all():
         team.memberships.all().delete()
     round_obj.teams.all().delete()
