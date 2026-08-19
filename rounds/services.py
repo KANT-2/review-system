@@ -6,6 +6,8 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from audit.services import record_event
+from notifications.models import Notification
+from notifications.services import notify_users
 from reviews.models import ReviewSubmission
 from rounds.models import (
     EvaluationRound,
@@ -39,6 +41,7 @@ def participant_snapshot_values(user):
 @transaction.atomic
 def save_round(*, form, actor):
     round_obj = form.save(commit=False)
+    is_create = round_obj.pk is None
     if round_obj.pk:
         current = EvaluationRound.objects.select_for_update().get(pk=round_obj.pk)
         if current.status != EvaluationRound.Status.DRAFT:
@@ -61,6 +64,13 @@ def save_round(*, form, actor):
             participant.save(update_fields=(*values.keys(),))
         else:
             RoundParticipant.objects.create(round=round_obj, user=user, **values)
+    if is_create and selected_users:
+        notify_users(
+            selected_users,
+            category=Notification.Category.ROUND_CREATED,
+            title="새 평가 회차가 생성되었습니다",
+            message=f"'{round_obj.title}' 회차가 생성되었습니다.",
+        )
     return round_obj
 
 
@@ -238,6 +248,12 @@ def complete_round(*, round_id, actor, force_confirmed=False):
         actor=actor,
         round_obj=round_obj,
         summary={"missing_count": progress.missing_count, "confirmed": bool(force_confirmed)},
+    )
+    notify_users(
+        (participant.user for participant in round_obj.participants.select_related("user")),
+        category=Notification.Category.ROUND_COMPLETED,
+        title="평가가 종료되었습니다",
+        message=f"'{round_obj.title}' 회차 평가가 종료되었습니다.",
     )
     return round_obj
 

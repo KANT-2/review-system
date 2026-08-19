@@ -1111,3 +1111,68 @@ tbody.collapse.show { display: table-row-group; }
 .ax-col-22 { width: 22%; }
 .ax-col-30 { width: 30%; }
 .ax-col-32 { width: 32%; }
+
+/* 알림 종 배지·패널 - 종 아이콘 자체의 마크업은 이 CSS 밖에서 만들어진다. */
+.ax-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ax-error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.ax-notification-panel {
+  position: fixed;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--ax-surface);
+  border: 1px solid var(--ax-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 28px rgba(23, 105, 224, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 1080;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.ax-notification-panel.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.ax-notification-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ax-border);
+}
+.ax-notification-panel-body {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 8px;
+}
+.ax-notification-empty { padding: 32px 16px; text-align: center; color: var(--ax-text-muted); font-size: 13px; }
+.ax-notification-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ax-notification-item:hover { background: var(--ax-surface-subtle); }
+.ax-notification-item.unread { background: var(--ax-primary-container); }
+.ax-notification-item-title { font-size: 13px; font-weight: 600; color: var(--ax-text); }
+.ax-notification-item-message { font-size: 12px; color: var(--ax-text-muted); margin-top: 2px; }
+.ax-notification-item-time { font-size: 11px; color: var(--ax-text-muted); margin-top: 4px; }

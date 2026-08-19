@@ -1,8 +1,12 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.urls import reverse
 
+from accounts.models import User
 from audit.services import record_event
 from notices.models import Notice
+from notifications.models import Notification
+from notifications.services import notify_users
 
 
 def notice_rows():
@@ -15,9 +19,28 @@ def active_notices():
     return Notice.objects.filter(is_published=True)
 
 
+def _notify_students_of_notice(notice):
+    notify_users(
+        User.objects.filter(role=User.Role.STUDENT, is_active=True),
+        category=Notification.Category.NOTICE,
+        title="새 공지가 등록되었습니다",
+        message=notice.title,
+        link=reverse("accounts:dashboard"),
+    )
+
+
 @transaction.atomic
 def save_notice(*, form, actor):
     is_create = form.instance.pk is None
+    # form.is_valid()가 이미 form.instance에 새 값을 반영해 뒀으므로, 공개 전환 여부를
+    # 판단하려면 DB에 남아 있는 저장 전 상태를 따로 조회해야 한다.
+    was_published = (
+        False
+        if is_create
+        else Notice.objects.filter(pk=form.instance.pk)
+        .values_list("is_published", flat=True)
+        .first()
+    )
     notice = form.save(commit=False)
     if is_create:
         notice.created_by = actor
@@ -29,6 +52,8 @@ def save_notice(*, form, actor):
         actor=actor,
         summary={"title": notice.title, "is_published": notice.is_published},
     )
+    if notice.is_published and not was_published:
+        _notify_students_of_notice(notice)
     return notice
 
 
@@ -58,4 +83,6 @@ def toggle_notice_publish(*, notice_id, actor):
         actor=actor,
         summary={"title": notice.title},
     )
+    if notice.is_published:
+        _notify_students_of_notice(notice)
     return notice
