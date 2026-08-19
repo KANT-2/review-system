@@ -470,7 +470,7 @@ def round_reopen(request, round_id):
 @login_required
 @require_POST
 def send_submission_reminders_view(request, round_id):
-    """특정 회차 미제출 수강생들에게 독촉 이메일을 일괄 발송합니다."""
+    """특정 회차 미제출 수강생들에게 제출 안내 메일을 발송합니다."""
     _require_operations(request.user)
     round_obj = get_object_or_404(EvaluationRound, pk=round_id)
     if round_obj.status != EvaluationRound.Status.IN_PROGRESS:

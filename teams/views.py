@@ -338,7 +338,5 @@ def send_team_announcement_view(request: HttpRequest, team_id: int) -> HttpRespo
     recipient_emails = list(team.memberships.values_list("participant__user__email", flat=True))
     sent_count = send_tutor_announcement_email(subject, message, recipient_emails)
 
-    messages.success(
-        request, f"'{team.name}' 팀원 총 {sent_count}명에게 공지 메일이 성공적으로 발송되었습니다."
-    )
+    messages.success(request, f"'{team.name}' 팀원에게 공지 메일 {sent_count}건을 발송했습니다.")
     return redirect(request.META.get("HTTP_REFERER", "/manage/"))

@@ -75,7 +75,7 @@ class ScheduledEmailsTestCase(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("평가 제출 안내", mail.outbox[0].subject)
 
-        # 2번째 실행 시 중복 독촉 메일이 발송되지 않는지 검증
+        # 2번째 실행 시 제출 안내 메일이 중복 발송되지 않는지 검증
         mail.outbox.clear()
         second_run_count = process_auto_submission_reminders()
         self.assertEqual(second_run_count, 0)

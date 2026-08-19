@@ -19,7 +19,7 @@ class AccountUserAdmin(UserAdmin):
     readonly_fields = ("auth_session_version", "email_needs_review")
     actions = ["send_custom_email_action"]
 
-    @admin.action(description="✉️ 선택한 수강생들에게 맞춤 공지 메일 일괄 발송")
+    @admin.action(description="선택한 수강생에게 공지 메일 발송")
     def send_custom_email_action(self, request, queryset):
         from django.contrib import messages
 
@@ -32,7 +32,7 @@ class AccountUserAdmin(UserAdmin):
             recipient_emails=recipient_emails,
         )
         self.message_user(
-            request, f"총 {sent}명의 수강생에게 이메일이 성황리에 발송되었습니다.", messages.SUCCESS
+            request, f"수강생에게 공지 메일 {sent}건을 발송했습니다.", messages.SUCCESS
         )
 
     fieldsets = (

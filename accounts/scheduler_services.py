@@ -80,12 +80,12 @@ def process_scheduled_emails():
 def process_auto_submission_reminders():
     """
     평가 회차가 진행 중(IN_PROGRESS)이며 종료 시각(evaluation_end_at)이 10분 이내로 다가온 경우,
-    미제출 수강생들에게 독촉 이메일을 1회 자동 발송합니다.
+    미제출 수강생들에게 제출 안내 이메일을 1회 자동 발송합니다.
     """
     now = timezone.now()
     threshold_time = now + timedelta(minutes=10)
 
-    # 10분 이내 마감 예정이거나 이미 마감 시각이 다가왔으나 독촉 메일이 발송되지 않은 회차
+    # 10분 이내 마감 예정이거나 이미 마감 시각이 다가왔으나 안내 메일이 발송되지 않은 회차
     rounds_to_remind = EvaluationRound.objects.filter(
         status=EvaluationRound.Status.IN_PROGRESS,
         auto_reminder_sent_at__isnull=True,

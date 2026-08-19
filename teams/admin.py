@@ -26,7 +26,7 @@ class TeamAdmin(admin.ModelAdmin):
     def member_count(self, obj):
         return obj.memberships.count()
 
-    @admin.action(description="📢 선택한 조(팀) 팀원 전원에게 공지 메일 일괄 발송")
+    @admin.action(description="선택한 조(팀) 팀원에게 공지 메일 발송")
     def send_announcement_to_team(self, request, queryset):
         from accounts.email_services import send_tutor_announcement_email
 

@@ -771,6 +771,7 @@ def send_tutor_announcement_view(request):
 
     subject = request.POST.get("subject", "").strip()
     message = request.POST.get("message", "").strip()
+    target_type = request.POST.get("send_target_type", "all").strip()
     target_user_id = request.POST.get("target_user_id", "").strip()
     target_team_id = request.POST.get("target_team_id", "").strip()
     selected_user_ids = request.POST.getlist("selected_user_ids")
@@ -778,26 +779,37 @@ def send_tutor_announcement_view(request):
     if not subject or not message:
         messages.error(request, "제목과 내용을 모두 입력해 주세요.")
         return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+    if target_type not in {"all", "team", "select"}:
+        messages.error(request, "올바른 발송 대상을 선택해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
 
-    if target_team_id:
+    if target_type == "team":
         from teams.models import Team
 
-        team = Team.objects.filter(id=target_team_id).first()
-        if team:
-            recipient_emails = list(
-                team.memberships.values_list("participant__user__email", flat=True)
-            )
-            team_name = team.name
-        else:
-            recipient_emails = []
-            team_name = "선택한 조"
-        target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
-    elif selected_user_ids:
+        team = Team.objects.filter(id=target_team_id).first() if target_team_id else None
+        if not team:
+            messages.error(request, "발송할 조(팀)를 선택해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
         recipient_emails = list(
-            User.objects.filter(id__in=selected_user_ids, is_active=True).values_list(
-                "email", flat=True
-            )
+            team.memberships.filter(participant__user__is_active=True)
+            .exclude(participant__user__email="")
+            .values_list("participant__user__email", flat=True)
         )
+        team_name = team.name
+        target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
+    elif target_type == "select":
+        recipient_emails = list(
+            User.objects.filter(
+                id__in=selected_user_ids,
+                role=User.Role.STUDENT,
+                is_active=True,
+            )
+            .exclude(email="")
+            .values_list("email", flat=True)
+        )
+        if not recipient_emails:
+            messages.error(request, "발송할 수강생을 한 명 이상 선택해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
         target_info_str = f"선택한 수강생 (총 {len(recipient_emails)}명)"
     elif target_user_id:
         target_user = User.objects.filter(id=target_user_id).first()
@@ -810,16 +822,22 @@ def send_tutor_announcement_view(request):
             target_info_str = "선택한 수강생 (0명)"
     else:
         recipient_emails = list(
-            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list(
-                "email", flat=True
-            )
+            User.objects.filter(role=User.Role.STUDENT, is_active=True)
+            .exclude(email="")
+            .values_list("email", flat=True)
         )
         target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
 
     send_type = request.POST.get("send_type", "now").strip()
     scheduled_at_str = request.POST.get("scheduled_at", "").strip()
+    if send_type not in {"now", "scheduled"}:
+        messages.error(request, "올바른 발송 시점을 선택해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
 
-    if send_type == "scheduled" and scheduled_at_str:
+    if send_type == "scheduled":
+        if not scheduled_at_str:
+            messages.error(request, "예약 발송 일시를 입력해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
         try:
             import json
 
@@ -835,23 +853,23 @@ def send_tutor_announcement_view(request):
                 messages.error(request, "예약 발송 일시는 현재 시각 이후로 지정해 주세요.")
                 return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
 
-            target_type = ScheduledEmail.TargetType.ALL
+            scheduled_target_type = ScheduledEmail.TargetType.ALL
             target_team_obj = None
-            if target_team_id:
+            if target_type == "team":
                 from teams.models import Team
 
-                target_type = ScheduledEmail.TargetType.TEAM
+                scheduled_target_type = ScheduledEmail.TargetType.TEAM
                 target_team_obj = Team.objects.filter(id=target_team_id).first()
-            elif selected_user_ids:
-                target_type = ScheduledEmail.TargetType.SELECT
+            elif target_type == "select":
+                scheduled_target_type = ScheduledEmail.TargetType.SELECT
             elif target_user_id:
-                target_type = ScheduledEmail.TargetType.SINGLE
+                scheduled_target_type = ScheduledEmail.TargetType.SINGLE
 
             ScheduledEmail.objects.create(
                 sender=request.user,
                 subject=subject,
                 message=message,
-                target_type=target_type,
+                target_type=scheduled_target_type,
                 target_team=target_team_obj,
                 selected_user_ids_json=json.dumps(
                     selected_user_ids
@@ -863,7 +881,7 @@ def send_tutor_announcement_view(request):
             )
             messages.success(
                 request,
-                f"📅 [{scheduled_at.strftime('%Y-%m-%d %H:%M')}] 시각으로 {target_info_str} 대상 이메일 공지가 성공적으로 예약되었습니다!",
+                f"{scheduled_at.strftime('%Y-%m-%d %H:%M')}에 {target_info_str} 대상으로 공지 메일을 예약했습니다.",
             )
             return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
         except Exception as e:
@@ -873,7 +891,7 @@ def send_tutor_announcement_view(request):
     from accounts.email_services import send_tutor_announcement_email
 
     send_tutor_announcement_email(subject, message, recipient_emails)
-    messages.success(request, f"{target_info_str}에게 공지 이메일이 성공적으로 발송되었습니다.")
+    messages.success(request, f"{target_info_str}에게 공지 메일을 발송했습니다.")
     return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
 
 

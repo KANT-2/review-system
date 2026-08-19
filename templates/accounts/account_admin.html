@@ -9,176 +9,110 @@
       <p class="page-desc">승인 대기, 전체 계정, 사전 등록 명단을 한 화면에서 관리합니다. 상태를 바꾸면 해당 계정의 기존 로그인 세션이 끊깁니다.</p>
     </div>
   </div>
-  <!-- 수강생 이메일 공지 발송 폼 카드 -->
-  <section class="card-custom mb-4"
-           style="background-color: #0F172A;
-                  border: 1px solid #1E293B;
-                  border-radius: 12px;
-                  overflow: hidden">
-    <div class="card-header-custom"
-         style="background-color: #1E293B;
-                border-bottom: 1px solid #334155;
-                padding: 14px 20px">
-      <div class="card-title-custom"
-           style="color: #FFFFFF;
-                  font-weight: 700;
-                  font-size: 15px"><i class="bi bi-envelope-fill text-primary me-2"></i> 📢 수강생 공지 이메일 발송</div>
+  <section class="card-custom mb-4">
+    <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-envelope-fill text-primary"></i>수강생 공지 메일</div>
+      <span class="text-muted font-size-115">즉시 또는 예약 발송</span>
     </div>
-    <div class="card-body-custom p-4" style="background-color: #0F172A;">
+    <div class="card-body-custom">
       <form action="{% url 'accounts:send_announcement' %}"
             method="post"
             id="announcement_form">
         {% csrf_token %}
         <div class="row g-3 mb-3">
           <div class="col-md-3">
-            <label for="send_target_type"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">발송 대상 선택</label>
+            <label for="send_target_type" class="form-label small fw-bold">발송 대상</label>
             <select id="send_target_type"
-                    class="form-select form-select-sm"
-                    style="background-color: #1E293B;
-                           color: #FFFFFF !important;
-                           border: 1px solid #334155"
-                    onchange="toggleSendTargetUI(this.value)">
-              <option value="all">👥 전체 수강생 대상 발송</option>
-              <option value="team">🏕️ 특정 조(팀) 선택 발송</option>
-              <option value="select">☑️ 아래 목록에서 체크한 개인 수강생 발송</option>
+                    name="send_target_type"
+                    class="form-select form-select-sm">
+              <option value="all">전체 수강생</option>
+              <option value="team">특정 조(팀)</option>
+              <option value="select">목록에서 선택한 수강생</option>
             </select>
           </div>
-          <div class="col-md-3" id="team_select_wrapper" style="display: none;">
-            <label for="target_team_id"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">발송 대상 조(팀) {% if current_round_title %}<span class="badge bg-info text-dark font-size-115">{{ current_round_title }}</span>{% endif %}</label>
+          <div class="col-md-3 d-none" id="team_select_wrapper">
+            <label for="target_team_id" class="form-label small fw-bold">대상 조(팀)</label>
             <select id="target_team_id"
                     name="target_team_id"
-                    class="form-select form-select-sm"
-                    style="background-color: #1E293B;
-                           color: #FFFFFF !important;
-                           border: 1px solid #334155">
-              <option value="">-- 발송할 조(팀) 선택 --</option>
+                    class="form-select form-select-sm">
+              <option value="">조(팀)를 선택하세요</option>
               {% for team in teams %}
                 <option value="{{ team.pk }}">{{ team.name }} (팀원 {{ team.memberships.count }}명)</option>
               {% empty %}
                 <option value="">현재 회차에 배정된 조(팀)가 없습니다</option>
               {% endfor %}
             </select>
+            {% if current_round_title %}<div class="form-text">{{ current_round_title }} 기준</div>{% endif %}
           </div>
           <div class="col-md-3">
-            <label for="send_type"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">발송 시점 선택</label>
-            <select id="send_type"
-                    name="send_type"
-                    class="form-select form-select-sm"
-                    style="background-color: #1E293B;
-                           color: #FFFFFF !important;
-                           border: 1px solid #334155"
-                    onchange="toggleScheduleTimeUI(this.value)">
-              <option value="now">⚡ 즉시 발송</option>
-              <option value="scheduled">📅 예약 발송</option>
+            <label for="send_type" class="form-label small fw-bold">발송 시점</label>
+            <select id="send_type" name="send_type" class="form-select form-select-sm">
+              <option value="now">즉시 발송</option>
+              <option value="scheduled">예약 발송</option>
             </select>
           </div>
-          <div class="col-md-3" id="schedule_time_wrapper" style="display: none;">
-            <label for="scheduled_at"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">예약 날짜 & 시간</label>
+          <div class="col-md-3 d-none" id="schedule_time_wrapper">
+            <label for="scheduled_at" class="form-label small fw-bold">예약 일시</label>
             <input type="datetime-local"
                    id="scheduled_at"
                    name="scheduled_at"
-                   class="form-control form-control-sm"
-                   style="background-color: #1E293B;
-                          color: #FFFFFF !important;
-                          border: 1px solid #334155">
+                   class="form-control form-control-sm">
           </div>
         </div>
         <div class="row g-3">
-          <div class="col-md-9">
-            <label for="email_subject"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">메일 제목</label>
+          <div class="col-12">
+            <label for="email_subject" class="form-label small fw-bold">메일 제목</label>
             <input type="text"
                    id="email_subject"
                    name="subject"
                    class="form-control form-control-sm"
-                   style="background-color: #1E293B;
-                          color: #FFFFFF !important;
-                          border: 1px solid #334155"
                    placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내"
                    required>
           </div>
-          <div class="col-md-3 d-flex align-items-end">
-            <button type="submit"
-                    id="submit_email_btn"
-                    class="btn btn-primary btn-sm w-100 fw-bold"
-                    style="background-color: #1769E0;
-                           border: none;
-                           padding: 7px 12px">✉️ 공지 이메일 발송</button>
+          <div class="col-12">
+            <label for="email_message" class="form-label small fw-bold">메일 내용</label>
+            <textarea id="email_message"
+                      name="message"
+                      class="form-control form-control-sm"
+                      rows="4"
+                      placeholder="수강생들에게 보낼 공지 내용을 입력하세요."
+                      required></textarea>
           </div>
         </div>
-        <div class="row g-3 mt-1">
-          <div class="col-md-12">
-            <label for="email_message"
-                   class="form-label fw-bold"
-                   style="color: #E2E8F0;
-                          font-size: 13px">메일 내용</label>
-            <input type="text"
-                   id="email_message"
-                   name="message"
-                   class="form-control form-control-sm"
-                   style="background-color: #1E293B;
-                          color: #FFFFFF !important;
-                          border: 1px solid #334155"
-                   placeholder="수강생들에게 발송할 공지 메시지를 입력하세요"
-                   required>
-          </div>
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" id="submit_email_btn" class="btn btn-ax-primary">공지 메일 보내기</button>
         </div>
-        <!-- 체크박스 다중 선택 전송용 숨겨진 input 컨테이너 -->
         <div id="selected_users_container"></div>
       </form>
     </div>
   </section>
-  <!-- 📅 예약된 공지 이메일 목록 카드 -->
   {% if scheduled_emails %}
-    <section class="card-custom mb-4"
-             style="background-color: #0F172A;
-                    border: 1px solid #334155;
-                    border-radius: 12px;
-                    overflow: hidden">
-      <div class="card-header-custom"
-           style="background-color: #1E293B;
-                  border-bottom: 1px solid #334155;
-                  padding: 14px 20px">
-        <div class="card-title-custom"
-             style="color: #FFFFFF;
-                    font-weight: 700;
-                    font-size: 15px"><i class="bi bi-calendar-event-fill text-warning me-2"></i> 📅 예약 대기 중인 공지 이메일 ({{ scheduled_emails|length }}건)</div>
+    <section class="card-custom mb-4">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-calendar-event-fill text-primary"></i>예약된 공지 메일</div>
+        <span class="text-muted font-size-115">{{ scheduled_emails|length }}건</span>
       </div>
       <div class="table-responsive">
-        <table class="table align-middle mb-0 text-white">
-          <thead style="background-color: #1E293B; color: #94A3B8;">
+        <table class="table align-middle mb-0">
+          <thead>
             <tr>
               <th scope="col" class="ps-3">예약 시각</th>
               <th scope="col">발송 대상</th>
               <th scope="col">메일 제목</th>
               <th scope="col">메일 내용</th>
-              <th scope="col" class="text-end pe-3">취소 관리</th>
+              <th scope="col" class="text-end pe-3">관리</th>
             </tr>
           </thead>
           <tbody>
             {% for item in scheduled_emails %}
-              <tr style="border-bottom: 1px solid #334155;">
-                <td class="ps-3 fw-bold text-warning">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
+              <tr>
+                <td class="ps-3 fw-semibold">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
                 <td>
-                  <span class="badge bg-secondary">{{ item.get_target_type_display }}</span>
-                  {% if item.target_team %}<span class="badge bg-info text-dark ms-1">{{ item.target_team.name }}</span>{% endif %}
+                  <span class="badge badge-ax badge-ax-pending">{{ item.get_target_type_display }}</span>
+                  {% if item.target_team %}<span class="text-muted font-size-115 ms-1">{{ item.target_team.name }}</span>{% endif %}
                 </td>
                 <td class="fw-semibold">{{ item.subject }}</td>
-                <td class="text-truncate" style="max-width: 250px;">{{ item.message }}</td>
+                <td class="text-truncate ax-email-message-cell">{{ item.message }}</td>
                 <td class="text-end pe-3">
                   <form action="{% url 'accounts:cancel_scheduled_email' item.pk %}"
                         method="post"
@@ -326,8 +260,8 @@
             <th scope="col" class="text-center">
               <input type="checkbox"
                      class="form-check-input"
-                     aria-label="공지 대상 전체 선택"
-                     onchange="toggleAllCheckboxes(this)">
+                     id="emailRecipientSelectAll"
+                     aria-label="공지 대상 전체 선택">
             </th>
             <th scope="col">계정</th>
             <th scope="col">역할</th>
@@ -519,87 +453,4 @@
 {% endblock %}
 {% block extra_js %}
   <script src="{% static 'js/account-admin.js' %}"></script>
-  <script>
-    function toggleSendTargetUI(val) {
-      var teamWrapper = document.getElementById('team_select_wrapper');
-      if (val === 'team') {
-        teamWrapper.style.display = 'block';
-      } else {
-        teamWrapper.style.display = 'none';
-        var select = document.getElementById('target_team_id');
-        if (select) select.value = '';
-      }
-    }
-
-    function toggleAllCheckboxes(master) {
-      var checkboxes = document.querySelectorAll('.student-user-checkbox');
-      checkboxes.forEach(function(cb) {
-        cb.checked = master.checked;
-      });
-      updateSelectedUserInputs();
-    }
-
-    function updateSelectedUserInputs() {
-      var container = document.getElementById('selected_users_container');
-      if (!container) return;
-      container.innerHTML = '';
-      var checkboxes = document.querySelectorAll('.student-user-checkbox:checked');
-      checkboxes.forEach(function(cb) {
-        var hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = 'selected_user_ids';
-        hidden.value = cb.value;
-        container.appendChild(hidden);
-      });
-    }
-
-    function toggleScheduleTimeUI(val) {
-      var timeWrapper = document.getElementById('schedule_time_wrapper');
-      var submitBtn = document.getElementById('submit_email_btn');
-      if (val === 'scheduled') {
-        timeWrapper.style.display = 'block';
-        if (submitBtn) submitBtn.innerHTML = '📅 이메일 공지 예약하기';
-      } else {
-        timeWrapper.style.display = 'none';
-        var input = document.getElementById('scheduled_at');
-        if (input) input.value = '';
-        if (submitBtn) submitBtn.innerHTML = '✉️ 공지 이메일 발송';
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-      var form = document.getElementById('announcement_form');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          var targetType = document.getElementById('send_target_type').value;
-          var sendType = document.getElementById('send_type').value;
-
-          if (sendType === 'scheduled') {
-            var timeVal = document.getElementById('scheduled_at').value;
-            if (!timeVal) {
-              alert('예약 발송 날짜 및 시각을 입력해 주세요!');
-              e.preventDefault();
-              return false;
-            }
-          }
-
-          if (targetType === 'select') {
-            var checked = document.querySelectorAll('.student-user-checkbox:checked');
-            if (checked.length === 0) {
-              alert('발송할 수강생을 아래 목록에서 최소 1명 이상 체크해 주세요!');
-              e.preventDefault();
-              return false;
-            }
-          } else if (targetType === 'team') {
-            var teamId = document.getElementById('target_team_id').value;
-            if (!teamId) {
-              alert('발송할 조(팀)를 선택해 주세요!');
-              e.preventDefault();
-              return false;
-            }
-          }
-        });
-      }
-    });
-  </script>
 {% endblock %}
