@@ -5,6 +5,9 @@
   let data = structuredClone(initial);
   let saved = structuredClone(initial);
   let isDirty = false;
+  // 저장 직후에는 저장 버튼이 다음 단계로 이동하는 버튼으로 바뀐다 - 편집을 다시
+  // 시작하면(isDirty) 원래 저장 버튼으로 되돌린다.
+  let justSaved = false;
 
   const byId = (id) => document.getElementById(id);
   // CSRF 쿠키는 HttpOnly라 스크립트로 읽을 수 없다 - 서버가 페이지로 내려준 토큰을 쓴다.
@@ -230,14 +233,20 @@
     metric.className = `teams-metric ${hits ? "neutral" : "warn"}`;
   }
 
-  // 저장 뒤 다음 절차 안내 배너. 다시 편집을 시작하면 감춘다 - 저장하지 않은 변경이 있는데
-  // "저장했습니다"가 남아 있으면 잘못 읽힌다.
-  function showSaveNotice(visible) {
-    const notice = byId("saveNotice");
-    if (!notice) return;
-    const link = byId("saveNoticeLink");
-    if (visible && link && config.nextUrl) link.href = config.nextUrl;
-    notice.hidden = !visible || !config.nextUrl;
+  // 저장 직후에는 저장 버튼 자체를 다음 단계로 이동하는 버튼으로 바꾼다. 다시
+  // 편집을 시작하면(isDirty) 원래 저장 버튼으로 되돌린다.
+  function renderSaveButton() {
+    const button = byId("saveButton");
+    if (justSaved && config.nextUrl) {
+      button.textContent = "다음 단계: 회차 진행 현황";
+      button.disabled = false;
+      return;
+    }
+    button.textContent = "저장";
+    // 미배정 인원이 있어도 저장은 할 수 있다 - saveConfiguration이 확인창을 띄운
+    // 뒤 재확인 값을 담아 다시 보낸다. 팀이 하나도 없는 등 저장 자체가 불가능한
+    // 경우는 서버가 막는다.
+    button.disabled = !isDirty;
   }
 
   function renderTutorBoard() {
@@ -246,11 +255,8 @@
     renderBoard({ canEdit });
     renderSearchMetric();
     byId("cancelButton").disabled = !isDirty;
-    // 미배정 인원이 있어도 저장은 할 수 있다 - saveConfiguration이 확인창을 띄운
-    // 뒤 재확인 값을 담아 다시 보낸다. 팀이 하나도 없는 등 저장 자체가 불가능한
-    // 경우는 서버가 막는다.
-    byId("saveButton").disabled = !isDirty;
-    if (isDirty) showSaveNotice(false);
+    if (isDirty) justSaved = false;
+    renderSaveButton();
   }
 
   function participantCount() {
@@ -352,6 +358,7 @@
     if (config.previewMode) {
       saved = structuredClone(data);
       isDirty = false;
+      justSaved = true;
       renderTutorBoard();
       return;
     }
@@ -363,8 +370,8 @@
       data.lock_version = result.lock_version;
       saved = structuredClone(data);
       isDirty = false;
+      justSaved = true;
       renderTutorBoard();
-      showSaveNotice(true);
     } catch (error) {
       // 미배정 인원과 인원 불균형은 각자 별도로 확인받는다 - 하나만 확인하고 넘어가면
       // 나머지 경고를 놓칠 수 있어서, 서버가 알려주는 대로 하나씩 다시 확인한다.
@@ -435,6 +442,10 @@
       createAutomaticAssignment().catch(showRequestError);
     });
     byId("saveButton").addEventListener("click", () => {
+      if (justSaved && config.nextUrl) {
+        window.location.href = config.nextUrl;
+        return;
+      }
       saveConfiguration().catch(showRequestError);
     });
   } else {
