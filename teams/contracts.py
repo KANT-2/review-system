@@ -29,6 +29,7 @@ class AutoAssignmentRequest:
 class TeamSaveRequest:
     board: TeamBoard
     imbalance_confirmed: bool
+    unassigned_confirmed: bool = False
 
     @classmethod
     def from_payload(
@@ -49,6 +50,9 @@ class TeamSaveRequest:
         imbalance_confirmed = payload.get("imbalance_confirmed", False)
         if type(imbalance_confirmed) is not bool:
             raise TeamContractError("imbalance_confirmed must be a boolean")
+        unassigned_confirmed = payload.get("unassigned_confirmed", False)
+        if type(unassigned_confirmed) is not bool:
+            raise TeamContractError("unassigned_confirmed must be a boolean")
         return cls(
             board=TeamBoard(
                 round_id=round_id,
@@ -56,6 +60,7 @@ class TeamSaveRequest:
                 teams=teams,
             ),
             imbalance_confirmed=imbalance_confirmed,
+            unassigned_confirmed=unassigned_confirmed,
         )
 
 

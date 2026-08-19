@@ -111,6 +111,7 @@ def save_team_configuration(
     *,
     actor_id: int,
     imbalance_confirmed: bool = False,
+    unassigned_confirmed: bool = False,
 ) -> TeamBoard:
     """팀 구성 전체를 검증하고 하나의 원자적 작업으로 교체한다."""
     with unit_of_work:
@@ -126,6 +127,7 @@ def save_team_configuration(
             [team.participant_ids for team in board.teams],
             current_round.participant_ids,
             imbalance_confirmed=imbalance_confirmed,
+            unassigned_confirmed=unassigned_confirmed,
         )
         unit_of_work.replace_team_configuration(board)
         unit_of_work.increase_lock_version(board.round_id)
