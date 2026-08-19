@@ -7,7 +7,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.forms import ReviewForm
-from reviews.models import ReviewSubmission, TutorReview
+from reviews.models import TutorReview
 from reviews.services import (
     get_tutor_review,
     submit_tutor_review,
@@ -218,17 +218,12 @@ def round_reviews(request, round_id):
         {
             "round_obj": round_obj,
             "progress": progress,
-            "start_errors": round_start_errors(round_obj)
-            if round_obj.status == EvaluationRound.Status.DRAFT
-            else [],
             "participant_rows": participant_progress_rows(round_obj),
-            "text_answer_count": _text_answers(round_obj).count(),
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user
             ).count(),
             "start_blocking": [check.message for check in start_checks if not check.confirmable],
             "start_confirmable": [check.message for check in start_checks if check.confirmable],
-            "participant_rows": _participant_progress_rows(round_obj),
         },
     )
 

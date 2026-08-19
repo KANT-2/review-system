@@ -23,3 +23,11 @@ line-ending = "auto"
 profile = "django"
 indent = 2
 use_gitignore = true
+
+# 이메일 클라이언트 호환성에는 인라인 스타일이 필요하고 웹 페이지용 SEO 규칙은 적용되지 않는다.
+[tool.djlint.per-file-ignores]
+"templates/emails/custom_announcement.html" = "H021,H023,H030"
+"templates/emails/results_released.html" = "H021,H023,H030"
+"templates/emails/round_started.html" = "H021,H023,H030"
+"templates/emails/submission_reminder.html" = "H021,H023,H030"
+"templates/emails/verification_code.html" = "H021,H023,H030"
