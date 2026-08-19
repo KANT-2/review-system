@@ -74,14 +74,22 @@
                     </button>
                   </form>
                 {% else %}
-                  <form method="post" action="{% url 'rounds:reopen' item.pk %}">
-                    {% csrf_token %}
-                    <button type="submit"
-                            class="btn btn-sm btn-outline-secondary"
-                            {% if item.run_count %}disabled title="채점 기록이 있어 다시 열 수 없습니다. 재채점을 사용해 주세요."{% endif %}>
-                      다시 열기
-                    </button>
-                  </form>
+                  <div class="d-flex gap-2 justify-content-end">
+                    <form method="post" action="{% url 'rounds:reopen' item.pk %}">
+                      {% csrf_token %}
+                      <button type="submit"
+                              class="btn btn-sm btn-outline-secondary"
+                              {% if item.run_count %}disabled title="채점 기록이 있어 다시 열 수 없습니다. 재채점을 사용해 주세요."{% endif %}>
+                        다시 열기
+                      </button>
+                    </form>
+                    <form method="post"
+                          action="{% url 'rounds:delete' item.pk %}"
+                          onsubmit="return confirm('{{ item.title }} 회차를 완전히 삭제합니다. 제출된 평가·채점 결과·튜터 평가가 모두 함께 지워지며 되돌릴 수 없습니다. 계속할까요?')">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                    </form>
+                  </div>
                 {% endif %}
               </td>
             </tr>
