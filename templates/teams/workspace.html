@@ -4,10 +4,19 @@
 {% block content %}
   <link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">
   <div class="teams-workspace">
-    <div class="teams-heading">
-      <span id="statusBadge" class="teams-status"></span>
-      <h1>프로젝트 팀 편성</h1>
-      <p id="pageDescription"></p>
+    <div class="teams-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <span id="statusBadge" class="teams-status"></span>
+        <h1>프로젝트 팀 편성</h1>
+        <p id="pageDescription"></p>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'rounds:list' %}" class="btn btn-ax-secondary btn-sm">📋 회차 목록으로</a>
+        <form method="post" action="{% url 'rounds:start' team_data.round_id %}" onsubmit="return confirm('평가를 시작합니다. 수강생들이 평가를 제출할 수 있게 됩니다. 계속할까요?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="bi bi-play-fill me-1"></i>🚀 평가 시작하기</button>
+        </form>
+      </div>
     </div>
     <section id="toolbar" class="teams-toolbar" hidden>
       <label for="teamCount">

@@ -131,7 +131,8 @@ def ensure_round(*, title, tutor, students, team_template, peer_template, status
         )
         teams.append(team)
         for participant in members:
-            TeamMembership.objects.get_or_create(team=team, participant=participant)
+            TeamMembership.objects.filter(participant=participant).delete()
+            TeamMembership.objects.create(team=team, participant=participant)
     return round_obj, participants, teams
 
 

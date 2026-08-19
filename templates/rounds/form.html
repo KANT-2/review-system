@@ -2,9 +2,18 @@
 {% block title %}회차 설정 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}회차 설정{% endblock %}
 {% block content %}
-  <div class="page-header"><div><h1 class="page-title">{% if round_obj %}{{ round_obj.title }}{% else %}새 평가 회차{% endif %}</h1>
-    <p class="page-desc">평가 기간, 참가자, TEAM·PEER 질문 템플릿을 지정합니다.</p></div>{% if round_obj %}<a href="{% url 'rounds:teams' round_obj.pk %}"
-   class="btn btn-ax-primary">팀 편성</a>{% endif %}</div>
+    <div class="d-flex gap-2">
+      {% if round_obj %}
+        <a href="{% url 'rounds:teams' round_obj.pk %}" class="btn btn-ax-secondary">팀 편성</a>
+        {% if round_obj.status == 'DRAFT' %}
+          <form method="post" action="{% url 'rounds:start' round_obj.pk %}" class="d-inline" onsubmit="return confirm('{{ round_obj.title }} 평가 회차를 공식적으로 시작합니다. 수강생들이 평가를 제출할 수 있게 됩니다. 계속할까요?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success fw-bold"><i class="bi bi-play-fill me-1"></i>🚀 평가 시작하기</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
   {% if read_only %}
     <div class="alert alert-info">시작된 회차의 참가자와 질문지는 변경할 수 없습니다.</div>
     <section class="card-custom">

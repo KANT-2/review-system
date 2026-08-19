@@ -45,9 +45,13 @@
               <td class="text-end">
                 {% if item.status == 'DRAFT' %}
                   <a href="{% url 'rounds:edit' item.pk %}"
-                     class="btn btn-sm btn-outline-primary">설정</a>
+                     class="btn btn-sm btn-outline-secondary">설정</a>
                   <a href="{% url 'rounds:teams' item.pk %}"
-                     class="btn btn-sm btn-primary">팀 편성</a>
+                     class="btn btn-sm btn-outline-primary">팀 편성</a>
+                  <form method="post" action="{% url 'rounds:start' item.pk %}" class="d-inline" onsubmit="return confirm('{{ item.title }} 평가 회차를 공식적으로 시작합니다. 수강생들이 평가를 제출할 수 있게 됩니다. 계속할까요?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success fw-bold"><i class="bi bi-play-fill me-1"></i>🚀 평가 시작하기</button>
+                  </form>
                 {% elif item.status == 'IN_PROGRESS' %}
                   <a href="{% url 'rounds:reviews' item.pk %}"
                      class="btn btn-sm btn-primary">진행 현황</a>
