@@ -27,7 +27,7 @@ from rounds.services import (
     question_template_rows,
     reopen_round,
     revert_round_to_draft,
-    round_start_errors,
+    round_start_checks,
     rounds_dashboard_rows,
     save_question_template,
     save_round,
@@ -183,7 +183,11 @@ def round_edit(request, round_id=None):
 def round_start(request, round_id):
     _require_operations(request.user)
     try:
-        start_round(round_id=round_id, actor=request.user)
+        start_round(
+            round_id=round_id,
+            actor=request.user,
+            force_confirmed=request.POST.get("force_confirmed") == "1",
+        )
     except ValidationError as error:
         messages.error(request, " ".join(error.messages))
     else:
@@ -202,16 +206,14 @@ def _participant_progress_rows(round_obj):
     rows = []
     participants = round_obj.participants.select_related("team_membership__team").all()
     for participant in participants:
-        team_size = (
-            participant.team_membership.team.memberships.count()
-            if hasattr(participant, "team_membership")
-            else 0
-        )
+        is_unassigned = not hasattr(participant, "team_membership")
+        team_size = 0 if is_unassigned else participant.team_membership.team.memberships.count()
         team_expected = max(team_count - 1, 0)
         peer_expected = max(team_size - 1, 0)
         rows.append(
             {
                 "participant": participant,
+                "is_unassigned": is_unassigned,
                 "team_expected": team_expected,
                 "team_completed": completed_map.get(
                     (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
@@ -238,15 +240,17 @@ def round_reviews(request, round_id):
         pk=round_id,
     )
     progress = get_review_progress(round_obj)
+    start_checks = (
+        round_start_checks(round_obj) if round_obj.status == EvaluationRound.Status.DRAFT else []
+    )
     return render(
         request,
         "rounds/reviews.html",
         {
             "round_obj": round_obj,
             "progress": progress,
-            "start_errors": round_start_errors(round_obj)
-            if round_obj.status == EvaluationRound.Status.DRAFT
-            else [],
+            "start_blocking": [check.message for check in start_checks if not check.confirmable],
+            "start_confirmable": [check.message for check in start_checks if check.confirmable],
             "participant_rows": _participant_progress_rows(round_obj),
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user

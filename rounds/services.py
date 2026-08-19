@@ -64,44 +64,74 @@ def save_round(*, form, actor):
     return round_obj
 
 
-def round_start_errors(round_obj):
-    errors = []
+@dataclass(frozen=True)
+class RoundStartCheck:
+    message: str
+    # True면 확인 체크박스로 넘어갈 수 있는 경고, False면 무조건 막는 오류.
+    confirmable: bool = False
+
+
+def round_start_checks(round_obj):
+    """회차 시작 조건을 하나씩 확인한다.
+
+    미배정 참가자는 더 이상 시작 자체를 막지 않는다 - 그 주차에 참여 못 하는 사정이 있는
+    학생이 있을 수 있어서다. 대신 확인(force_confirmed)을 받아야 하고, 그 참가자는 이번
+    회차 평가·점수 계산에서 빠진다. 나머지 조건(팀 구성, 템플릿, 평가 기간)은 그대로 막는다.
+    """
+    checks = []
     participants = list(round_obj.participants.all())
     teams = list(round_obj.teams.prefetch_related("memberships"))
-    assigned_ids = [
+    assigned_ids = {
         membership.participant_id for team in teams for membership in team.memberships.all()
-    ]
+    }
     if not participants:
-        errors.append("참가자를 한 명 이상 선택해 주세요.")
+        checks.append(RoundStartCheck("참가자를 한 명 이상 선택해 주세요."))
     if len(teams) < 2:
-        errors.append("비어 있지 않은 팀이 2개 이상 필요합니다.")
+        checks.append(RoundStartCheck("비어 있지 않은 팀이 2개 이상 필요합니다."))
     if any(not team.memberships.all() for team in teams):
-        errors.append("빈 팀이 있습니다.")
-    if sorted(assigned_ids) != sorted(participant.pk for participant in participants):
-        errors.append("모든 참가자를 정확히 한 팀에 배정해 주세요.")
+        checks.append(RoundStartCheck("빈 팀이 있습니다."))
+    unassigned = [participant for participant in participants if participant.pk not in assigned_ids]
+    if unassigned:
+        names = ", ".join(participant.display_name_snapshot for participant in unassigned)
+        checks.append(
+            RoundStartCheck(
+                f"배정되지 않은 참가자가 있습니다: {names}. 확인하고 시작하면 이 참가자들은 "
+                "이번 회차 평가·점수 계산에서 빠집니다.",
+                confirmable=True,
+            )
+        )
     for label, template in (
         ("팀 평가", round_obj.team_template),
         ("개인 평가", round_obj.peer_template),
     ):
         if template is None:
-            errors.append(f"{label} 템플릿을 선택해 주세요.")
+            checks.append(RoundStartCheck(f"{label} 템플릿을 선택해 주세요."))
         elif not template.questions.filter(
             response_type=TemplateQuestion.ResponseType.RATING_5
         ).exists():
-            errors.append(f"{label} 템플릿에 1~5점 문항이 필요합니다.")
+            checks.append(RoundStartCheck(f"{label} 템플릿에 1~5점 문항이 필요합니다."))
     if round_obj.evaluation_start_at >= round_obj.evaluation_end_at:
-        errors.append("평가 기간을 확인해 주세요.")
-    return errors
+        checks.append(RoundStartCheck("평가 기간을 확인해 주세요."))
+    return checks
+
+
+def round_start_errors(round_obj):
+    """메시지 문자열만 필요한 곳에서 쓰는 하위 호환 헬퍼."""
+    return [check.message for check in round_start_checks(round_obj)]
 
 
 @transaction.atomic
-def start_round(*, round_id, actor):
+def start_round(*, round_id, actor, force_confirmed=False):
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
     if round_obj.status != EvaluationRound.Status.DRAFT:
         raise ValidationError("준비 중인 회차만 시작할 수 있습니다.")
-    errors = round_start_errors(round_obj)
-    if errors:
-        raise ValidationError(errors)
+    checks = round_start_checks(round_obj)
+    blocking = [check.message for check in checks if not check.confirmable]
+    if blocking:
+        raise ValidationError(blocking)
+    confirmable = [check.message for check in checks if check.confirmable]
+    if confirmable and not force_confirmed:
+        raise ValidationError(confirmable)
     for participant in round_obj.participants.select_related("user"):
         values = participant_snapshot_values(participant.user)
         for field, value in values.items():
