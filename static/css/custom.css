@@ -575,6 +575,84 @@ a.card-link:hover .card-custom {
   border-color: #F3DFB3;
   color: var(--ax-warning);
 }
+.ax-note-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ax-note-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ax-note-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ax-warning);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* 메모 기록 목록(메모 확인 모달) */
+.ax-note-history-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.ax-note-history-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ax-border);
+}
+.ax-note-history-entry:last-child { border-bottom: none; }
+.ax-note-history-date {
+  display: block;
+  color: var(--ax-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ax-note-history-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.ax-note-history-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--ax-text-muted);
+  font-size: 13.5px;
+  margin: 0;
+}
+.ax-note-delete-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--ax-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 200ms ease-out;
+}
+.ax-note-delete-btn:hover { background: var(--ax-error-bg); color: var(--ax-error); }
+.ax-note-delete-all {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ax-border);
+}
 
 /* 데이터 상태 필터 칩 */
 .ax-filter-group { display: flex; gap: 8px; }

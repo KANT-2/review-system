@@ -275,7 +275,7 @@
           {% csrf_token %}
           <div class="modal-header border-bottom px-4 py-3">
             <h6 class="modal-title fw-bold">
-              <i class="bi bi-sticky me-2 text-primary"></i>메모 · <span id="noteStudentName"></span>
+              <i class="bi bi-pencil-square me-2 text-primary"></i>메모 남기기 · <span id="noteStudentName"></span>
             </h6>
             <button type="button"
                     class="btn-close"
@@ -283,7 +283,6 @@
                     aria-label="닫기"></button>
           </div>
           <div class="modal-body p-4">
-            <p class="text-muted font-size-135">튜터·관리자만 볼 수 있는 메모입니다. 학생 화면에는 표시되지 않습니다.</p>
             <label class="visually-hidden" for="noteBody">메모 내용</label>
             <textarea name="body"
                       id="noteBody"
@@ -291,13 +290,36 @@
                       rows="4"
                       maxlength="1000"
                       placeholder="예: 이번 회차 개인 사정으로 일부만 제출함"></textarea>
-            <p class="text-muted font-size-115 mt-2 mb-0">비우고 저장하면 메모가 삭제됩니다.</p>
           </div>
           <div class="modal-footer border-top-0 px-4 pb-3">
             <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
             <button type="submit" class="btn btn-ax-primary">저장</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade"
+       id="studentNoteHistoryModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom px-4 py-3">
+          <h6 class="modal-title fw-bold">
+            <i class="bi bi-clock-history me-2 text-primary"></i>메모 기록 · <span id="noteHistoryStudentName"></span>
+          </h6>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="닫기"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div id="noteHistoryList" class="ax-note-history-list"></div>
+        </div>
+        <div class="modal-footer border-top-0 px-4 pb-3">
+          <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
       </div>
     </div>
   </div>

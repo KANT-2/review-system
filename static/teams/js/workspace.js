@@ -57,6 +57,12 @@
     return normalize(person.display_name).includes(searchQuery);
   }
 
+  function seedLabel(person) {
+    // 학생 화면 응답에는 seed_scores 자체가 안 내려오므로(개인정보 보호) 튜터 화면에서만 뜬다.
+    const score = data.seed_scores?.[person.participant_id];
+    return `<span class="member-seed">시드 ${score ?? "-"}</span>`;
+  }
+
   function memberMarkup(person, canEdit) {
     const isMe = person.participant_id === config.myParticipantId;
     const draggableAttributes = canEdit
@@ -67,7 +73,8 @@
     const initialLetter = escapeHtml(person.display_name?.[0] || "-");
     const dimmed = matchesSearch(person) ? "" : " dimmed";
     const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
-    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span>${displayName}</span>${myLabel}</div>`;
+    const seed = config.role === "tutor" ? seedLabel(person) : "";
+    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span class="member-name">${displayName}</span>${seed}${myLabel}</div>`;
   }
 
   function teamCardMarkup(team, canEdit, showMyTeam) {
@@ -103,7 +110,8 @@
           : "";
         const dimmed = matchesSearch(person) ? "" : " dimmed";
         const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
-        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}</span>`;
+        const seed = config.role === "tutor" ? seedLabel(person) : "";
+        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}${seed}</span>`;
       })
       .join("");
     // 편집 중에는 비어 있어도 영역을 남긴다 - 팀에서 뺀 학생을 떨어뜨릴 자리가 필요하다.
@@ -314,6 +322,7 @@
         .filter(Boolean),
     }));
     data.unassigned_members = [];
+    data.seed_scores = result.seed_scores || {};
     byId("seedMetric").textContent = `유효 시드 ${result.quality.seeded_participant_count}명`;
     const initialDeviation = result.quality.initial_standard_deviation ?? "N/A";
     const finalDeviation = result.quality.final_standard_deviation ?? "N/A";

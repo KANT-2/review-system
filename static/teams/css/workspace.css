@@ -101,6 +101,8 @@
 
 .teams-chip {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 8px 6px 0 0;
   padding: 6px 10px;
   border: 1px solid #e4c47e;
@@ -204,6 +206,20 @@
   border-radius: 50%;
   background: #edf2f7;
   font-size: 11px;
+}
+
+.member-name {
+  flex: 1;
+}
+
+.member-seed {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f3f5f8;
+  color: var(--teams-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .me-tag {

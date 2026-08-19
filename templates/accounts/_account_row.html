@@ -29,18 +29,62 @@
   </td>
   <td class="text-center">
     {% if account.role == 'student' %}
-      {% with note=notes|get_item:account.pk %}
-        <button type="button"
-                class="ax-note-btn {% if note %}ax-note-btn--filled{% endif %}"
-                data-bs-toggle="modal"
-                data-bs-target="#studentNoteModal"
-                data-student-name="{{ account.first_name|default:account.email }}"
-                data-student-note="{{ note|default:'' }}"
-                data-note-action="{% url 'accounts:save_student_note' account.pk %}"
-                title="{% if note %}메모 보기{% else %}메모 남기기{% endif %}"
-                aria-label="{{ account.email }} 메모">
-          <i class="bi {% if note %}bi-sticky-fill{% else %}bi-sticky{% endif %}"></i>
-        </button>
+      {% with student_notes=notes|get_item:account.pk %}
+        <div class="ax-note-actions">
+          <button type="button"
+                  class="ax-note-btn"
+                  data-bs-toggle="modal"
+                  data-bs-target="#studentNoteModal"
+                  data-student-name="{{ account.first_name|default:account.email }}"
+                  data-note-action="{% url 'accounts:save_student_note' account.pk %}"
+                  title="메모 남기기"
+                  aria-label="{{ account.email }} 메모 남기기">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+          <button type="button"
+                  class="ax-note-btn {% if student_notes %}ax-note-btn--filled{% endif %}"
+                  data-bs-toggle="modal"
+                  data-bs-target="#studentNoteHistoryModal"
+                  data-student-name="{{ account.first_name|default:account.email }}"
+                  data-history-template="note-history-tpl-{{ account.pk }}"
+                  title="메모 확인"
+                  aria-label="{{ account.email }} 메모 확인">
+            <i class="bi bi-clock-history"></i>
+            {% if student_notes %}<span class="ax-note-count">{{ student_notes|length }}</span>{% endif %}
+          </button>
+        </div>
+        <template id="note-history-tpl-{{ account.pk }}">
+          {% if student_notes %}
+            {% for note in student_notes %}
+              <div class="ax-note-history-entry">
+                <div>
+                  <span class="ax-note-history-date">{{ note.created_at|date:"Y-m-d H:i" }} · {{ note.author.first_name|default:note.author.email }}</span>
+                  <p class="ax-note-history-body">{{ note.body }}</p>
+                </div>
+                <form method="post"
+                      action="{% url 'accounts:delete_student_note' account.pk note.pk %}"
+                      onsubmit="return confirm('이 메모를 지웁니다. 되돌릴 수 없습니다. 계속할까요?')">
+                  {% csrf_token %}
+                  <button type="submit"
+                          class="ax-note-delete-btn"
+                          title="메모 삭제"
+                          aria-label="{{ note.created_at|date:'Y-m-d H:i' }} 메모 삭제">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            {% endfor %}
+            <form method="post"
+                  action="{% url 'accounts:delete_all_student_notes' account.pk %}"
+                  class="ax-note-delete-all"
+                  onsubmit="return confirm('{{ account.first_name|default:account.email }}의 메모 기록 {{ student_notes|length }}건을 전부 지웁니다. 되돌릴 수 없습니다. 계속할까요?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger w-100">메모 전체 삭제</button>
+            </form>
+          {% else %}
+            <p class="ax-note-history-empty">아직 남긴 메모가 없습니다.</p>
+          {% endif %}
+        </template>
       {% endwith %}
     {% else %}
       <span class="text-muted font-size-115">-</span>

@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.messages import get_messages
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
@@ -355,26 +356,98 @@ class ResultWorkflowTests(TestCase):
         run.refresh_from_db()
         self.assertTrue(all(getattr(run, field) for field in PUBLICATION_FIELDS.values()))
 
-    def test_tutor_note_is_saved_updated_and_cleared(self):
+    def test_tutor_note_is_appended_to_history_not_overwritten(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)
         self.client.force_login(self.tutor)
         url = reverse("accounts:save_student_note", kwargs={"user_id": self.students[0].pk})
 
         self.client.post(url, {"body": " 개인 사정으로 일부만 제출 "})
 
-        note = TutorNote.objects.get(student=self.students[0])
-        self.assertEqual(note.body, "개인 사정으로 일부만 제출")
-        self.assertEqual(note.author, self.tutor)
+        first_note = TutorNote.objects.get(student=self.students[0])
+        self.assertEqual(first_note.body, "개인 사정으로 일부만 제출")
+        self.assertEqual(first_note.author, self.tutor)
 
         self.client.post(url, {"body": "다음 회차에 재확인"})
 
-        self.assertEqual(TutorNote.objects.count(), 1)
-        note.refresh_from_db()
-        self.assertEqual(note.body, "다음 회차에 재확인")
+        # 새 메모는 이전 메모를 덮어쓰지 않고 기록으로 쌓인다 - 최신순으로 조회된다.
+        notes = list(TutorNote.objects.filter(student=self.students[0]))
+        self.assertEqual(len(notes), 2)
+        self.assertEqual(notes[0].body, "다음 회차에 재확인")
+        self.assertEqual(notes[1].body, "개인 사정으로 일부만 제출")
 
-        self.client.post(url, {"body": "   "})
+        response = self.client.post(url, {"body": "   "})
 
-        self.assertFalse(TutorNote.objects.exists())
+        # 빈 메모는 저장되지 않고 에러로 되돌아간다 - 더 이상 "비우면 삭제" 동작은 없다.
+        self.assertEqual(TutorNote.objects.filter(student=self.students[0]).count(), 2)
+        messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(any("입력" in str(message) for message in messages))
+
+    def test_tutor_note_can_be_deleted_individually(self):
+        self.client.force_login(self.tutor)
+        keep = TutorNote.objects.create(
+            student=self.students[0], body="남겨둘 메모", author=self.tutor
+        )
+        to_delete = TutorNote.objects.create(
+            student=self.students[0], body="지울 메모", author=self.tutor
+        )
+
+        response = self.client.post(
+            reverse(
+                "accounts:delete_student_note",
+                kwargs={"user_id": self.students[0].pk, "note_id": to_delete.pk},
+            )
+        )
+
+        self.assertRedirects(response, reverse("accounts:account_admin"))
+        remaining = TutorNote.objects.filter(student=self.students[0])
+        self.assertEqual(list(remaining), [keep])
+
+    def test_deleting_a_note_requires_it_to_belong_to_the_url_student(self):
+        # note_id는 맞지만 URL의 user_id가 다른 학생이면 지워지지 않는다 - 실수로
+        # 다른 학생 메모를 지우는 사고를 막는다.
+        self.client.force_login(self.tutor)
+        note = TutorNote.objects.create(
+            student=self.students[0], body="지우면 안 되는 메모", author=self.tutor
+        )
+
+        self.client.post(
+            reverse(
+                "accounts:delete_student_note",
+                kwargs={"user_id": self.students[1].pk, "note_id": note.pk},
+            )
+        )
+
+        self.assertTrue(TutorNote.objects.filter(pk=note.pk).exists())
+
+    def test_all_tutor_notes_for_a_student_can_be_deleted_at_once(self):
+        self.client.force_login(self.tutor)
+        TutorNote.objects.create(student=self.students[0], body="첫 메모", author=self.tutor)
+        TutorNote.objects.create(student=self.students[0], body="둘째 메모", author=self.tutor)
+        TutorNote.objects.create(student=self.students[1], body="다른 학생 메모", author=self.tutor)
+
+        response = self.client.post(
+            reverse("accounts:delete_all_student_notes", kwargs={"user_id": self.students[0].pk})
+        )
+
+        self.assertRedirects(response, reverse("accounts:account_admin"))
+        self.assertFalse(TutorNote.objects.filter(student=self.students[0]).exists())
+        self.assertTrue(TutorNote.objects.filter(student=self.students[1]).exists())
+
+    def test_students_cannot_delete_tutor_notes(self):
+        note = TutorNote.objects.create(
+            student=self.students[0], body="학생이 못 지우는 메모", author=self.tutor
+        )
+        self.client.force_login(self.students[0])
+
+        response = self.client.post(
+            reverse(
+                "accounts:delete_student_note",
+                kwargs={"user_id": self.students[0].pk, "note_id": note.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(TutorNote.objects.filter(pk=note.pk).exists())
 
     def test_tutor_note_never_reaches_the_student_page(self):
         calculate_round(round_id=self.round.pk, actor=self.tutor)

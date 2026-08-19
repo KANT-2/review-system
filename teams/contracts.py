@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from teams.application import AutoTeamBoardResult
@@ -66,13 +66,16 @@ def auto_team_board_response(result: AutoTeamBoardResult) -> dict[str, Any]:
         "lock_version": result.board.lock_version,
         "teams": [_team_draft_response(team) for team in result.board.teams],
         "quality": {
-            "initial_standard_deviation": _decimal_response(result.initial_standard_deviation),
-            "final_standard_deviation": _decimal_response(result.final_standard_deviation),
+            "initial_standard_deviation": _rounded_decimal_response(
+                result.initial_standard_deviation
+            ),
+            "final_standard_deviation": _rounded_decimal_response(result.final_standard_deviation),
             "seeded_participant_count": result.seeded_participant_count,
             "initial_repeated_pair_count": result.initial_repeated_pair_count,
             "final_repeated_pair_count": result.final_repeated_pair_count,
             "optimization_count": result.optimization_count,
         },
+        "seed_scores": _seed_scores_response(result.seed_scores),
     }
 
 
@@ -93,6 +96,7 @@ def management_team_response(view: ManagementTeamView) -> dict[str, Any]:
         "is_read_only": view.is_read_only,
         "teams": [_team_view_response(team) for team in view.teams],
         "unassigned_members": [_member_response(member) for member in view.unassigned_members],
+        "seed_scores": _seed_scores_response(view.seed_scores),
     }
 
 
@@ -147,6 +151,22 @@ def _required_integer(
 def _decimal_response(value: Decimal | None) -> str | None:
     # JSON float 변환으로 계산 정밀도가 손실되지 않도록 Decimal은 문자열로 보낸다.
     return str(value) if value is not None else None
+
+
+def _rounded_decimal_response(value: Decimal | None) -> str | None:
+    # 편차는 계산용이 아니라 화면 표시용이라 소수점 둘째 자리로 반올림해서 보낸다 -
+    # 원본 그대로 보내면 나눗셈 오차로 자릿수가 길게 늘어져 읽기 어렵다.
+    if value is None:
+        return None
+    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def _seed_scores_response(seed_scores: Mapping[int, Decimal | None]) -> dict[str, str | None]:
+    # 시드 점수도 표시용이라 같은 이유로 반올림한다. 키는 JSON 객체 규칙상 문자열이어야 한다.
+    return {
+        str(participant_id): _rounded_decimal_response(score)
+        for participant_id, score in seed_scores.items()
+    }
 
 
 def _team_draft_response(team: TeamDraft) -> dict[str, Any]:

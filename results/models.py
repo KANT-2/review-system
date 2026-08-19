@@ -48,30 +48,30 @@ class CalculationRun(models.Model):
 
 
 class TutorNote(models.Model):
-    """수강생 한 명에 대한 튜터 전용 메모.
+    """수강생 한 명에 대한 튜터 전용 메모 기록.
 
     수강생 관리 화면(운영자 전용)에서만 읽고 쓴다 - 학생 화면과 학생용 조회 경로에서는
-    절대 노출하지 않는다. 회차와 무관하게 학생 한 명당 한 건만 남는다.
+    절대 노출하지 않는다. 회차와 무관하게 학생당 여러 건이 쌓이는 이력이다 - 언제 무슨
+    맥락으로 남겼는지가 중요해서 새로 쓴 메모가 이전 메모를 덮어쓰지 않는다.
     """
 
-    student = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tutor_note"
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notes"
     )
     body = models.TextField(max_length=1000)
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="tutor_notes"
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("student__email",)
+        ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(condition=~Q(body=""), name="results_tutor_note_not_blank"),
         ]
 
     def __str__(self):
-        return f"{self.student} 메모"
+        return f"{self.student} 메모 ({self.created_at:%Y-%m-%d})"
 
 
 class EvaluationResult(models.Model):

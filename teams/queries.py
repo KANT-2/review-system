@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from decimal import Decimal
 
 
 class TeamQueryError(ValueError):
@@ -56,6 +58,9 @@ class ManagementTeamView:
     is_read_only: bool
     teams: tuple[TeamView, ...]
     unassigned_members: tuple[TeamMemberView, ...]
+    # 참가자 ID -> 시드 점수(직전 최대 3회차 최종점수 가중 평균). 학생 화면에는 절대
+    # 내려주지 않는다 - 튜터가 팀 편성 화면에서만 참고하는 값이다.
+    seed_scores: Mapping[int, Decimal | None] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -67,7 +72,10 @@ class StudentTeamView:
     participant_id: int | None = None
 
 
-def build_management_team_view(data: TeamQueryData) -> ManagementTeamView:
+def build_management_team_view(
+    data: TeamQueryData,
+    seed_scores: Mapping[int, Decimal | None] | None = None,
+) -> ManagementTeamView:
     """튜터용 전체 팀 구성과 미배정 참가자 목록을 만든다."""
     participant_by_id = _participant_map(data.participants)
     assigned_participant_ids: set[int] = set()
@@ -98,6 +106,7 @@ def build_management_team_view(data: TeamQueryData) -> ManagementTeamView:
         is_read_only=data.round_status != "DRAFT",
         teams=tuple(team_views),
         unassigned_members=unassigned_members,
+        seed_scores=seed_scores or {},
     )
 
 
