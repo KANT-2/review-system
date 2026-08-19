@@ -355,6 +355,37 @@ class RoundLifecycleReversalTests(TestCase):
         round_obj.refresh_from_db()
         self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
 
+    def test_round_with_tutor_reviews_is_not_reverted(self):
+        # 학생 제출은 없어도 튜터 개인/팀평가가 남아 있으면 되돌리지 않는다 - 안 그러면
+        # 그 튜터 평가가 DRAFT 회차에 고아로 남아 나중에 삭제할 때 ProtectedError로 터진다.
+        round_obj = self._round(status=EvaluationRound.Status.IN_PROGRESS)
+        TutorReview.objects.create(
+            round=round_obj, evaluator=self.tutor, target_participant=round_obj.participants.first()
+        )
+
+        self.client.post(reverse("rounds:revert", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
+
+    def test_draft_round_with_leftover_tutor_reviews_can_still_be_deleted(self):
+        # 예전에 진행 중 -> 되돌림을 거쳐 이미 튜터 평가가 남아있는 DRAFT 회차도(과거 데이터)
+        # 삭제는 크래시 없이 돼야 한다.
+        round_obj = self._round(status=EvaluationRound.Status.DRAFT)
+        participant = round_obj.participants.first()
+        team = round_obj.teams.first()
+        TutorReview.objects.create(
+            round=round_obj, evaluator=self.tutor, target_participant=participant
+        )
+        TutorTeamReview.objects.create(round=round_obj, evaluator=self.tutor, target_team=team)
+
+        response = self.client.post(reverse("rounds:delete", args=[round_obj.pk]))
+
+        self.assertRedirects(response, reverse("rounds:list"))
+        self.assertFalse(EvaluationRound.objects.filter(pk=round_obj.pk).exists())
+        self.assertFalse(TutorReview.objects.filter(round_id=round_obj.pk).exists())
+        self.assertFalse(TutorTeamReview.objects.filter(round_id=round_obj.pk).exists())
+
     def test_completed_round_reopens_when_not_scored(self):
         round_obj = self._round(status=EvaluationRound.Status.COMPLETED)
 
