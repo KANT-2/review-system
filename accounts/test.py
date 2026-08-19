@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 from allauth.account.models import EmailAddress
+from allauth.core.exceptions import ImmediateHttpResponse
 from django.conf import settings
 from django.core import mail
 from django.core.exceptions import PermissionDenied
@@ -744,6 +745,16 @@ class TrustedProxyTests(TestCase):
         self.assertEqual(response.META["wsgi.url_scheme"], "http")
 
 
+class _MessageSink:
+    """messages 프레임워크 대신 경고를 모아두는 최소 스텁."""
+
+    def __init__(self):
+        self.messages = []
+
+    def add(self, level, message, extra_tags=""):
+        self.messages.append(message)
+
+
 class SocialClaimTests(TestCase):
     def test_google_requires_verified_email_and_matching_nonce(self):
         nonce = "one-time-nonce"
@@ -815,6 +826,75 @@ class SocialClaimTests(TestCase):
         self.assertEqual(event.summary["provider"], "google")
         self.assertTrue(event.summary["account_created"])
         self.assertNotIn(nonce, str(event.summary))
+
+    def test_pending_social_signup_survives_the_approval_notice(self):
+        """가입 신청 안내로 던지는 ImmediateHttpResponse가 방금 만든 계정을 롤백하면 안 된다.
+
+        롤백되면 신청자는 "접수되었습니다" 안내를 보는데 튜터의 승인 대기 목록에는
+        아무것도 뜨지 않는다.
+        """
+        nonce = "one-time-nonce"
+        connected = []
+        request = SimpleNamespace(
+            session={"google_oidc_nonces": {nonce: time.time()}},
+            _messages=_MessageSink(),
+        )
+        sociallogin = SimpleNamespace(
+            is_existing=False,
+            user=SimpleNamespace(pk=None, first_name="신청"),
+            account=SimpleNamespace(
+                provider="google",
+                extra_data={
+                    "email": "newcomer@gmail.com",
+                    "email_verified": True,
+                    "nonce": nonce,
+                },
+            ),
+            connect=lambda req, user: connected.append(user),
+        )
+
+        with self.assertRaises(ImmediateHttpResponse):
+            CustomSocialAccountAdapter().pre_social_login(request, sociallogin)
+
+        # 승인 화면이 쓰는 것과 같은 조건으로 조회한다.
+        pending = User.objects.filter(
+            role=User.Role.STUDENT, approval_status=User.ApprovalStatus.PENDING
+        )
+        self.assertEqual([user.email for user in pending], ["newcomer@gmail.com"])
+        self.assertEqual(len(connected), 1)
+        self.assertTrue(AuditEvent.objects.filter(action="SOCIAL_ACCOUNT_LINKED").exists())
+
+    def test_email_change_flag_survives_a_blocked_social_login(self):
+        """로그인이 막히더라도 이메일 재확인 표시는 남아야 한다."""
+        nonce = "one-time-nonce"
+        user = User.objects.create_user(
+            email="mismatch@gmail.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.PENDING,
+        )
+        request = SimpleNamespace(
+            session={"google_oidc_nonces": {nonce: time.time()}},
+            _messages=_MessageSink(),
+        )
+        sociallogin = SimpleNamespace(
+            is_existing=True,
+            user=SimpleNamespace(pk=user.pk),
+            account=SimpleNamespace(
+                provider="google",
+                extra_data={
+                    "email": "changed@gmail.com",
+                    "email_verified": True,
+                    "nonce": nonce,
+                },
+            ),
+        )
+
+        with self.assertRaises(ImmediateHttpResponse):
+            CustomSocialAccountAdapter().pre_social_login(request, sociallogin)
+
+        user.refresh_from_db()
+        self.assertTrue(user.email_needs_review)
 
 
 class AuthorityConstraintTests(TransactionTestCase):

@@ -48,6 +48,11 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             messages.error(request, "공급자가 확인한 이메일이 없어 로그인할 수 없습니다.")
             raise ImmediateHttpResponse(redirect("accounts:login"))
 
+        # 로그인을 막아야 하는 경우에도 여기서 바로 raise하지 않는다 - ImmediateHttpResponse도
+        # 예외라서 atomic 블록 안에서 던지면 방금 만든 가입 신청 계정·소셜 연결·감사 로그가
+        # 통째로 롤백된다(신청자는 접수 안내를 보는데 승인 대기 목록에는 안 뜬다).
+        # 커밋할 것은 커밋하고, 차단 안내는 블록을 빠져나온 뒤에 처리한다.
+        blocked_message = None
         with transaction.atomic():
             lock_canonical_email(verified_email)
             if sociallogin.is_existing:
@@ -57,48 +62,49 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                     user.save(update_fields=["email_needs_review"])
                     security_logger.warning("social_email_changed")
                 if not user.is_active or user.approval_status != User.ApprovalStatus.APPROVED:
-                    messages.warning(
-                        request, "승인되었거나 활성 상태인 계정만 로그인할 수 있습니다."
-                    )
-                    raise ImmediateHttpResponse(redirect("accounts:login"))
-                return
-
-            user = User.objects.select_for_update().filter(email=verified_email).first()
-            whitelist = (
-                WhitelistEmail.objects.select_for_update().filter(email=verified_email).first()
-            )
-            created = user is None
-            if created:
-                user = User.objects.create_user(
-                    email=verified_email,
-                    password=None,
-                    _email_verified=True,
-                    first_name=(sociallogin.user.first_name or "")[:150],
-                    role=User.Role.STUDENT,
-                    is_social_account=True,
-                    approval_status=(
-                        User.ApprovalStatus.APPROVED if whitelist else User.ApprovalStatus.PENDING
-                    ),
-                    session_info=whitelist.session_info if whitelist else "",
-                    # 소셜 가입자도 승인 뒤 온보딩에서 이름·기수·연락처를 직접 채운다.
-                    is_onboarded=False,
+                    blocked_message = "승인되었거나 활성 상태인 계정만 로그인할 수 있습니다."
+            else:
+                user = User.objects.select_for_update().filter(email=verified_email).first()
+                whitelist = (
+                    WhitelistEmail.objects.select_for_update().filter(email=verified_email).first()
                 )
-            sociallogin.connect(request, user)
-            # AUD-001: 소셜 계정 최초 연결을 남긴다. AUD-002에 따라 code·token·state·nonce는
-            # 기록하지 않고 공급자 이름과 계정 생성 여부만 남긴다.
-            record_event(
-                action="SOCIAL_ACCOUNT_LINKED",
-                target=user,
-                actor=user,
-                summary={
-                    "provider": sociallogin.account.provider,
-                    "account_created": created,
-                    "approval_status": user.approval_status,
-                },
-            )
-            if user.approval_status != User.ApprovalStatus.APPROVED:
-                messages.warning(request, "가입 신청이 접수되었습니다. 튜터 승인을 기다려주세요.")
-                raise ImmediateHttpResponse(redirect("accounts:login"))
+                created = user is None
+                if created:
+                    user = User.objects.create_user(
+                        email=verified_email,
+                        password=None,
+                        _email_verified=True,
+                        first_name=(sociallogin.user.first_name or "")[:150],
+                        role=User.Role.STUDENT,
+                        is_social_account=True,
+                        approval_status=(
+                            User.ApprovalStatus.APPROVED
+                            if whitelist
+                            else User.ApprovalStatus.PENDING
+                        ),
+                        session_info=whitelist.session_info if whitelist else "",
+                        # 소셜 가입자도 승인 뒤 온보딩에서 이름·기수·연락처를 직접 채운다.
+                        is_onboarded=False,
+                    )
+                sociallogin.connect(request, user)
+                # AUD-001: 소셜 계정 최초 연결을 남긴다. AUD-002에 따라 code·token·state·nonce는
+                # 기록하지 않고 공급자 이름과 계정 생성 여부만 남긴다.
+                record_event(
+                    action="SOCIAL_ACCOUNT_LINKED",
+                    target=user,
+                    actor=user,
+                    summary={
+                        "provider": sociallogin.account.provider,
+                        "account_created": created,
+                        "approval_status": user.approval_status,
+                    },
+                )
+                if user.approval_status != User.ApprovalStatus.APPROVED:
+                    blocked_message = "가입 신청이 접수되었습니다. 튜터 승인을 기다려주세요."
+
+        if blocked_message is not None:
+            messages.warning(request, blocked_message)
+            raise ImmediateHttpResponse(redirect("accounts:login"))
 
     def save_user(self, request, sociallogin, form=None):
         if sociallogin.user.pk:
