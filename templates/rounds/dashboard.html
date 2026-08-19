@@ -53,10 +53,20 @@
       <div class="card-body-custom">
         <div class="row g-3 mb-3">
           <div class="col-md-6">
-            <div class="p-3 border rounded-3">팀 평가 <strong class="float-end">{{ progress.team_completed }}/{{ progress.team_expected }}</strong></div>
+            <button type="button"
+                    class="p-3 border rounded-3 w-100 text-start bg-transparent ax-dashboard-eval-trigger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#tutorTeamEvalModal">
+              팀 평가 <strong class="float-end">{{ progress.team_completed }}/{{ progress.team_expected }}</strong>
+            </button>
           </div>
           <div class="col-md-6">
-            <div class="p-3 border rounded-3">개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong></div>
+            <button type="button"
+                    class="p-3 border rounded-3 w-100 text-start bg-transparent ax-dashboard-eval-trigger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#tutorPeerEvalModal">
+              개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong>
+            </button>
           </div>
         </div>
         <a href="{% url 'rounds:reviews' current_round.pk %}"
@@ -85,4 +95,98 @@
     <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>회차</th><th>참가자</th><th>팀</th><th>채점</th><th></th></tr></thead><tbody>{% for item in completed_rounds %}<tr><td>{{ item.title }}</td><td>{{ item.participant_count }}명</td><td>{{ item.team_count }}팀</td><td>{% if item.active_runs %}완료{% else %}대기{% endif %}</td><td class="text-end"><a href="{% url 'rounds:results' item.pk %}"
    class="btn btn-sm btn-outline-primary">결과 관리</a></td></tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">완료된 회차가 없습니다.</td></tr>{% endfor %}</tbody></table></div>
   </section>
+{% endblock %}
+{% block modals %}
+  {% if current_round %}
+    <div class="modal fade"
+         id="tutorTeamEvalModal"
+         tabindex="-1"
+         aria-labelledby="tutorTeamEvalTitle"
+         aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom px-4 py-3">
+            <div>
+              <h6 class="modal-title fw-bold mb-0" id="tutorTeamEvalTitle">튜터 팀 평가 (목업)</h6>
+              <div class="text-muted font-size-115">{{ current_round.title }}</div>
+            </div>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="alert alert-info font-size-115 mb-3">
+              <i class="bi bi-info-circle me-1"></i>화면 구성을 확인하는 목업입니다. 아직 실제로 저장되지 않습니다.
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">평가 대상 팀</label>
+              <select class="form-select" disabled>
+                <option>1팀</option>
+                <option>2팀</option>
+              </select>
+            </div>
+            {% include "rounds/_tutor_eval_rating_rows.html" %}
+            <div class="mb-0">
+              <label class="form-label">코멘트</label>
+              <textarea class="form-control"
+                        rows="2"
+                        disabled
+                        placeholder="팀에 대한 의견을 남겨 주세요 (목업)"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer border-top-0 px-4 pb-4">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+            <button type="button" class="btn btn-ax-primary" disabled>저장 (목업)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade"
+         id="tutorPeerEvalModal"
+         tabindex="-1"
+         aria-labelledby="tutorPeerEvalTitle"
+         aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom px-4 py-3">
+            <div>
+              <h6 class="modal-title fw-bold mb-0" id="tutorPeerEvalTitle">튜터 개인 평가 (목업)</h6>
+              <div class="text-muted font-size-115">{{ current_round.title }}</div>
+            </div>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="alert alert-info font-size-115 mb-3">
+              <i class="bi bi-info-circle me-1"></i>화면 구성을 확인하는 목업입니다. 아직 실제로 저장되지 않습니다.
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">평가 대상 수강생</label>
+              <select class="form-select" disabled>
+                <option>학생1 (1팀)</option>
+                <option>학생2 (1팀)</option>
+                <option>학생3 (2팀)</option>
+                <option>학생4 (2팀)</option>
+              </select>
+            </div>
+            {% include "rounds/_tutor_eval_rating_rows.html" %}
+            <div class="mb-0">
+              <label class="form-label">코멘트</label>
+              <textarea class="form-control"
+                        rows="2"
+                        disabled
+                        placeholder="학생에 대한 의견을 남겨 주세요 (목업)"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer border-top-0 px-4 pb-4">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+            <button type="button" class="btn btn-ax-primary" disabled>저장 (목업)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 {% endblock %}

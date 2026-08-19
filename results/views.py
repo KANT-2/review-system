@@ -16,7 +16,7 @@ from results.application import (
     toggle_publication,
 )
 from results.models import CalculationRun, EvaluationResult
-from results.services import PEER_WEIGHT, TEAM_WEIGHT, round_to_display
+from results.services import round_to_display
 from rounds.models import EvaluationRound
 
 # 상위 몇 개까지 펼친 채로 접을지 (팀 순위 / 개인 결과 공통).
@@ -88,8 +88,9 @@ def manage_results(request, round_id):
             "individual_head": individual_results[:VISIBLE_ROW_COUNT],
             "individual_rest": individual_results[VISIBLE_ROW_COUNT:],
             "summary": _build_summary(round_obj, team_results, individual_results),
-            "team_weight_percent": int(TEAM_WEIGHT * 100),
-            "peer_weight_percent": int(PEER_WEIGHT * 100),
+            "team_weight_percent": round_obj.team_score_weight,
+            "peer_weight_percent": round_obj.personal_score_weight,
+            "tutor_weight_percent": round_obj.tutor_score_weight,
             "has_partial": any(
                 result.data_status == EvaluationResult.DataStatus.PARTIAL
                 for result in team_results + individual_results

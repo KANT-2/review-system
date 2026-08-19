@@ -131,6 +131,12 @@ class EvaluationRound(models.Model):
     evaluation_start_at = models.DateTimeField()
     evaluation_end_at = models.DateTimeField()
     target_team_count = models.PositiveSmallIntegerField(default=2)
+    # 최종 점수 반영 비율(%) - 세 값의 합은 항상 100이어야 한다(clean()·DB 제약 둘 다 검증).
+    # 기본값 40/60/0은 튜터 점수를 안 쓰는 기존 계산식(results.services 팀 40%+개인 60%)과
+    # 같다 - tutor_score_weight가 0이면 채점 결과도 기존과 동일하다.
+    team_score_weight = models.PositiveSmallIntegerField(default=40)
+    personal_score_weight = models.PositiveSmallIntegerField(default=60)
+    tutor_score_weight = models.PositiveSmallIntegerField(default=0)
     team_template = models.ForeignKey(
         QuestionTemplate,
         null=True,
@@ -165,6 +171,20 @@ class EvaluationRound(models.Model):
             models.CheckConstraint(
                 condition=Q(target_team_count__gte=2), name="rounds_target_team_count_minimum"
             ),
+            models.CheckConstraint(
+                condition=Q(team_score_weight__gte=0, team_score_weight__lte=100)
+                & Q(personal_score_weight__gte=0, personal_score_weight__lte=100)
+                & Q(tutor_score_weight__gte=0, tutor_score_weight__lte=100),
+                name="rounds_score_weight_range",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    team_score_weight=100
+                    - models.F("personal_score_weight")
+                    - models.F("tutor_score_weight")
+                ),
+                name="rounds_score_weight_sums_to_100",
+            ),
             models.UniqueConstraint(
                 fields=("status",),
                 condition=Q(status="IN_PROGRESS"),
@@ -186,6 +206,11 @@ class EvaluationRound(models.Model):
             errors["team_template"] = "팀 평가 템플릿을 선택해 주세요."
         if self.peer_template_id and self.peer_template.category != QuestionTemplate.Category.PEER:
             errors["peer_template"] = "개인 평가 템플릿을 선택해 주세요."
+        weight_total = self.team_score_weight + self.personal_score_weight + self.tutor_score_weight
+        if weight_total != 100:
+            errors["team_score_weight"] = (
+                f"팀·개인·튜터 점수 비율의 합은 100%여야 합니다 (현재 {weight_total}%)."
+            )
         if errors:
             raise ValidationError(errors)
 
