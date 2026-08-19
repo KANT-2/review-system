@@ -9,7 +9,18 @@ oaknamu.com {
 		max_size 10MB
 	}
 
-	reverse_proxy app:8000
+	# 업로드된 파일(프로필 사진)은 앱을 거치지 않고 볼륨에서 바로 내려준다.
+	# Django가 응답하지 않으므로 SecurityMiddleware가 붙여 주던 nosniff를 여기서 직접 준다.
+	handle_path /media/* {
+		root * /srv/media
+		file_server
+		header X-Content-Type-Options nosniff
+		header Cache-Control "public, max-age=604800"
+	}
+
+	handle {
+		reverse_proxy app:8000
+	}
 }
 
 www.oaknamu.com {
