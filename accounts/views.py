@@ -589,12 +589,16 @@ TRUE_VALUES = {"1", "true", "on", "yes"}
 @login_required
 @require_POST
 def update_profile_api(request):
-    data = _safe_json(request)
-    if data is None:
-        if request.content_type == "application/json":
+    # request.body는 multipart 업로드에서도 전체 페이로드를 메모리로 읽어
+    # DATA_UPLOAD_MAX_MEMORY_SIZE 검사에 걸리게 만든다. 파일이 함께 오는
+    # multipart 요청에서는 request.body를 건드리지 않고 request.POST를 쓴다.
+    if request.content_type == "application/json":
+        data = _safe_json(request)
+        if data is None:
             return JsonResponse(
                 {"success": False, "message": "잘못된 JSON 요청입니다."}, status=400
             )
+    else:
         data = request.POST.dict()
     allowed = {"first_name": 150, "phone_number": 20, "session_info": 50}
     for field, max_length in allowed.items():
