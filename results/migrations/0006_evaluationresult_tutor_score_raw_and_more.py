@@ -6,7 +6,6 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("results", "0005_alter_tutornote_options_remove_tutornote_updated_at_and_more"),
-        ("rounds", "0003_evaluationround_personal_score_weight_and_more"),
         ("teams", "0001_initial"),
     ]
 
