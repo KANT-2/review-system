@@ -1,0 +1,15 @@
+# 커밋 이력은 그대로 두고, git log·blame·shortlog가 보여줄 이름만 정리한다.
+# 이력을 다시 쓰지 않으므로 SHA와 기존 클론에 영향이 없다.
+# 주의: GitHub 웹 화면은 .mailmap을 참조하지 않는다(커밋 author 이메일로만 계정을 연결한다).
+
+skshdwkdvkfl55-art <moviebank1@naver.com>
+최성호 <sungho19141935@gmail.com>
+
+# 같은 이메일인데 커밋마다 이름이 갈려 한 사람이 둘로 세어지던 것을 묶는다.
+crasnec <crasnec@gmail.com>
+우동현 <a01051732737@gmail.com>
+
+# 노희주는 git 설정이 어긋난 커밋이 섞여 한 사람이 셋으로 나뉘어 있었다.
+# 두 번째 항목의 <...>는 이메일 자리에 저장소 URL이 들어간 잘못된 값이다.
+노희주 <alice0109978@naver.com> <https://github.com/hiju200208-png/ai-data-analysis.git>
+노희주 <alice0109978@naver.com> <hiju200208@gmail.com>
