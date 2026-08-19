@@ -17,6 +17,7 @@ class EmailNotificationServicesTestCase(TestCase):
         from django.utils import timezone
 
         from accounts.models import User
+
         self.user = User.objects.create_user(email="creator@example.com", password="password")
         self.round_obj = EvaluationRound.objects.create(
             title="1차 미니프로젝트 발표회",
@@ -28,7 +29,9 @@ class EmailNotificationServicesTestCase(TestCase):
 
     def test_send_tutor_announcement_email(self):
         recipients = ["studentA@example.com", "studentB@example.com"]
-        sent_count = send_tutor_announcement_email("팀 긴급 공지", "1조 발표 일정 변경 안내", recipients)
+        sent_count = send_tutor_announcement_email(
+            "팀 긴급 공지", "1조 발표 일정 변경 안내", recipients
+        )
 
         self.assertEqual(sent_count, 1)
         self.assertEqual(len(mail.outbox), 1)
@@ -56,4 +59,4 @@ class EmailNotificationServicesTestCase(TestCase):
 
         self.assertEqual(sent_count, 1)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("평가를 제출해 주세요", mail.outbox[0].subject)
+        self.assertIn("평가 제출 안내", mail.outbox[0].subject)

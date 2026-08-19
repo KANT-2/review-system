@@ -110,5 +110,5 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         request.session["auth_session_version"] = user.auth_session_version
         request.session.set_expiry(60 * 60 * 24 * 14)
         if user.role in {User.Role.TUTOR, User.Role.ADMIN}:
-            return reverse("accounts:tutor_dashboard")
+            return reverse("accounts:account_admin")
         return reverse("accounts:dashboard")

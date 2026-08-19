@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
@@ -137,3 +138,73 @@ class ReviewFinalSubmission(models.Model):
 
     def __str__(self):
         return f"{self.evaluator_id}:{self.review_type}:final"
+
+
+class TutorReview(models.Model):
+    """튜터가 수강생 한 명에게 남기는 개인 평가.
+
+    학생끼리 하는 개인 평가(ReviewSubmission)와 저장을 분리한다 - 평가자가 회차 참가자가
+    아니라 튜터 계정이고, 최종점수 계산에는 아직 반영하지 않기 때문이다(results.services의
+    TUTOR_WEIGHT 참고 - 비율이 팀 협의로 확정되면 그때 계산에 연결한다).
+
+    같은 튜터가 같은 학생을 두 번 만들지 않도록 회차·튜터·대상 조합을 유니크로 묶는다.
+    """
+
+    round = models.ForeignKey(
+        "rounds.EvaluationRound", on_delete=models.PROTECT, related_name="tutor_reviews"
+    )
+    evaluator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="tutor_reviews"
+    )
+    target_participant = models.ForeignKey(
+        "rounds.RoundParticipant",
+        on_delete=models.PROTECT,
+        related_name="received_tutor_reviews",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("target_participant__student_number_snapshot", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("round", "evaluator", "target_participant"),
+                name="reviews_tutor_review_target_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.evaluator} → {self.target_participant} (튜터)"
+
+
+class TutorReviewAnswer(models.Model):
+    review = models.ForeignKey(TutorReview, on_delete=models.CASCADE, related_name="answers")
+    question = models.ForeignKey(
+        "rounds.TemplateQuestion", on_delete=models.PROTECT, related_name="tutor_answers"
+    )
+    rating_value = models.PositiveSmallIntegerField(null=True, blank=True)
+    text_value = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("question__display_order",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("review", "question"), name="reviews_tutor_answer_question_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(rating_value__isnull=False, text_value="")
+                    | (Q(rating_value__isnull=True) & ~Q(text_value=""))
+                ),
+                name="reviews_tutor_answer_exactly_one_value",
+            ),
+            models.CheckConstraint(
+                condition=Q(rating_value__isnull=True)
+                | Q(rating_value__gte=1, rating_value__lte=5),
+                name="reviews_tutor_answer_rating_range",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.review_id}:{self.question_id}"

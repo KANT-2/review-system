@@ -6,33 +6,93 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0007_emailverificationcode'),
-        ('teams', '0001_initial'),
+        ("accounts", "0007_emailverificationcode"),
+        ("teams", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ScheduledEmail',
+            name="ScheduledEmail",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('subject', models.CharField(max_length=200, verbose_name='메일 제목')),
-                ('message', models.TextField(verbose_name='메일 내용')),
-                ('target_type', models.CharField(choices=[('ALL', '전체 수강생'), ('TEAM', '조(팀) 선택'), ('SELECT', '개인 수강생 선택'), ('SINGLE', '개별 수강생 1인')], default='ALL', max_length=20, verbose_name='발송 대상 유형')),
-                ('selected_user_ids_json', models.TextField(blank=True, default='[]', verbose_name='선택 유저 ID 목록 (JSON)')),
-                ('scheduled_at', models.DateTimeField(db_index=True, verbose_name='예약 발송 일시')),
-                ('status', models.CharField(choices=[('PENDING', '대기 중'), ('SENT', '발송 완료'), ('CANCELLED', '취소됨'), ('FAILED', '발송 실패')], db_index=True, default='PENDING', max_length=20, verbose_name='발송 상태')),
-                ('sent_at', models.DateTimeField(blank=True, null=True, verbose_name='실제 발송 일시')),
-                ('sent_count', models.IntegerField(default=0, verbose_name='발송 건수')),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='생성 일시')),
-                ('sender', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='scheduled_emails', to=settings.AUTH_USER_MODEL, verbose_name='발송자')),
-                ('target_team', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='teams.team', verbose_name='대상 조(팀)')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("subject", models.CharField(max_length=200, verbose_name="메일 제목")),
+                ("message", models.TextField(verbose_name="메일 내용")),
+                (
+                    "target_type",
+                    models.CharField(
+                        choices=[
+                            ("ALL", "전체 수강생"),
+                            ("TEAM", "조(팀) 선택"),
+                            ("SELECT", "개인 수강생 선택"),
+                            ("SINGLE", "개별 수강생 1인"),
+                        ],
+                        default="ALL",
+                        max_length=20,
+                        verbose_name="발송 대상 유형",
+                    ),
+                ),
+                (
+                    "selected_user_ids_json",
+                    models.TextField(
+                        blank=True, default="[]", verbose_name="선택 유저 ID 목록 (JSON)"
+                    ),
+                ),
+                (
+                    "scheduled_at",
+                    models.DateTimeField(db_index=True, verbose_name="예약 발송 일시"),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("PENDING", "대기 중"),
+                            ("SENT", "발송 완료"),
+                            ("CANCELLED", "취소됨"),
+                            ("FAILED", "발송 실패"),
+                        ],
+                        db_index=True,
+                        default="PENDING",
+                        max_length=20,
+                        verbose_name="발송 상태",
+                    ),
+                ),
+                (
+                    "sent_at",
+                    models.DateTimeField(blank=True, null=True, verbose_name="실제 발송 일시"),
+                ),
+                ("sent_count", models.IntegerField(default=0, verbose_name="발송 건수")),
+                ("created_at", models.DateTimeField(auto_now_add=True, verbose_name="생성 일시")),
+                (
+                    "sender",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="scheduled_emails",
+                        to=settings.AUTH_USER_MODEL,
+                        verbose_name="발송자",
+                    ),
+                ),
+                (
+                    "target_team",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to="teams.team",
+                        verbose_name="대상 조(팀)",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': '예약 이메일 공지',
-                'verbose_name_plural': '예약 이메일 공지 목록',
-                'ordering': ['-scheduled_at', '-created_at'],
+                "verbose_name": "예약 이메일 공지",
+                "verbose_name_plural": "예약 이메일 공지 목록",
+                "ordering": ["-scheduled_at", "-created_at"],
             },
         ),
     ]

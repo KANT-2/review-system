@@ -7,9 +7,9 @@
     <i class="bi bi-moon-stars" id="axThemeIcon"></i>
   </button>
   {% if user.is_authenticated and user.role == 'student' %}
-    <a href="{% url 'results:me' %}"
+    <a href="{% url 'accounts:mypage' %}"
        class="btn btn-sm btn-ax-secondary"
-       title="내 결과"><i class="bi bi-bar-chart-line"></i></a>
+       title="내 평가 결과"><i class="bi bi-bar-chart-line"></i></a>
   {% endif %}
   {% if user.is_authenticated %}
     <div class="dropdown">

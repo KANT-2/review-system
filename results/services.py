@@ -28,8 +28,9 @@ PEER_WEIGHT = Decimal("0.6")
 
 # 튜터 평가를 반영하는 회차의 대체 비율 (구축제안서 슬라이드 10 "튜터 평가 반영 시 제안
 # 기본값"). 아직 팀 협의 사항으로 미확정이라(제안서 슬라이드 22, 협의 필요 항목 #2) 값이
-# 바뀔 수 있어 상수로 분리해뒀다. 이 프로토타입은 튜터 평가 "입력" 기능 자체는 만들지 않고,
-# 계산식만 대비해둔다.
+# 바뀔 수 있어 상수로 분리해뒀다. 튜터 평가 "입력"은 구현되어 있지만(reviews.TutorReview)
+# 비율이 확정되기 전까지 채점에는 연결하지 않는다 - calculate_round는 tutor_score를 넘기지
+# 않으므로 지금은 항상 팀 40% + 개인 60%로 계산된다.
 TEAM_WEIGHT_WITH_TUTOR = Decimal("0.3")
 PEER_WEIGHT_WITH_TUTOR = Decimal("0.4")
 TUTOR_WEIGHT = Decimal("0.3")

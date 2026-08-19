@@ -1,6 +1,6 @@
 import random
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Protocol, Self
 
@@ -39,6 +39,7 @@ class AutoTeamBoardResult:
     initial_repeated_pair_count: int
     final_repeated_pair_count: int
     optimization_count: int
+    seed_scores: Mapping[int, Decimal | None] = field(default_factory=dict)
 
 
 class TeamSaveUnitOfWork(Protocol):
@@ -100,6 +101,7 @@ def create_auto_team_board(
         initial_repeated_pair_count=assignment.initial_repeated_pair_count,
         final_repeated_pair_count=assignment.final_repeated_pair_count,
         optimization_count=assignment.optimization_count,
+        seed_scores=seed_scores,
     )
 
 
@@ -109,6 +111,7 @@ def save_team_configuration(
     *,
     actor_id: int,
     imbalance_confirmed: bool = False,
+    unassigned_confirmed: bool = False,
 ) -> TeamBoard:
     """팀 구성 전체를 검증하고 하나의 원자적 작업으로 교체한다."""
     with unit_of_work:
@@ -124,6 +127,7 @@ def save_team_configuration(
             [team.participant_ids for team in board.teams],
             current_round.participant_ids,
             imbalance_confirmed=imbalance_confirmed,
+            unassigned_confirmed=unassigned_confirmed,
         )
         unit_of_work.replace_team_configuration(board)
         unit_of_work.increase_lock_version(board.round_id)

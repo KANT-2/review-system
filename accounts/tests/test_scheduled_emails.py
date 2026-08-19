@@ -9,7 +9,8 @@ from accounts.scheduler_services import (
     process_auto_submission_reminders,
     process_scheduled_emails,
 )
-from rounds.models import EvaluationRound
+from rounds.models import EvaluationRound, RoundParticipant
+from teams.models import Team, TeamMembership
 
 
 class ScheduledEmailsTestCase(TestCase):
@@ -56,6 +57,15 @@ class ScheduledEmailsTestCase(TestCase):
             evaluation_end_at=timezone.now() + timedelta(minutes=5),
             created_by=self.tutor,
         )
+        participant = RoundParticipant.objects.create(
+            round=round_obj,
+            user=self.student,
+            student_number_snapshot="EMAIL001",
+            display_name_snapshot="이메일 테스트 학생",
+        )
+        assigned_team = Team.objects.create(round=round_obj, team_number=1, name="1팀")
+        Team.objects.create(round=round_obj, team_number=2, name="2팀")
+        TeamMembership.objects.create(team=assigned_team, participant=participant)
 
         reminded_rounds_count = process_auto_submission_reminders()
 
@@ -63,7 +73,7 @@ class ScheduledEmailsTestCase(TestCase):
         self.assertEqual(reminded_rounds_count, 1)
         self.assertIsNotNone(round_obj.auto_reminder_sent_at)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("평가를 제출해 주세요", mail.outbox[0].subject)
+        self.assertIn("평가 제출 안내", mail.outbox[0].subject)
 
         # 2번째 실행 시 중복 독촉 메일이 발송되지 않는지 검증
         mail.outbox.clear()

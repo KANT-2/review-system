@@ -8,7 +8,10 @@ from teams.application import (
     save_team_configuration,
 )
 from teams.domain import TeamBoard, TeamDraft
-from teams.services import AssignmentValidationError, ImbalanceConfirmationRequired
+from teams.services import (
+    ImbalanceConfirmationRequired,
+    UnassignedParticipantsConfirmationRequired,
+)
 
 
 class FakeTeamSaveUnitOfWork:
@@ -132,9 +135,11 @@ class SaveTeamConfigurationTests(TestCase):
         with self.assertRaises(RoundNotEditableError):
             save_team_configuration(self.original_board, unit_of_work, actor_id=900)
 
-    def test_rejects_missing_participant(self):
+    def test_requires_confirmation_for_unassigned_participant(self):
+        # 아직 다 배정하지 못한 채로도 저장할 수 있어야 하지만, 확인 없이 조용히
+        # 넘어가서는 안 된다 - 인원 불균형과 같은 재확인 패턴을 따른다.
         unit_of_work = FakeTeamSaveUnitOfWork(self.current_round)
-        invalid_board = TeamBoard(
+        incomplete_board = TeamBoard(
             round_id=1,
             lock_version=3,
             teams=(
@@ -144,10 +149,22 @@ class SaveTeamConfigurationTests(TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(AssignmentValidationError, r"missing: \[106\]"):
-            save_team_configuration(invalid_board, unit_of_work, actor_id=900)
-
+        with self.assertRaises(UnassignedParticipantsConfirmationRequired):
+            save_team_configuration(incomplete_board, unit_of_work, actor_id=900)
         self.assertIsNone(unit_of_work.saved_board)
+
+        saved_board = save_team_configuration(
+            incomplete_board,
+            unit_of_work,
+            actor_id=900,
+            unassigned_confirmed=True,
+        )
+
+        self.assertEqual(saved_board.lock_version, 4)
+        self.assertEqual(
+            [team.participant_ids for team in unit_of_work.saved_board.teams],
+            [(101, 102), (103, 104), (105,)],
+        )
 
     def test_requires_confirmation_for_large_size_imbalance(self):
         unit_of_work = FakeTeamSaveUnitOfWork(self.current_round)

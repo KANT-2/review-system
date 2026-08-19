@@ -140,6 +140,51 @@ def get_review_progress(round_obj):
     )
 
 
+def participant_progress_rows(round_obj):
+    """회차 참가자별 팀·개인 평가 제출 현황을 반환한다."""
+    team_count = round_obj.teams.count()
+    completed = (
+        ReviewSubmission.objects.filter(round=round_obj)
+        .values("evaluator_id", "review_type")
+        .annotate(count=Count("id"))
+    )
+    completed_map = {(row["evaluator_id"], row["review_type"]): row["count"] for row in completed}
+    rows = []
+    participants = round_obj.participants.select_related("team_membership__team", "user").all()
+    for participant in participants:
+        team_size = (
+            participant.team_membership.team.memberships.count()
+            if hasattr(participant, "team_membership")
+            else 0
+        )
+        team_expected = max(team_count - 1, 0)
+        peer_expected = max(team_size - 1, 0)
+        rows.append(
+            {
+                "participant": participant,
+                "team_expected": team_expected,
+                "team_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
+                ),
+                "peer_expected": peer_expected,
+                "peer_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
+                ),
+            }
+        )
+    return rows
+
+
+def pending_participant_rows(round_obj):
+    """팀·개인 평가 중 하나라도 덜 제출한 참가자 행만 반환한다."""
+    return [
+        row
+        for row in participant_progress_rows(round_obj)
+        if row["team_completed"] < row["team_expected"]
+        or row["peer_completed"] < row["peer_expected"]
+    ]
+
+
 @transaction.atomic
 def complete_round(*, round_id, actor, force_confirmed=False):
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
@@ -173,15 +218,19 @@ def rounds_dashboard_rows():
 
 
 def question_template_rows():
-    """템플릿 목록 화면용 - 문항 수와 사용 중(잠금) 여부를 함께 계산한다."""
+    """템플릿 목록 화면용 - 문항 수, 사용 중(잠금) 여부, 복제본 유무를 함께 계산한다."""
     templates = (
-        QuestionTemplate.objects.annotate(question_count=Count("questions"))
+        QuestionTemplate.objects.annotate(
+            question_count=Count("questions", distinct=True),
+            copy_count=Count("copies", distinct=True),
+        )
         .select_related("created_by")
         .order_by("category", "name")
     )
     rows = []
     for template in templates:
         template.locked = template.is_locked
+        template.has_copies = template.copy_count > 0
         rows.append(template)
     return rows
 
@@ -244,6 +293,7 @@ def copy_question_template(*, template_id, actor):
             template=copy,
             response_type=question.response_type,
             prompt=question.prompt,
+            competency=question.competency,
             is_required=question.is_required,
             display_order=question.display_order,
         )
@@ -263,6 +313,12 @@ def delete_question_template(*, template_id, actor):
         raise ValidationError("시작된 회차가 사용하는 템플릿은 삭제할 수 없습니다.")
     if template.team_rounds.exists() or template.peer_rounds.exists():
         raise ValidationError("준비 중인 회차가 사용하고 있어 삭제할 수 없습니다.")
+    # copied_from은 복제 계보를 남기는 PROTECT FK다(docs/DATABASE-DESIGN.md). 원본을 그냥
+    # 지우면 DB가 막아 500이 나므로, 화면에서 무엇을 먼저 지워야 하는지 알려준다.
+    if template.copies.exists():
+        raise ValidationError(
+            "이 템플릿을 복제한 템플릿이 있어 삭제할 수 없습니다. 복제본을 먼저 삭제해 주세요."
+        )
     record_event(
         action="QUESTION_TEMPLATE_DELETED",
         target=template,

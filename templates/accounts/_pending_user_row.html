@@ -1,0 +1,13 @@
+<tr>
+  <td class="text-center">
+    <input class="form-check-input ax-pending-check"
+           type="checkbox"
+           name="user_ids"
+           value="{{ pending_user.id }}"
+           aria-label="{{ pending_user.email }} 선택">
+  </td>
+  <td class="fw-semibold">{{ pending_user.first_name|default:"이름 미입력" }}</td>
+  <td>{{ pending_user.email }}</td>
+  <td>{{ pending_user.login_provider|upper }}</td>
+  <td>{{ pending_user.date_joined|date:"Y-m-d H:i" }}</td>
+</tr>

@@ -1,22 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}팀 편성 | AX Evaluation Console{% endblock %}
+{% block title %}{% if role == "student" %}내 팀{% else %}프로젝트 팀 편성{% endif %} | AX Evaluation Console{% endblock %}
 {% block content %}
   <link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">
   <div class="teams-workspace">
-    <div class="teams-heading d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <div>
-        <span id="statusBadge" class="teams-status"></span>
-        <h1>프로젝트 팀 편성</h1>
-        <p id="pageDescription"></p>
-      </div>
-      <div class="d-flex gap-2">
-        <a href="{% url 'rounds:list' %}" class="btn btn-ax-secondary btn-sm">📋 회차 목록으로</a>
-        <form method="post" action="{% url 'rounds:start' team_data.round_id %}" onsubmit="return confirm('평가를 시작합니다. 수강생들이 평가를 제출할 수 있게 됩니다. 계속할까요?')">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-success btn-sm fw-bold"><i class="bi bi-play-fill me-1"></i>🚀 평가 시작하기</button>
-        </form>
-      </div>
+    <div class="teams-heading">
+      <span id="statusBadge" class="teams-status"></span>
+      <h1>{% if role == "student" %}내 팀{% else %}프로젝트 팀 편성{% endif %}</h1>
+      <p id="pageDescription"></p>
     </div>
     <section id="toolbar" class="teams-toolbar" hidden>
       <label for="teamCount">
@@ -44,6 +35,14 @@
               disabled>변경 취소</button>
       <button id="saveButton" class="btn btn-primary btn-sm" type="button" disabled>저장</button>
     </section>
+    <div id="saveNotice"
+         class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-3"
+         hidden>
+      <span>
+        <i class="bi bi-check-circle-fill me-1"></i>팀 편성을 저장했습니다. 다음은 회차 시작입니다.
+      </span>
+      <a id="saveNoticeLink" class="btn btn-sm btn-primary" href="#">다음 단계: 회차 진행 현황</a>
+    </div>
     <div id="unassignedArea"></div>
     <section id="board" class="teams-board">
       <div id="teamRows"></div>
@@ -58,6 +57,6 @@
   </div>
   {{ team_data|json_script:"teams-initial-data" }}
   {% comment %}CSRF 쿠키가 HttpOnly라 스크립트가 읽을 수 없으므로 토큰을 페이지로 내려준다.{% endcomment %}
-  <script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }},csrfToken:"{{ csrf_token }}"};</script>
+  <script>window.TEAMS_PAGE={role:"{{ role }}",myParticipantId:{{ my_participant_id|default_if_none:"null" }},autoUrl:"{{ auto_url|default:'' }}",saveUrl:"{{ save_url|default:'' }}",nextUrl:"{{ next_url|default:'' }}",previewMode:{{ preview_mode|yesno:"true,false" }},csrfToken:"{{ csrf_token }}"};</script>
   <script src="{% static 'teams/js/workspace.js' %}"></script>
 {% endblock %}

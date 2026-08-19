@@ -11,20 +11,28 @@
   </div>
   <div class="row g-3 mb-4">
     <div class="col-md-4">
+      {% if current_round %}
+        <a href="{% url 'rounds:reviews' current_round.pk %}"
+           class="card-link h-100">
+      {% endif %}
       <div class="card-custom h-100">
         <div class="card-body-custom">
           <div class="text-muted small">현재 진행 회차</div>
           <div class="fs-5 fw-bold mt-2">{{ current_round.title|default:"없음" }}</div>
         </div>
       </div>
+      {% if current_round %}</a>{% endif %}
     </div>
     <div class="col-md-4">
-      <div class="card-custom h-100">
-        <div class="card-body-custom">
-          <div class="text-muted small">가입 승인 대기</div>
-          <div class="fs-3 fw-bold text-warning">{{ pending_approvals }}명</div>
+      <a href="{% url 'accounts:account_admin' %}?status=pending"
+         class="card-link h-100">
+        <div class="card-custom h-100">
+          <div class="card-body-custom">
+            <div class="text-muted small">가입 승인 대기</div>
+            <div class="fs-3 fw-bold text-warning">{{ pending_approvals }}명</div>
+          </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-md-4">
       <div class="card-custom h-100">
@@ -50,10 +58,8 @@
             <div class="p-3 border rounded-3">개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong></div>
           </div>
         </div>
-        <div class="d-flex gap-2 mt-3">
-          <a href="{% url 'rounds:reviews' current_round.pk %}"
-             class="btn btn-warning fw-bold text-dark"><i class="bi bi-play-circle-fill me-1"></i>🚀 평가 현황 및 마감·채점 실행</a>
-        </div>
+        <a href="{% url 'rounds:reviews' current_round.pk %}"
+           class="btn btn-ax-primary">제출 현황 및 마감</a>
       </div>
     </section>
   {% elif latest_draft %}

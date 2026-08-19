@@ -8,8 +8,8 @@ from accounts.email_services import (
     send_tutor_announcement_email,
 )
 from accounts.models import ScheduledEmail, User
-from reviews.models import ReviewSubmission
 from rounds.models import EvaluationRound
+from rounds.services import pending_participant_rows
 
 
 def process_scheduled_emails():
@@ -33,15 +33,20 @@ def process_scheduled_emails():
                             "participant__user__email", flat=True
                         )
                     )
-            elif scheduled_item.target_type == ScheduledEmail.TargetType.SELECT:
+            elif scheduled_item.target_type in {
+                ScheduledEmail.TargetType.SELECT,
+                ScheduledEmail.TargetType.SINGLE,
+            }:
                 try:
                     user_ids = json.loads(scheduled_item.selected_user_ids_json or "[]")
                 except Exception:
                     user_ids = []
                 recipient_emails = list(
-                    User.objects.filter(id__in=user_ids, is_active=True).values_list(
-                        "email", flat=True
-                    )
+                    User.objects.filter(
+                        id__in=user_ids,
+                        role=User.Role.STUDENT,
+                        is_active=True,
+                    ).values_list("email", flat=True)
                 )
             else:
                 # ALL 또는 default
@@ -89,19 +94,12 @@ def process_auto_submission_reminders():
 
     auto_reminded_rounds = 0
     for round_obj in rounds_to_remind:
-        # 해당 회차의 전체 active 수강생 탐색
-        students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
-
-        for student in students:
-            # 수강생 제출 완료 여부 확인
-            is_submitted = ReviewSubmission.objects.filter(
-                round=round_obj,
-                evaluator__user=student,
-            ).exists()
-
-            if not is_submitted:
-                name = student.first_name if student.first_name else student.email
-                send_submission_reminder_email(round_obj, name, student.email)
+        for row in pending_participant_rows(round_obj):
+            student = row["participant"].user
+            if not student.is_active or not student.email:
+                continue
+            name = student.first_name if student.first_name else student.email
+            send_submission_reminder_email(round_obj, name, student.email)
 
         round_obj.auto_reminder_sent_at = now
         round_obj.save(update_fields=["auto_reminder_sent_at"])

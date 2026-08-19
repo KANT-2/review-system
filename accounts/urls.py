@@ -12,22 +12,34 @@ urlpatterns = [
     path("onboarding/", views.onboarding_view, name="onboarding"),
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("mypage/", views.mypage_view, name="mypage"),
-    path("tutor/dashboard/", views.tutor_dashboard, name="tutor_dashboard"),
-    path("tutor/accounts/", views.account_admin, name="account_admin"),
     path(
-        "tutor/accounts/<int:user_id>/profile/",
-        views.account_profile_update,
-        name="account_profile_update",
+        "mypage/rounds/<int:round_id>/result.csv",
+        views.mypage_round_result_csv,
+        name="mypage_round_result_csv",
+    ),
+    path("tutor/accounts/", views.account_admin, name="account_admin"),
+    # note 경로는 account_action의 <str:action>에 먹히지 않도록 먼저 선언한다.
+    path("tutor/accounts/<int:user_id>/note/", views.save_student_note, name="save_student_note"),
+    path(
+        "tutor/accounts/<int:user_id>/note/<int:note_id>/delete/",
+        views.delete_student_note,
+        name="delete_student_note",
+    ),
+    path(
+        "tutor/accounts/<int:user_id>/note/delete-all/",
+        views.delete_all_student_notes,
+        name="delete_all_student_notes",
     ),
     path(
         "tutor/accounts/<int:user_id>/<str:action>/",
         views.account_action,
         name="account_action",
     ),
-    path("tutor/whitelist/", views.whitelist_view, name="whitelist"),
+    path("tutor/whitelist/", views.whitelist_add, name="whitelist_add"),
     path("tutor/whitelist/<int:entry_id>/delete/", views.whitelist_delete, name="whitelist_delete"),
     path("tutor/approve/<int:user_id>/", views.approve_user, name="approve_user"),
     path("tutor/reject/<int:user_id>/", views.reject_user, name="reject_user"),
+    path("tutor/approvals/bulk/", views.bulk_approval, name="bulk_approval"),
     path("api/onboarding/", views.api_onboarding, name="api_onboarding"),
     path("api/signup/", views.signup_api, name="api_signup"),
     path(
@@ -39,9 +51,12 @@ urlpatterns = [
     path("api/users/<int:user_id>/approve/", views.approve_user_api, name="api_approve_user"),
     path("api/users/<int:user_id>/reject/", views.reject_user_api, name="api_reject_user"),
     path("tutor/announcement/send/", views.send_tutor_announcement_view, name="send_announcement"),
-    path("tutor/announcement/cancel/<int:email_id>/", views.cancel_scheduled_email_view, name="cancel_scheduled_email"),
+    path(
+        "tutor/announcement/cancel/<int:email_id>/",
+        views.cancel_scheduled_email_view,
+        name="cancel_scheduled_email",
+    ),
     path("api/profile/update/", views.update_profile_api, name="api_update_profile"),
     path("api/email/send-code/", views.api_send_email_code, name="api_send_email_code"),
     path("api/email/verify-code/", views.api_verify_email_code, name="api_verify_email_code"),
 ]
-

@@ -1,37 +1,62 @@
 {% extends "base.html" %}
-{% block title %}계정 관리 | AX Evaluation Console{% endblock %}
-{% block breadcrumb %}계정 관리{% endblock %}
+{% load static %}
+{% block title %}수강생 관리 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}수강생 관리{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
-      <h1 class="page-title">계정 관리</h1>
-      <p class="page-desc">승인 상태와 활성 여부, 역할을 관리하고 수강생에게 이메일 알림을 보냅니다.</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{% url 'audit:log' %}" class="btn btn-outline-info"><i class="bi bi-clock-history me-1"></i>📜 감사 로그 보기</a>
+      <h1 class="page-title">수강생 관리</h1>
+      <p class="page-desc">승인 대기, 전체 계정, 사전 등록 명단을 한 화면에서 관리합니다. 상태를 바꾸면 해당 계정의 기존 로그인 세션이 끊깁니다.</p>
     </div>
   </div>
-
   <!-- 수강생 이메일 공지 발송 폼 카드 -->
-  <section class="card-custom mb-4" style="background-color: #0F172A; border: 1px solid #1E293B; border-radius: 12px; overflow: hidden;">
-    <div class="card-header-custom" style="background-color: #1E293B; border-bottom: 1px solid #334155; padding: 14px 20px;">
-      <div class="card-title-custom" style="color: #FFFFFF; font-weight: 700; font-size: 15px;"><i class="bi bi-envelope-fill text-primary me-2"></i> 📢 수강생 공지 이메일 발송</div>
+  <section class="card-custom mb-4"
+           style="background-color: #0F172A;
+                  border: 1px solid #1E293B;
+                  border-radius: 12px;
+                  overflow: hidden">
+    <div class="card-header-custom"
+         style="background-color: #1E293B;
+                border-bottom: 1px solid #334155;
+                padding: 14px 20px">
+      <div class="card-title-custom"
+           style="color: #FFFFFF;
+                  font-weight: 700;
+                  font-size: 15px"><i class="bi bi-envelope-fill text-primary me-2"></i> 📢 수강생 공지 이메일 발송</div>
     </div>
     <div class="card-body-custom p-4" style="background-color: #0F172A;">
-      <form action="{% url 'accounts:send_announcement' %}" method="post" id="announcement_form">
+      <form action="{% url 'accounts:send_announcement' %}"
+            method="post"
+            id="announcement_form">
         {% csrf_token %}
         <div class="row g-3 mb-3">
           <div class="col-md-3">
-            <label for="send_target_type" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 대상 선택</label>
-            <select id="send_target_type" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" onchange="toggleSendTargetUI(this.value)">
+            <label for="send_target_type"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">발송 대상 선택</label>
+            <select id="send_target_type"
+                    class="form-select form-select-sm"
+                    style="background-color: #1E293B;
+                           color: #FFFFFF !important;
+                           border: 1px solid #334155"
+                    onchange="toggleSendTargetUI(this.value)">
               <option value="all">👥 전체 수강생 대상 발송</option>
               <option value="team">🏕️ 특정 조(팀) 선택 발송</option>
               <option value="select">☑️ 아래 목록에서 체크한 개인 수강생 발송</option>
             </select>
           </div>
           <div class="col-md-3" id="team_select_wrapper" style="display: none;">
-            <label for="target_team_id" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 대상 조(팀) {% if current_round_title %}<span class="badge bg-info text-dark font-size-115">{{ current_round_title }}</span>{% endif %}</label>
-            <select id="target_team_id" name="target_team_id" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;">
+            <label for="target_team_id"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">발송 대상 조(팀) {% if current_round_title %}<span class="badge bg-info text-dark font-size-115">{{ current_round_title }}</span>{% endif %}</label>
+            <select id="target_team_id"
+                    name="target_team_id"
+                    class="form-select form-select-sm"
+                    style="background-color: #1E293B;
+                           color: #FFFFFF !important;
+                           border: 1px solid #334155">
               <option value="">-- 발송할 조(팀) 선택 --</option>
               {% for team in teams %}
                 <option value="{{ team.pk }}">{{ team.name }} (팀원 {{ team.memberships.count }}명)</option>
@@ -41,30 +66,75 @@
             </select>
           </div>
           <div class="col-md-3">
-            <label for="send_type" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">발송 시점 선택</label>
-            <select id="send_type" name="send_type" class="form-select form-select-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" onchange="toggleScheduleTimeUI(this.value)">
+            <label for="send_type"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">발송 시점 선택</label>
+            <select id="send_type"
+                    name="send_type"
+                    class="form-select form-select-sm"
+                    style="background-color: #1E293B;
+                           color: #FFFFFF !important;
+                           border: 1px solid #334155"
+                    onchange="toggleScheduleTimeUI(this.value)">
               <option value="now">⚡ 즉시 발송</option>
               <option value="scheduled">📅 예약 발송</option>
             </select>
           </div>
           <div class="col-md-3" id="schedule_time_wrapper" style="display: none;">
-            <label for="scheduled_at" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">예약 날짜 & 시간</label>
-            <input type="datetime-local" id="scheduled_at" name="scheduled_at" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;">
+            <label for="scheduled_at"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">예약 날짜 & 시간</label>
+            <input type="datetime-local"
+                   id="scheduled_at"
+                   name="scheduled_at"
+                   class="form-control form-control-sm"
+                   style="background-color: #1E293B;
+                          color: #FFFFFF !important;
+                          border: 1px solid #334155">
           </div>
         </div>
         <div class="row g-3">
           <div class="col-md-9">
-            <label for="email_subject" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 제목</label>
-            <input type="text" id="email_subject" name="subject" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내" required>
+            <label for="email_subject"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">메일 제목</label>
+            <input type="text"
+                   id="email_subject"
+                   name="subject"
+                   class="form-control form-control-sm"
+                   style="background-color: #1E293B;
+                          color: #FFFFFF !important;
+                          border: 1px solid #334155"
+                   placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내"
+                   required>
           </div>
           <div class="col-md-3 d-flex align-items-end">
-            <button type="submit" id="submit_email_btn" class="btn btn-primary btn-sm w-100 fw-bold" style="background-color: #1769E0; border: none; padding: 7px 12px;">✉️ 공지 이메일 발송</button>
+            <button type="submit"
+                    id="submit_email_btn"
+                    class="btn btn-primary btn-sm w-100 fw-bold"
+                    style="background-color: #1769E0;
+                           border: none;
+                           padding: 7px 12px">✉️ 공지 이메일 발송</button>
           </div>
         </div>
         <div class="row g-3 mt-1">
           <div class="col-md-12">
-            <label for="email_message" class="form-label fw-bold" style="color: #E2E8F0; font-size: 13px;">메일 내용</label>
-            <input type="text" id="email_message" name="message" class="form-control form-control-sm" style="background-color: #1E293B; color: #FFFFFF !important; border: 1px solid #334155;" placeholder="수강생들에게 발송할 공지 메시지를 입력하세요" required>
+            <label for="email_message"
+                   class="form-label fw-bold"
+                   style="color: #E2E8F0;
+                          font-size: 13px">메일 내용</label>
+            <input type="text"
+                   id="email_message"
+                   name="message"
+                   class="form-control form-control-sm"
+                   style="background-color: #1E293B;
+                          color: #FFFFFF !important;
+                          border: 1px solid #334155"
+                   placeholder="수강생들에게 발송할 공지 메시지를 입력하세요"
+                   required>
           </div>
         </div>
         <!-- 체크박스 다중 선택 전송용 숨겨진 input 컨테이너 -->
@@ -72,51 +142,147 @@
       </form>
     </div>
   </section>
-
   <!-- 📅 예약된 공지 이메일 목록 카드 -->
   {% if scheduled_emails %}
-  <section class="card-custom mb-4" style="background-color: #0F172A; border: 1px solid #334155; border-radius: 12px; overflow: hidden;">
-    <div class="card-header-custom" style="background-color: #1E293B; border-bottom: 1px solid #334155; padding: 14px 20px;">
-      <div class="card-title-custom" style="color: #FFFFFF; font-weight: 700; font-size: 15px;"><i class="bi bi-calendar-event-fill text-warning me-2"></i> 📅 예약 대기 중인 공지 이메일 ({{ scheduled_emails|length }}건)</div>
-    </div>
-    <div class="table-responsive">
-      <table class="table align-middle mb-0 text-white">
-        <thead style="background-color: #1E293B; color: #94A3B8;">
-          <tr>
-            <th scope="col" class="ps-3">예약 시각</th>
-            <th scope="col">발송 대상</th>
-            <th scope="col">메일 제목</th>
-            <th scope="col">메일 내용</th>
-            <th scope="col" class="text-end pe-3">취소 관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in scheduled_emails %}
-            <tr style="border-bottom: 1px solid #334155;">
-              <td class="ps-3 fw-bold text-warning">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
-              <td>
-                <span class="badge bg-secondary">{{ item.get_target_type_display }}</span>
-                {% if item.target_team %}<span class="badge bg-info text-dark ms-1">{{ item.target_team.name }}</span>{% endif %}
-              </td>
-              <td class="fw-semibold">{{ item.subject }}</td>
-              <td class="text-truncate" style="max-width: 250px;">{{ item.message }}</td>
-              <td class="text-end pe-3">
-                <form action="{% url 'accounts:cancel_scheduled_email' item.pk %}" method="post" class="d-inline" onsubmit="return confirm('이 공지 메일 예약을 취소하시겠습니까?')">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-sm btn-outline-danger">예약 취소</button>
-                </form>
-              </td>
+    <section class="card-custom mb-4"
+             style="background-color: #0F172A;
+                    border: 1px solid #334155;
+                    border-radius: 12px;
+                    overflow: hidden">
+      <div class="card-header-custom"
+           style="background-color: #1E293B;
+                  border-bottom: 1px solid #334155;
+                  padding: 14px 20px">
+        <div class="card-title-custom"
+             style="color: #FFFFFF;
+                    font-weight: 700;
+                    font-size: 15px"><i class="bi bi-calendar-event-fill text-warning me-2"></i> 📅 예약 대기 중인 공지 이메일 ({{ scheduled_emails|length }}건)</div>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0 text-white">
+          <thead style="background-color: #1E293B; color: #94A3B8;">
+            <tr>
+              <th scope="col" class="ps-3">예약 시각</th>
+              <th scope="col">발송 대상</th>
+              <th scope="col">메일 제목</th>
+              <th scope="col">메일 내용</th>
+              <th scope="col" class="text-end pe-3">취소 관리</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+          </thead>
+          <tbody>
+            {% for item in scheduled_emails %}
+              <tr style="border-bottom: 1px solid #334155;">
+                <td class="ps-3 fw-bold text-warning">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                  <span class="badge bg-secondary">{{ item.get_target_type_display }}</span>
+                  {% if item.target_team %}<span class="badge bg-info text-dark ms-1">{{ item.target_team.name }}</span>{% endif %}
+                </td>
+                <td class="fw-semibold">{{ item.subject }}</td>
+                <td class="text-truncate" style="max-width: 250px;">{{ item.message }}</td>
+                <td class="text-end pe-3">
+                  <form action="{% url 'accounts:cancel_scheduled_email' item.pk %}"
+                        method="post"
+                        class="d-inline"
+                        onsubmit="return confirm('이 공지 메일 예약을 취소하시겠습니까?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">예약 취소</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
   {% endif %}
-  <section class="card-custom">
+  <section class="card-custom mb-4">
+    <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-person-check-fill text-primary"></i>승인 대기 목록</div>
+      <span class="text-muted font-size-115">{{ pending_users|length }}명</span>
+    </div>
+    <form method="post"
+          id="bulkApprovalForm"
+          action="{% url 'accounts:bulk_approval' %}">
+      {% csrf_token %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <colgroup>
+            <col class="ax-col-6">
+            <col class="ax-col-16">
+            <col class="ax-col-30">
+            <col class="ax-col-14">
+            <col class="ax-col-18">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="text-center">
+                <input class="form-check-input"
+                       type="checkbox"
+                       id="pendingSelectAll"
+                       aria-label="승인 대기 전체 선택">
+              </th>
+              <th>이름</th>
+              <th>이메일</th>
+              <th>가입 방식</th>
+              <th>신청 일시</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pending_user in pending_head %}
+              {% include "accounts/_pending_user_row.html" %}
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-5">현재 승인 대기 요청이 없습니다.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          {% if pending_rest %}
+            <tbody class="collapse" id="pendingRestRows">
+              {% for pending_user in pending_rest %}
+                {% include "accounts/_pending_user_row.html" %}
+              {% endfor %}
+            </tbody>
+          {% endif %}
+        </table>
+      </div>
+      {% if pending_users %}
+        <div class="card-body-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span class="text-muted font-size-115" id="pendingSelectedCount">선택한 계정이 없습니다.</span>
+          <div class="d-flex gap-2">
+            <button type="submit"
+                    name="decision"
+                    value="reject"
+                    class="btn btn-sm btn-outline-danger ax-bulk-approval"
+                    disabled>선택 반려</button>
+            <button type="submit"
+                    name="decision"
+                    value="approve"
+                    class="btn btn-sm btn-ax-primary ax-bulk-approval"
+                    disabled>선택 승인</button>
+          </div>
+        </div>
+      {% endif %}
+    </form>
+    {% if pending_rest %}
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#pendingRestRows"
+                data-more-text="나머지 {{ pending_rest|length }}명 더보기"
+                aria-expanded="false"
+                aria-controls="pendingRestRows">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">나머지 {{ pending_rest|length }}명 더보기</span>
+        </button>
+      </div>
+    {% endif %}
+  </section>
+  <section class="card-custom mb-4">
     <div class="card-header-custom">
       <div class="card-title-custom">계정 {{ accounts|length }}건</div>
-      <form method="get" class="d-flex align-items-center gap-2">
+      <form method="get"
+            class="d-flex ax-account-filter-form align-items-center gap-2">
         <label class="visually-hidden" for="role">역할</label>
         <select class="ax-round-select" id="role" name="role">
           <option value="">역할 전체</option>
@@ -145,152 +311,214 @@
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
+        <colgroup>
+          <col class="ax-col-6">
+          <col class="ax-col-24">
+          <col class="ax-col-9">
+          <col class="ax-col-12">
+          <col class="ax-col-9">
+          <col class="ax-col-12">
+          <col class="ax-col-8">
+          <col class="ax-col-20">
+        </colgroup>
         <thead>
           <tr>
-            <th scope="col" class="text-center" style="width: 45px;">
-              <input type="checkbox" class="form-check-input" id="check_all_users" onclick="toggleAllCheckboxes(this)" title="전체 선택/해제">
+            <th scope="col" class="text-center">
+              <input type="checkbox"
+                     class="form-check-input"
+                     aria-label="공지 대상 전체 선택"
+                     onchange="toggleAllCheckboxes(this)">
             </th>
             <th scope="col">계정</th>
             <th scope="col">역할</th>
             <th scope="col" class="text-center">승인 상태</th>
             <th scope="col" class="text-center">활성</th>
             <th scope="col" class="text-center">비밀번호</th>
+            <th scope="col" class="text-center">메모</th>
             <th scope="col" class="text-end">관리</th>
           </tr>
         </thead>
         <tbody>
-          {% for account in accounts %}
-            <tr>
-              <td class="text-center">
-                <input type="checkbox" class="form-check-input student-user-checkbox" value="{{ account.pk }}" onchange="updateSelectedUserInputs()">
-              </td>
-              <td>
-                <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
-                <div class="text-muted font-size-115">{{ account.email }}</div>
-                <div class="text-muted font-size-115">
-                  식별번호 {{ account.student_number|default:"미등록" }}
-                  {% if account.session_info %}· {{ account.session_info }}{% endif %}
-                </div>
-                <form method="post"
-                      class="ax-inline-profile-form mt-2"
-                      action="{% url 'accounts:account_profile_update' account.pk %}">
-                  {% csrf_token %}
-                  <label class="visually-hidden" for="name-{{ account.pk }}">이름</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="name-{{ account.pk }}"
-                         name="first_name"
-                         maxlength="150"
-                         placeholder="이름"
-                         value="{{ account.first_name }}">
-                  <label class="visually-hidden" for="number-{{ account.pk }}">식별번호</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="number-{{ account.pk }}"
-                         name="student_number"
-                         maxlength="32"
-                         placeholder="식별번호"
-                         value="{{ account.student_number|default:'' }}">
-                  <label class="visually-hidden" for="session-{{ account.pk }}">기수</label>
-                  <input type="text"
-                         class="form-control form-control-sm"
-                         id="session-{{ account.pk }}"
-                         name="session_info"
-                         maxlength="50"
-                         placeholder="기수"
-                         value="{{ account.session_info }}">
-                  <button type="submit" class="btn btn-sm btn-ax-secondary flex-shrink-0">저장</button>
-                </form>
-              </td>
-              <td>{{ account.get_role_display }}</td>
-              <td class="text-center">
-                <span class="badge badge-ax {% if account.approval_status == 'approved' %}badge-ax-completed{% elif account.approval_status == 'rejected' %}badge-ax-danger{% else %}badge-ax-pending{% endif %}">
-                  {{ account.get_approval_status_display }}
-                </span>
-              </td>
-              <td class="text-center">
-                {% if account.is_active %}
-                  <span class="badge ax-badge-complete">활성</span>
-                {% else %}
-                  <span class="badge badge-ax badge-ax-danger">비활성</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                {% if account.must_rotate_password %}
-                  <span class="badge ax-badge-partial">재설정 대기</span>
-                {% else %}
-                  <span class="text-muted font-size-115">-</span>
-                {% endif %}
-              </td>
-              <td class="text-end">
-                <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
-                  {% if account.approval_status == 'rejected' %}
-                    <form method="post"
-                          action="{% url 'accounts:account_action' account.pk 'revert-approval' %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-ax-secondary">승인 대기로</button>
-                    </form>
-                  {% endif %}
-                  {% if not account.must_rotate_password %}
-                    <form method="post"
-                          action="{% url 'accounts:account_action' account.pk 'require-password-reset' %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-ax-secondary">비밀번호 재설정 요구</button>
-                    </form>
-                  {% endif %}
-                  {% if can_change_role and account.role != 'admin' %}
-                    {% if account.role == 'student' %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'make-tutor' %}"
-                            onsubmit="return confirm('{{ account.email }} 계정을 튜터로 바꿉니다. 운영 화면 전체에 접근할 수 있게 됩니다. 계속할까요?')">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-secondary">튜터로</button>
-                      </form>
-                    {% else %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'make-student' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-secondary">수강생으로</button>
-                      </form>
-                    {% endif %}
-                  {% endif %}
-                  {% if can_change_role %}
-                    {% if account.is_active %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'deactivate' %}"
-                            onsubmit="return confirm('{{ account.email }} 계정을 비활성화합니다. 즉시 로그아웃되고 다시 로그인할 수 없습니다. 계속할까요?')">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">비활성화</button>
-                      </form>
-                    {% else %}
-                      <form method="post"
-                            action="{% url 'accounts:account_action' account.pk 'activate' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-ax-primary">활성화</button>
-                      </form>
-                    {% endif %}
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
+          {% for account in accounts_head %}
+            {% include "accounts/_account_row.html" %}
           {% empty %}
             <tr>
-              <td colspan="6" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
+              <td colspan="8" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>
+        {% if accounts_rest %}
+          <tbody class="collapse" id="accountRestRows">
+            {% for account in accounts_rest %}
+              {% include "accounts/_account_row.html" %}
+            {% endfor %}
+          </tbody>
+        {% endif %}
       </table>
     </div>
+    {% if accounts_rest %}
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#accountRestRows"
+                data-more-text="나머지 {{ accounts_rest|length }}건 더보기"
+                aria-expanded="false"
+                aria-controls="accountRestRows">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">나머지 {{ accounts_rest|length }}건 더보기</span>
+        </button>
+      </div>
+    {% endif %}
     {% if not can_change_role %}
       <div class="card-body-custom">
         <p class="text-muted font-size-115 mb-0">
           <i class="bi bi-info-circle"></i>
-          역할 변경과 계정 활성/비활성은 관리자만 할 수 있습니다.
+          계정 삭제와 활성화는 관리자만 할 수 있습니다.
         </p>
       </div>
     {% endif %}
   </section>
-
+  <section class="card-custom">
+    <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-envelope-paper"></i>사전 등록 명단</div>
+    </div>
+    <div class="card-body-custom">
+      <p class="text-muted font-size-115 mb-3">여기에 등록된 이메일로 가입하면 자동 승인됩니다. 명단에 없으면 위 승인 대기 목록으로 넘어갑니다.</p>
+      <form method="post"
+            action="{% url 'accounts:whitelist_add' %}"
+            class="row g-2 align-items-end mb-3">
+        {% csrf_token %}
+        {% for field in whitelist_form %}
+          <div class="col-md-{% if field.name == 'emails' %}7{% else %}3{% endif %}">
+            <label class="form-label small fw-bold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-ax-primary w-100">등록</button>
+        </div>
+      </form>
+      <div class="ax-expand-wrapper">
+        <button type="button"
+                class="btn btn-sm btn-link ax-toggle-rest"
+                data-bs-toggle="collapse"
+                data-bs-target="#whitelistEntries"
+                data-more-text="등록된 명단 {{ whitelist_entries|length }}건 보기"
+                aria-expanded="false"
+                aria-controls="whitelistEntries">
+          <i class="bi bi-chevron-down ax-toggle-icon"></i>
+          <span class="ax-toggle-label">등록된 명단 {{ whitelist_entries|length }}건 보기</span>
+        </button>
+      </div>
+      <div class="collapse" id="whitelistEntries">
+        <div class="table-responsive mt-3">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">이메일</th>
+                <th scope="col">배정 기수</th>
+                <th scope="col" class="text-center">가입 상태</th>
+                <th scope="col">등록일</th>
+                <th scope="col" class="text-end">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in whitelist_entries %}
+                <tr>
+                  <td class="fw-semibold">{{ entry.email }}</td>
+                  <td class="text-muted">{{ entry.session_info|default:"-" }}</td>
+                  <td class="text-center">
+                    {% if entry.account %}
+                      <span class="badge badge-ax badge-ax-completed">{{ entry.account.get_approval_status_display }}</span>
+                    {% else %}
+                      <span class="badge ax-badge-no-data">미가입</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted font-size-115">{{ entry.created_at|date:"Y-m-d" }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{% url 'accounts:whitelist_delete' entry.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-5">아직 등록된 이메일이 없습니다.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+{% block modals %}
+  <div class="modal fade"
+       id="studentNoteModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <form method="post" id="studentNoteForm">
+          {% csrf_token %}
+          <div class="modal-header border-bottom px-4 py-3">
+            <h6 class="modal-title fw-bold">
+              <i class="bi bi-pencil-square me-2 text-primary"></i>메모 남기기 · <span id="noteStudentName"></span>
+            </h6>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4">
+            <label class="visually-hidden" for="noteBody">메모 내용</label>
+            <textarea name="body"
+                      id="noteBody"
+                      class="form-control"
+                      rows="4"
+                      maxlength="1000"
+                      placeholder="예: 이번 회차 개인 사정으로 일부만 제출함"></textarea>
+          </div>
+          <div class="modal-footer border-top-0 px-4 pb-3">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-ax-primary">저장</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade"
+       id="studentNoteHistoryModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom px-4 py-3">
+          <h6 class="modal-title fw-bold">
+            <i class="bi bi-clock-history me-2 text-primary"></i>메모 기록 · <span id="noteHistoryStudentName"></span>
+          </h6>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="닫기"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div id="noteHistoryList" class="ax-note-history-list"></div>
+        </div>
+        <div class="modal-footer border-top-0 px-4 pb-3">
+          <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/account-admin.js' %}"></script>
   <script>
     function toggleSendTargetUI(val) {
       var teamWrapper = document.getElementById('team_select_wrapper');

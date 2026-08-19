@@ -61,7 +61,7 @@
                 {{ event.action_label }}
                 {% if event.result != 'SUCCEEDED' %}<span class="badge badge-ax badge-ax-danger ms-1">실패</span>{% endif %}
               </td>
-              <td>{% if event.actor %}{{ event.actor.first_name|default:event.actor.email }}{% else %}시스템{% endif %}</td>
+              <td>{{ event.actor.first_name|default:event.actor.email|default:"-" }}</td>
               <td class="text-muted">{{ event.round.title|default:"-" }}</td>
               <td class="text-muted font-size-115">
                 {{ event.target_type|cut:"accounts."|cut:"rounds."|cut:"results."|cut:"teams." }}

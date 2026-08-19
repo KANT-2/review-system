@@ -1,0 +1,122 @@
+{% load results_extras %}
+<tr>
+  <td class="text-center">
+    {% if account.role == 'student' and account.is_active %}
+      <input type="checkbox"
+             class="form-check-input student-user-checkbox"
+             value="{{ account.pk }}"
+             aria-label="{{ account.email }} 공지 대상 선택"
+             onchange="updateSelectedUserInputs()">
+    {% endif %}
+  </td>
+  <td class="ax-account-cell">
+    <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
+    <div class="text-muted font-size-115">{{ account.email }}</div>
+    {% if account.session_info %}
+      <div class="text-muted font-size-115">{{ account.session_info }}</div>
+    {% endif %}
+  </td>
+  <td>{{ account.get_role_display }}</td>
+  <td class="text-center">
+    <span class="badge badge-ax {% if account.approval_status == 'approved' %}badge-ax-completed{% elif account.approval_status == 'rejected' %}badge-ax-danger{% else %}badge-ax-pending{% endif %}">
+      {{ account.get_approval_status_display }}
+    </span>
+  </td>
+  <td class="text-center">
+    {% if account.is_active %}
+      <span class="badge ax-badge-complete">활성</span>
+    {% else %}
+      <span class="badge badge-ax badge-ax-danger">비활성</span>
+    {% endif %}
+  </td>
+  <td class="text-center">
+    {% if account.must_rotate_password %}
+      <span class="badge ax-badge-partial">재설정 대기</span>
+    {% else %}
+      <span class="text-muted font-size-115">-</span>
+    {% endif %}
+  </td>
+  <td class="text-center">
+    {% if account.role == 'student' %}
+      {% with student_notes=notes|get_item:account.pk %}
+        <div class="ax-note-actions">
+          <button type="button"
+                  class="ax-note-btn"
+                  data-bs-toggle="modal"
+                  data-bs-target="#studentNoteModal"
+                  data-student-name="{{ account.first_name|default:account.email }}"
+                  data-note-action="{% url 'accounts:save_student_note' account.pk %}"
+                  title="메모 남기기"
+                  aria-label="{{ account.email }} 메모 남기기">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+          <button type="button"
+                  class="ax-note-btn {% if student_notes %}ax-note-btn--filled{% endif %}"
+                  data-bs-toggle="modal"
+                  data-bs-target="#studentNoteHistoryModal"
+                  data-student-name="{{ account.first_name|default:account.email }}"
+                  data-history-template="note-history-tpl-{{ account.pk }}"
+                  title="메모 확인"
+                  aria-label="{{ account.email }} 메모 확인">
+            <i class="bi bi-clock-history"></i>
+            {% if student_notes %}<span class="ax-note-count">{{ student_notes|length }}</span>{% endif %}
+          </button>
+        </div>
+        <template id="note-history-tpl-{{ account.pk }}">
+          {% if student_notes %}
+            {% for note in student_notes %}
+              <div class="ax-note-history-entry">
+                <div>
+                  <span class="ax-note-history-date">{{ note.created_at|date:"Y-m-d H:i" }} · {{ note.author.first_name|default:note.author.email }}</span>
+                  <p class="ax-note-history-body">{{ note.body }}</p>
+                </div>
+                <form method="post"
+                      action="{% url 'accounts:delete_student_note' account.pk note.pk %}"
+                      onsubmit="return confirm('이 메모를 지웁니다. 되돌릴 수 없습니다. 계속할까요?')">
+                  {% csrf_token %}
+                  <button type="submit"
+                          class="ax-note-delete-btn"
+                          title="메모 삭제"
+                          aria-label="{{ note.created_at|date:'Y-m-d H:i' }} 메모 삭제">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            {% endfor %}
+            <form method="post"
+                  action="{% url 'accounts:delete_all_student_notes' account.pk %}"
+                  class="ax-note-delete-all"
+                  onsubmit="return confirm('{{ account.first_name|default:account.email }}의 메모 기록 {{ student_notes|length }}건을 전부 지웁니다. 되돌릴 수 없습니다. 계속할까요?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger w-100">메모 전체 삭제</button>
+            </form>
+          {% else %}
+            <p class="ax-note-history-empty">아직 남긴 메모가 없습니다.</p>
+          {% endif %}
+        </template>
+      {% endwith %}
+    {% else %}
+      <span class="text-muted font-size-115">-</span>
+    {% endif %}
+  </td>
+  <td class="text-end">
+    {% if can_change_role %}
+      <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+        {% if account.is_active %}
+          <form method="post"
+                action="{% url 'accounts:account_action' account.pk 'deactivate' %}"
+                onsubmit="return confirm('{{ account.email }} 계정을 삭제합니다. 즉시 로그아웃되고 다시 로그인할 수 없습니다. 계속할까요?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+          </form>
+        {% else %}
+          <form method="post"
+                action="{% url 'accounts:account_action' account.pk 'activate' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-ax-primary">활성화</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+  </td>
+</tr>

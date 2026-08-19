@@ -88,6 +88,10 @@ class User(AbstractUser):
         _("수강생 식별번호"), max_length=32, null=True, blank=True, unique=True
     )
     phone_number = models.CharField(_("연락처"), max_length=20, blank=True, default="")
+    # 마이페이지에서 본인이 올린다. 비어 있으면 이름 첫 글자 아바타를 그대로 쓴다.
+    profile_image = models.ImageField(
+        _("프로필 사진"), upload_to="profiles/", blank=True, null=True
+    )
     auth_session_version = models.PositiveBigIntegerField(_("인증 세션 버전"), default=0)
     must_rotate_password = models.BooleanField(_("비밀번호 변경 필요"), default=False)
     email_needs_review = models.BooleanField(_("이메일 재확인 필요"), default=False)
@@ -255,5 +259,3 @@ class ScheduledEmail(models.Model):
 
     def __str__(self):
         return f"[{self.get_status_display()}] {self.subject} ({self.scheduled_at.strftime('%Y-%m-%d %H:%M')})"
-
-

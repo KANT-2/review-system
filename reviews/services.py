@@ -4,7 +4,13 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from reviews.models import ReviewAnswer, ReviewFinalSubmission, ReviewSubmission
+from reviews.models import (
+    ReviewAnswer,
+    ReviewFinalSubmission,
+    ReviewSubmission,
+    TutorReview,
+    TutorReviewAnswer,
+)
 from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
 from teams.models import Team
 
@@ -237,15 +243,12 @@ def _get_or_create_submission(participant, review_type, target):
         )
 
 
-def submit_review(*, participant, review_type, target_id, answers):
-    if participant.round.status != EvaluationRound.Status.IN_PROGRESS:
-        raise ValidationError("진행 중인 회차가 아닙니다.")
-    if review_window_state(participant.round) != "OPEN":
-        raise ValidationError("평가 제출 기간이 아닙니다.")
-    if is_final_submitted(participant, review_type):
-        raise ValidationError("최종 제출한 평가는 수정할 수 없습니다.")
-    target = _validate_target(participant, review_type, target_id)
-    questions = list(questions_for(participant.round, review_type))
+def validated_answer_rows(questions, answers):
+    """제출된 답변을 문항 정의와 대조해 (문항, 점수, 서술) 목록으로 만든다.
+
+    학생 평가와 튜터 평가가 같은 질문지를 쓰므로 검증도 한곳에서 한다. 화면에서 막았더라도
+    직접 POST하는 경로가 남아 있어 서버에서 다시 확인한다.
+    """
     question_by_id = {question.pk: question for question in questions}
     if set(answers) - set(question_by_id):
         raise ValidationError("현재 질문지에 없는 문항이 포함됐습니다.")
@@ -268,6 +271,19 @@ def submit_review(*, participant, review_type, target_id, answers):
             if len(text) > 2000:
                 raise ValidationError("서술 답변은 2,000자 이하여야 합니다.")
             answer_rows.append((question, None, text))
+    return answer_rows
+
+
+def submit_review(*, participant, review_type, target_id, answers):
+    if participant.round.status != EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError("진행 중인 회차가 아닙니다.")
+    if review_window_state(participant.round) != "OPEN":
+        raise ValidationError("평가 제출 기간이 아닙니다.")
+    if is_final_submitted(participant, review_type):
+        raise ValidationError("최종 제출한 평가는 수정할 수 없습니다.")
+    target = _validate_target(participant, review_type, target_id)
+    questions = list(questions_for(participant.round, review_type))
+    answer_rows = validated_answer_rows(questions, answers)
     with transaction.atomic():
         # 최종 제출 전이면 다시 저장할 수 있다 - 기존 답변을 지우고 새로 쓴다.
         submission = _get_or_create_submission(participant, review_type, target)
@@ -284,3 +300,79 @@ def submit_review(*, participant, review_type, target_id, answers):
             ]
         )
         return submission
+
+
+# --- 튜터 개인평가 -------------------------------------------------------------
+# 학생끼리 하는 개인 평가와 달리 제출 기간·최종 제출 개념이 없다. 참가자와 질문지가 동결된
+# 뒤(회차 시작 이후)에만 쓸 수 있고, 점수는 아직 최종점수 계산에 반영하지 않는다.
+
+
+def tutor_reviewable(round_obj):
+    """튜터가 이 회차에 개인평가를 쓸 수 있는지. 준비 중(DRAFT) 회차는 질문지가 바뀔 수 있다."""
+    return round_obj.status != EvaluationRound.Status.DRAFT
+
+
+def tutor_review_targets(round_obj, tutor):
+    """회차 참가자 전원 - 튜터가 이미 쓴 대상은 completed로 표시한다."""
+    written_ids = set(
+        TutorReview.objects.filter(round=round_obj, evaluator=tutor).values_list(
+            "target_participant_id", flat=True
+        )
+    )
+    return [
+        ReviewTargetRow(
+            pk=participant.pk,
+            label=participant.display_name_snapshot,
+            description=(
+                f"{participant.student_number_snapshot} · {participant.team_membership.team.name}"
+                if hasattr(participant, "team_membership")
+                else f"{participant.student_number_snapshot} · 팀 미배정"
+            ),
+            completed=participant.pk in written_ids,
+            url_name="rounds:tutor-review-form",
+        )
+        for participant in round_obj.participants.select_related("team_membership__team").all()
+    ]
+
+
+def get_tutor_review(round_obj, tutor, participant_id):
+    return (
+        TutorReview.objects.prefetch_related("answers__question")
+        .filter(round=round_obj, evaluator=tutor, target_participant_id=participant_id)
+        .first()
+    )
+
+
+def tutor_review_questions(round_obj):
+    """튜터 개인평가도 그 회차의 개인 평가 질문지를 그대로 쓴다."""
+    return questions_for(round_obj, ReviewSubmission.ReviewType.PEER)
+
+
+def submit_tutor_review(*, round_obj, tutor, participant_id, answers):
+    if not tutor_reviewable(round_obj):
+        raise ValidationError("회차를 시작한 뒤에 평가할 수 있습니다.")
+    participant = RoundParticipant.objects.filter(pk=participant_id, round=round_obj).first()
+    if not participant:
+        raise PermissionDenied("이 회차의 수강생이 아닙니다.")
+    questions = list(tutor_review_questions(round_obj))
+    if not questions:
+        raise ValidationError("이 회차에 개인 평가 질문지가 없습니다.")
+    answer_rows = validated_answer_rows(questions, answers)
+    with transaction.atomic():
+        review, _ = TutorReview.objects.get_or_create(
+            round=round_obj, evaluator=tutor, target_participant=participant
+        )
+        # 다시 쓰면 기존 답변을 지우고 새로 넣는다 - 학생 평가의 재저장과 같은 방식이다.
+        review.answers.all().delete()
+        TutorReviewAnswer.objects.bulk_create(
+            [
+                TutorReviewAnswer(
+                    review=review,
+                    question=question,
+                    rating_value=rating,
+                    text_value=text or "",
+                )
+                for question, rating, text in answer_rows
+            ]
+        )
+        return review

@@ -65,7 +65,9 @@ class ServiceTeamsBackend:
 
     def get_management_team(self, round_id: int) -> ManagementTeamView:
         data = self.data_source.get_round_team_data(round_id)
-        return build_management_team_view(data)
+        participant_ids = tuple(participant.participant_id for participant in data.participants)
+        seed_scores = self.data_source.get_seed_scores(round_id, participant_ids)
+        return build_management_team_view(data, seed_scores)
 
     def create_auto_assignment(
         self,
@@ -109,4 +111,5 @@ class ServiceTeamsBackend:
             self.unit_of_work_factory(),
             actor_id=actor_id,
             imbalance_confirmed=request_data.imbalance_confirmed,
+            unassigned_confirmed=request_data.unassigned_confirmed,
         )

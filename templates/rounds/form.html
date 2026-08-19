@@ -2,17 +2,15 @@
 {% block title %}회차 설정 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}회차 설정{% endblock %}
 {% block content %}
-    <div class="d-flex gap-2">
-      {% if round_obj %}
-        <a href="{% url 'rounds:teams' round_obj.pk %}" class="btn btn-ax-secondary">팀 편성</a>
-        {% if round_obj.status == 'DRAFT' %}
-          <form method="post" action="{% url 'rounds:start' round_obj.pk %}" class="d-inline" onsubmit="return confirm('{{ round_obj.title }} 평가 회차를 공식적으로 시작합니다. 수강생들이 평가를 제출할 수 있게 됩니다. 계속할까요?')">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-success fw-bold"><i class="bi bi-play-fill me-1"></i>🚀 평가 시작하기</button>
-          </form>
-        {% endif %}
-      {% endif %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{% if round_obj %}{{ round_obj.title }}{% else %}새 평가 회차{% endif %}</h1>
+      <p class="page-desc">평가 기간과 TEAM·PEER 질문 템플릿을 지정합니다. 저장하면 팀 편성 화면으로 넘어갑니다.</p>
     </div>
+    {% if round_obj %}
+      <a href="{% url 'rounds:teams' round_obj.pk %}"
+         class="btn btn-ax-primary">팀 편성</a>
+    {% endif %}
   </div>
   {% if read_only %}
     <div class="alert alert-info">시작된 회차의 참가자와 질문지는 변경할 수 없습니다.</div>
@@ -39,10 +37,136 @@
       </div>
     </section>
   {% else %}
-    <form method="post" class="row g-4">
+    <form method="post">
       {% csrf_token %}
-      <div class="col-12 col-lg-8"><section class="card-custom"><div class="card-body-custom">{{ form.non_field_errors }}{% for field in form %}{% if field.name != 'participants' %}<div class="mb-3"><label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endif %}{% endfor %}</div></section></div>
-      <div class="col-12 col-lg-4"><section class="card-custom"><div class="card-header-custom"><div class="card-title-custom">참가 수강생</div></div><div class="card-body-custom participant-checklist">{{ form.participants }}{% for error in form.participants.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div></section><button type="submit" class="btn btn-ax-primary w-100 mt-3">저장</button></div>
+      <section class="card-custom">
+        <div class="card-body-custom">
+          {{ form.non_field_errors }}
+          {% for field in form %}
+            {% if field.name != 'participants' %}
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {% if field.name == 'team_template' or field.name == 'peer_template' %}
+                  <div class="input-group">
+                    {{ field }}
+                    <button type="button"
+                            class="btn btn-ax-secondary ax-template-preview"
+                            data-select="{{ field.id_for_label }}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#templatePreviewModal">
+                      <i class="bi bi-eye me-1"></i>미리보기
+                    </button>
+                  </div>
+                {% else %}
+                  {{ field }}
+                {% endif %}
+                {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <div class="alert alert-light border mb-0 font-size-135">
+            <i class="bi bi-people me-1"></i>
+            참가 수강생은 <strong>승인된 활성 수강생 {{ participant_count }}명</strong>이 자동으로 포함됩니다.
+            명단은 <a href="{% url 'accounts:account_admin' %}">수강생 관리</a>에서 바꿉니다.
+          </div>
+        </div>
+      </section>
+      <button type="submit" class="btn btn-ax-primary w-100 py-2">저장하고 팀 편성으로</button>
     </form>
+  {% endif %}
+{% endblock %}
+{% block modals %}
+  {% if not read_only %}
+    <div class="modal fade"
+         id="templatePreviewModal"
+         tabindex="-1"
+         aria-labelledby="templatePreviewTitle"
+         aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom px-4 py-3">
+            <h6 class="modal-title fw-bold" id="templatePreviewTitle">문항 미리보기</h6>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="닫기"></button>
+          </div>
+          <div class="modal-body p-4" id="templatePreviewBody"></div>
+          <div class="modal-footer border-top-0 px-4 pb-3">
+            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}
+  {% if not read_only %}
+    {{ template_previews|json_script:"template-preview-data" }}
+    <script>
+    (() => {
+      const dataNode = document.getElementById('template-preview-data');
+      const body = document.getElementById('templatePreviewBody');
+      const title = document.getElementById('templatePreviewTitle');
+      if (!dataNode || !body) return;
+      const previews = JSON.parse(dataNode.textContent);
+      // 문항 본문을 innerHTML로 넣으므로 HTML 특수문자는 항상 이스케이프한다.
+      const escapeHtml = (value) => {
+        const holder = document.createElement('span');
+        holder.textContent = value ?? '';
+        return holder.innerHTML;
+      };
+
+      const render = (preview) => {
+        if (!preview) {
+          title.textContent = '문항 미리보기';
+          body.innerHTML = '<p class="text-muted mb-0">먼저 템플릿을 선택해 주세요.</p>';
+          return;
+        }
+        title.textContent = `${preview.name} (${preview.category})`;
+        const description = preview.description
+          ? `<p class="text-muted font-size-135">${escapeHtml(preview.description)}</p>`
+          : '';
+        if (!preview.questions.length) {
+          body.innerHTML = `${description}<p class="text-muted mb-0">이 템플릿에는 아직 문항이 없습니다.</p>`;
+          return;
+        }
+        const rows = preview.questions
+          .map(
+            (question, index) => `
+              <tr>
+                <td class="text-end text-muted">${index + 1}</td>
+                <td>${escapeHtml(question.prompt)}</td>
+                <td class="text-muted">${escapeHtml(question.response_type)}</td>
+                <td class="text-muted">${escapeHtml(question.competency) || '-'}</td>
+                <td class="text-center">${question.is_required ? '필수' : '선택'}</td>
+              </tr>`,
+          )
+          .join('');
+        body.innerHTML = `${description}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col" class="text-end">순서</th>
+                  <th scope="col">문항</th>
+                  <th scope="col">응답 형식</th>
+                  <th scope="col">역량</th>
+                  <th scope="col" class="text-center">필수</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      };
+
+      document.querySelectorAll('.ax-template-preview').forEach((button) => {
+        button.addEventListener('click', () => {
+          const select = document.getElementById(button.dataset.select);
+          render(previews[select?.value]);
+        });
+      });
+    })();
+    </script>
   {% endif %}
 {% endblock %}

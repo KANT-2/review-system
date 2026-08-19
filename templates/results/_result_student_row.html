@@ -39,19 +39,4 @@
     <span class="badge {{ result.data_status|status_badge_class }}">{{ result.data_status|status_label }}</span>
     <span class="text-muted font-size-115">({{ result.valid_count }}/{{ result.expected_count }})</span>
   </td>
-  <td class="text-center">
-    {% with note=notes|get_item:result.participant_id %}
-      <button type="button"
-              class="ax-note-btn {% if note %}ax-note-btn--filled{% endif %}"
-              data-bs-toggle="modal"
-              data-bs-target="#studentNoteModal"
-              data-student-name="{{ result.participant.display_name_snapshot }}"
-              data-student-note="{{ note|default:'' }}"
-              data-note-action="{% url 'rounds:save-student-note' round_obj.pk result.participant_id %}"
-              title="{% if note %}메모 보기{% else %}메모 남기기{% endif %}"
-              aria-label="{{ result.participant.display_name_snapshot }} 메모">
-        <i class="bi {% if note %}bi-sticky-fill{% else %}bi-sticky{% endif %}"></i>
-      </button>
-    {% endwith %}
-  </td>
 </tr>

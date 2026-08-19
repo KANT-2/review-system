@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 
 from django.conf import settings
@@ -5,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -17,9 +19,14 @@ from accounts.forms import (
     PasswordChangeForm,
     SignUpForm,
     WhitelistEntryForm,
+    clean_profile_image,
 )
-from accounts.models import EmailVerificationCode, User, WhitelistEmail
-from accounts.portal import build_student_portal, build_student_result_portal
+from accounts.models import EmailVerificationCode, ScheduledEmail, User
+from accounts.portal import (
+    build_student_portal,
+    build_student_result_portal,
+    round_result_csv_rows,
+)
 from accounts.services import (
     AccountConflictError,
     InvalidAccountTransition,
@@ -37,8 +44,13 @@ from accounts.services import (
     set_account_active,
     start_password_reset,
     transition_approval,
-    update_account_profile,
     whitelist_rows,
+)
+from results.application import (
+    add_tutor_note,
+    delete_all_tutor_notes,
+    delete_tutor_note,
+    tutor_notes_by_student,
 )
 
 GENERIC_SIGNUP_MESSAGE = "가입 신청을 접수했습니다. 승인 뒤 로그인할 수 있습니다."
@@ -233,66 +245,68 @@ def dashboard_view(request):
 
 @login_required
 def mypage_view(request):
+    """마이페이지 - 학생은 프로필과 공개된 결과를, 튜터·관리자는 계정 설정만 본다."""
     if _needs_onboarding(request.user):
         return redirect("accounts:onboarding")
+    is_student = request.user.role == User.Role.STUDENT
+    requested = request.GET.get("round")
+    selected_round_id = int(requested) if requested and requested.isdigit() else None
+    portal = (
+        build_student_result_portal(request.user, selected_round_id=selected_round_id)
+        if is_student
+        else None
+    )
     return render(
         request,
         "accounts/mypage.html",
-        {"portal": build_student_result_portal(request.user)},
+        {"portal": portal, "is_student": is_student},
     )
 
 
 @login_required
-def tutor_dashboard(request):
-    if not _can_manage_approvals(request.user):
-        raise PermissionDenied
-    pending_users = User.objects.filter(
-        role=User.Role.STUDENT,
-        approval_status=User.ApprovalStatus.PENDING,
-    ).order_by("-date_joined")
-    return render(
-        request,
-        "accounts/tutor_dashboard.html",
-        {
-            "pending_users": pending_users,
-            "approved_students_count": User.objects.filter(
-                role=User.Role.STUDENT,
-                approval_status=User.ApprovalStatus.APPROVED,
-            ).count(),
-            "whitelist_count": WhitelistEmail.objects.count(),
-        },
+@require_GET
+def mypage_round_result_csv(request, round_id):
+    """마이페이지에서 고른 회차의 결과 CSV 다운로드(MVP 의도적 확장 - CONTEXT.md 참고)."""
+    payload = round_result_csv_rows(request.user, round_id)
+    if payload is None:
+        raise Http404
+    buffer = io.StringIO()
+    csv.writer(buffer).writerows(payload["rows"])
+    # BOM은 한 번만 - 응답에 바로 writer.writerows를 걸면 write() 호출마다 BOM이 반복된다.
+    response = HttpResponse(
+        buffer.getvalue().encode("utf-8-sig"), content_type="text/csv; charset=utf-8"
     )
+    filename = f"{payload['round_name']}_결과.csv".replace(" ", "_")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
-@require_http_methods(["GET", "POST"])
-def whitelist_view(request):
-    """수강생 명단(화이트리스트) 관리.
+@require_POST
+def whitelist_add(request):
+    """수강생 관리 화면의 명단 등록 - 화이트리스트에 이메일을 추가한다.
 
     여기에 등록된 이메일로 가입하면 이메일 확인만으로 자동 승인된다 - 운영자가 미리 명단을
     넣어두면 한 명씩 승인할 필요가 없다.
     """
     if not _can_manage_approvals(request.user):
         raise PermissionDenied
-    form = WhitelistEntryForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        added, updated = add_whitelist_emails(
-            emails=form.cleaned_data["emails"],
-            session_info=form.cleaned_data["session_info"],
-            actor=request.user,
-        )
-        parts = []
-        if added:
-            parts.append(f"{len(added)}건 등록")
-        if updated:
-            parts.append(f"{len(updated)}건 기수 갱신")
-        messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
-        return redirect("accounts:whitelist")
-    return render(
-        request,
-        "accounts/whitelist.html",
-        {"form": form, "entries": whitelist_rows()},
+    form = WhitelistEntryForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, next(iter(form.errors.values()))[0])
+        return redirect("accounts:account_admin")
+    added, updated = add_whitelist_emails(
+        emails=form.cleaned_data["emails"],
+        session_info=form.cleaned_data["session_info"],
+        actor=request.user,
     )
+    parts = []
+    if added:
+        parts.append(f"{len(added)}건 등록")
+    if updated:
+        parts.append(f"{len(updated)}건 기수 갱신")
+    messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
+    return redirect("accounts:account_admin")
 
 
 @login_required
@@ -306,12 +320,15 @@ def whitelist_delete(request, entry_id):
         messages.error(request, str(error))
     else:
         messages.success(request, f"{entry.email}을 명단에서 지웠습니다.")
-    return redirect("accounts:whitelist")
+    return redirect("accounts:account_admin")
+
+
+ACCOUNT_ADMIN_VISIBLE_ROW_COUNT = 8
 
 
 @login_required
 def account_admin(request):
-    """계정 관리 - 승인 상태·활성 여부·역할을 화면에서 다룬다."""
+    """수강생 관리 - 승인 대기, 사전 등록 명단, 전체 계정을 한 화면에서 다룬다."""
     if not _can_manage_approvals(request.user):
         raise PermissionDenied
     role = request.GET.get("role") or ""
@@ -321,8 +338,6 @@ def account_admin(request):
         role = ""
     if status not in dict(User.ApprovalStatus.choices):
         status = ""
-
-    from accounts.models import ScheduledEmail
     from rounds.models import EvaluationRound
     from teams.models import Team
 
@@ -332,7 +347,6 @@ def account_admin(request):
         .first()
         or EvaluationRound.objects.order_by("-id").first()
     )
-
     if current_round:
         teams = list(
             Team.objects.filter(round=current_round)
@@ -341,25 +355,35 @@ def account_admin(request):
         )
         current_round_title = current_round.title
     else:
-        teams = list(
-            Team.objects.select_related("round")
-            .prefetch_related("memberships")
-            .order_by("-round_id", "team_number")
-        )
+        teams = []
         current_round_title = ""
+    scheduled_emails = ScheduledEmail.objects.filter(status=ScheduledEmail.Status.PENDING).order_by(
+        "scheduled_at"
+    )
 
-    scheduled_emails = ScheduledEmail.objects.filter(
-        status=ScheduledEmail.Status.PENDING
-    ).order_by("scheduled_at")
-
+    pending_users = list(
+        User.objects.filter(
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.PENDING,
+        ).order_by("-date_joined")
+    )
+    accounts = list(account_rows(role=role, status=status, query=query))
     return render(
         request,
         "accounts/account_admin.html",
         {
-            "accounts": account_rows(role=role, status=status, query=query),
             "teams": teams,
             "current_round_title": current_round_title,
             "scheduled_emails": scheduled_emails,
+            "notes": tutor_notes_by_student(),
+            "pending_users": pending_users,
+            "pending_head": pending_users[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
+            "pending_rest": pending_users[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
+            "whitelist_form": WhitelistEntryForm(),
+            "whitelist_entries": whitelist_rows(),
+            "accounts": accounts,
+            "accounts_head": accounts[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
+            "accounts_rest": accounts[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
             "selected_role": role,
             "selected_status": status,
             "query": query,
@@ -368,29 +392,6 @@ def account_admin(request):
             "can_change_role": request.user.is_application_admin,
         },
     )
-
-
-@login_required
-@require_POST
-def account_profile_update(request, user_id):
-    """계정 관리 화면의 이름·식별번호·기수 수정(ACC-001)."""
-    if not _can_manage_approvals(request.user):
-        raise PermissionDenied
-    try:
-        update_account_profile(
-            actor=request.user,
-            target_id=user_id,
-            first_name=request.POST.get("first_name", ""),
-            student_number=request.POST.get("student_number", ""),
-            session_info=request.POST.get("session_info", ""),
-        )
-    except PermissionDenied:
-        messages.error(request, "이 계정에 대한 권한이 없습니다.")
-    except (InvalidAccountTransition, User.DoesNotExist) as error:
-        messages.error(request, str(error) or "계정 정보를 저장하지 못했습니다.")
-    else:
-        messages.success(request, "계정 정보를 저장했습니다.")
-    return redirect("accounts:account_admin")
 
 
 @login_required
@@ -442,6 +443,94 @@ def account_action(request, user_id, action):
     return redirect("accounts:account_admin")
 
 
+@login_required
+@require_POST
+def save_student_note(request, user_id):
+    """수강생별 튜터 전용 메모를 기록에 추가한다. 학생 화면에는 어떤 경로로도 노출되지 않는다."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        add_tutor_note(student_id=user_id, body=request.POST.get("body", ""), actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모를 남겼습니다.")
+    return redirect("accounts:account_admin")
+
+
+@login_required
+@require_POST
+def delete_student_note(request, user_id, note_id):
+    """메모 기록 한 건 삭제."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        delete_tutor_note(student_id=user_id, note_id=note_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모를 지웠습니다.")
+    return redirect("accounts:account_admin")
+
+
+@login_required
+@require_POST
+def delete_all_student_notes(request, user_id):
+    """수강생 한 명의 메모 기록 전체 삭제."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        delete_all_tutor_notes(student_id=user_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모 기록을 모두 지웠습니다.")
+    return redirect("accounts:account_admin")
+
+
+BULK_APPROVAL_DECISIONS = {
+    "approve": User.ApprovalStatus.APPROVED,
+    "reject": User.ApprovalStatus.REJECTED,
+}
+
+
+@login_required
+@require_POST
+def bulk_approval(request):
+    """승인 대기 목록에서 체크한 계정을 한 번에 승인하거나 반려한다.
+
+    화면에서 확인창을 띄우더라도 서버에서 권한과 상태를 다시 확인한다 - 직접 POST를 보내는
+    경로가 남아 있기 때문이다.
+    """
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    decision = BULK_APPROVAL_DECISIONS.get(request.POST.get("decision"))
+    if decision is None:
+        messages.error(request, "지원하지 않는 동작입니다.")
+        return redirect("accounts:account_admin")
+    user_ids = [value for value in request.POST.getlist("user_ids") if value.isdigit()]
+    if not user_ids:
+        messages.error(request, "처리할 계정을 한 명 이상 선택해 주세요.")
+        return redirect("accounts:account_admin")
+    changed = 0
+    skipped = 0
+    for user_id in user_ids:
+        try:
+            transition_approval(actor=request.user, target_id=int(user_id), decision=decision)
+        except PermissionDenied:
+            raise
+        except (InvalidAccountTransition, User.DoesNotExist):
+            skipped += 1
+        else:
+            changed += 1
+    label = "승인" if decision == User.ApprovalStatus.APPROVED else "반려"
+    if changed:
+        messages.success(request, f"{changed}명을 {label}했습니다.")
+    if skipped:
+        messages.error(request, f"{skipped}명은 이미 처리되었거나 상태가 맞지 않아 건너뛰었습니다.")
+    return redirect("accounts:account_admin")
+
+
 def _html_transition(request, user_id, decision):
     try:
         target = transition_approval(actor=request.user, target_id=user_id, decision=decision)
@@ -451,7 +540,7 @@ def _html_transition(request, user_id, decision):
         messages.error(request, "이미 처리되었거나 승인할 수 없는 계정입니다.")
     else:
         messages.success(request, f"{target.email} 계정 상태를 변경했습니다.")
-    return redirect("accounts:tutor_dashboard")
+    return redirect("accounts:account_admin")
 
 
 @login_required
@@ -490,6 +579,9 @@ def api_onboarding(request):
     return JsonResponse({"success": True, "message": "온보딩이 완료되었습니다."})
 
 
+TRUE_VALUES = {"1", "true", "on", "yes"}
+
+
 @login_required
 @require_POST
 def update_profile_api(request):
@@ -509,6 +601,15 @@ def update_profile_api(request):
                     {"success": False, "message": "입력값이 너무 깁니다."}, status=400
                 )
             setattr(request.user, field, value)
+    # 프로필 사진은 multipart 요청에서만 온다 - JSON으로 프로필만 고치는 기존 경로는 그대로다.
+    uploaded = request.FILES.get("profile_image")
+    if uploaded is not None:
+        try:
+            request.user.profile_image = clean_profile_image(uploaded)
+        except ValidationError as error:
+            return JsonResponse({"success": False, "message": error.messages[0]}, status=400)
+    elif str(data.get("clear_profile_image", "")).lower() in TRUE_VALUES:
+        request.user.profile_image = None
     request.user.save()
     return JsonResponse({"success": True, "message": "프로필이 수정되었습니다."})
 
@@ -601,19 +702,31 @@ def api_send_email_code(request):
     purpose = data.get("purpose", "").strip()
 
     if not email or "@" not in email:
-        return JsonResponse({"success": False, "message": "올바른 이메일 주소를 입력해 주세요."}, status=400)
+        return JsonResponse(
+            {"success": False, "message": "올바른 이메일 주소를 입력해 주세요."}, status=400
+        )
 
-    if purpose not in [EmailVerificationCode.Purpose.SIGNUP, EmailVerificationCode.Purpose.PASSWORD_RESET]:
-        return JsonResponse({"success": False, "message": "올바르지 않은 인증 목적입니다."}, status=400)
+    if purpose not in [
+        EmailVerificationCode.Purpose.SIGNUP,
+        EmailVerificationCode.Purpose.PASSWORD_RESET,
+    ]:
+        return JsonResponse(
+            {"success": False, "message": "올바르지 않은 인증 목적입니다."}, status=400
+        )
 
     if purpose == EmailVerificationCode.Purpose.PASSWORD_RESET:
         if not User.objects.filter(email=email).exists():
-            return JsonResponse({"success": False, "message": "등록되지 않은 이메일 주소입니다."}, status=404)
+            return JsonResponse(
+                {"success": False, "message": "등록되지 않은 이메일 주소입니다."}, status=404
+            )
 
     try:
         from accounts.email_services import send_email_verification_code
+
         send_email_verification_code(email, purpose)
-        return JsonResponse({"success": True, "message": "6자리 인증코드가 이메일로 발송되었습니다. (유효시간 5분)"})
+        return JsonResponse(
+            {"success": True, "message": "6자리 인증코드가 이메일로 발송되었습니다. (유효시간 5분)"}
+        )
     except Exception as error:
         return JsonResponse({"success": False, "message": f"이메일 발송 오류: {error}"}, status=500)
 
@@ -630,14 +743,23 @@ def api_verify_email_code(request):
     purpose = data.get("purpose", "").strip()
 
     if not email or not code:
-        return JsonResponse({"success": False, "message": "이메일과 6자리 인증코드를 모두 입력해 주세요."}, status=400)
+        return JsonResponse(
+            {"success": False, "message": "이메일과 6자리 인증코드를 모두 입력해 주세요."},
+            status=400,
+        )
 
     from accounts.email_services import verify_email_code
+
     success = verify_email_code(email, code, purpose)
 
     if success:
-        return JsonResponse({"success": True, "message": "이메일 본인 인증이 성공적으로 완료되었습니다."})
-    return JsonResponse({"success": False, "message": "인증코드가 올바르지 않거나 5분 유효시간이 만료되었습니다."}, status=400)
+        return JsonResponse(
+            {"success": True, "message": "이메일 본인 인증이 성공적으로 완료되었습니다."}
+        )
+    return JsonResponse(
+        {"success": False, "message": "인증코드가 올바르지 않거나 5분 유효시간이 만료되었습니다."},
+        status=400,
+    )
 
 
 @login_required
@@ -659,6 +781,7 @@ def send_tutor_announcement_view(request):
 
     if target_team_id:
         from teams.models import Team
+
         team = Team.objects.filter(id=target_team_id).first()
         if team:
             recipient_emails = list(
@@ -671,17 +794,25 @@ def send_tutor_announcement_view(request):
         target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
     elif selected_user_ids:
         recipient_emails = list(
-            User.objects.filter(id__in=selected_user_ids, is_active=True).values_list("email", flat=True)
+            User.objects.filter(id__in=selected_user_ids, is_active=True).values_list(
+                "email", flat=True
+            )
         )
         target_info_str = f"선택한 수강생 (총 {len(recipient_emails)}명)"
     elif target_user_id:
         target_user = User.objects.filter(id=target_user_id).first()
-        recipient_emails = [target_user.email] if target_user else []
-        name = target_user.first_name if target_user and target_user.first_name else target_user.email
-        target_info_str = f"수강생 {name}님"
+        if target_user and target_user.role == User.Role.STUDENT and target_user.is_active:
+            recipient_emails = [target_user.email]
+            name = target_user.first_name or target_user.email
+            target_info_str = f"수강생 {name}님"
+        else:
+            recipient_emails = []
+            target_info_str = "선택한 수강생 (0명)"
     else:
         recipient_emails = list(
-            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list("email", flat=True)
+            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list(
+                "email", flat=True
+            )
         )
         target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
 
@@ -764,7 +895,3 @@ def cancel_scheduled_email_view(request, email_id):
         messages.error(request, "이미 처리되었거나 취소할 수 없는 예약 건입니다.")
 
     return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
-
-
-
-

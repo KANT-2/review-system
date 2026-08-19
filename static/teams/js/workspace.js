@@ -57,6 +57,12 @@
     return normalize(person.display_name).includes(searchQuery);
   }
 
+  function seedLabel(person) {
+    // 학생 화면 응답에는 seed_scores 자체가 안 내려오므로(개인정보 보호) 튜터 화면에서만 뜬다.
+    const score = data.seed_scores?.[person.participant_id];
+    return `<span class="member-seed">시드 ${score ?? "-"}</span>`;
+  }
+
   function memberMarkup(person, canEdit) {
     const isMe = person.participant_id === config.myParticipantId;
     const draggableAttributes = canEdit
@@ -67,7 +73,8 @@
     const initialLetter = escapeHtml(person.display_name?.[0] || "-");
     const dimmed = matchesSearch(person) ? "" : " dimmed";
     const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
-    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span>${displayName}</span>${myLabel}</div>`;
+    const seed = config.role === "tutor" ? seedLabel(person) : "";
+    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span class="member-name">${displayName}</span>${seed}${myLabel}</div>`;
   }
 
   function teamCardMarkup(team, canEdit, showMyTeam) {
@@ -103,7 +110,8 @@
           : "";
         const dimmed = matchesSearch(person) ? "" : " dimmed";
         const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
-        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}</span>`;
+        const seed = config.role === "tutor" ? seedLabel(person) : "";
+        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}${seed}</span>`;
       })
       .join("");
     // 편집 중에는 비어 있어도 영역을 남긴다 - 팀에서 뺀 학생을 떨어뜨릴 자리가 필요하다.
@@ -222,13 +230,27 @@
     metric.className = `teams-metric ${hits ? "neutral" : "warn"}`;
   }
 
+  // 저장 뒤 다음 절차 안내 배너. 다시 편집을 시작하면 감춘다 - 저장하지 않은 변경이 있는데
+  // "저장했습니다"가 남아 있으면 잘못 읽힌다.
+  function showSaveNotice(visible) {
+    const notice = byId("saveNotice");
+    if (!notice) return;
+    const link = byId("saveNoticeLink");
+    if (visible && link && config.nextUrl) link.href = config.nextUrl;
+    notice.hidden = !visible || !config.nextUrl;
+  }
+
   function renderTutorBoard() {
     const canEdit = !data.is_read_only;
     renderUnassignedMembers(canEdit);
     renderBoard({ canEdit });
     renderSearchMetric();
     byId("cancelButton").disabled = !isDirty;
-    byId("saveButton").disabled = !isDirty || data.unassigned_members.length > 0;
+    // 미배정 인원이 있어도 저장은 할 수 있다 - saveConfiguration이 확인창을 띄운
+    // 뒤 재확인 값을 담아 다시 보낸다. 팀이 하나도 없는 등 저장 자체가 불가능한
+    // 경우는 서버가 막는다.
+    byId("saveButton").disabled = !isDirty;
+    if (isDirty) showSaveNotice(false);
   }
 
   function participantCount() {
@@ -303,6 +325,7 @@
         .filter(Boolean),
     }));
     data.unassigned_members = [];
+    data.seed_scores = result.seed_scores || {};
     byId("seedMetric").textContent = `유효 시드 ${result.quality.seeded_participant_count}명`;
     const initialDeviation = result.quality.initial_standard_deviation ?? "N/A";
     const finalDeviation = result.quality.final_standard_deviation ?? "N/A";
@@ -312,10 +335,11 @@
     renderTutorBoard();
   }
 
-  function savePayload(imbalanceConfirmed) {
+  function savePayload(imbalanceConfirmed, unassignedConfirmed) {
     return {
       lock_version: data.lock_version,
       imbalance_confirmed: imbalanceConfirmed,
+      unassigned_confirmed: unassignedConfirmed,
       teams: data.teams.map((team) => ({
         team_number: team.team_number,
         name: team.name,
@@ -324,7 +348,7 @@
     };
   }
 
-  async function saveConfiguration(imbalanceConfirmed = false) {
+  async function saveConfiguration(imbalanceConfirmed = false, unassignedConfirmed = false) {
     if (config.previewMode) {
       saved = structuredClone(data);
       isDirty = false;
@@ -332,17 +356,34 @@
       return;
     }
     try {
-      const result = await post(config.saveUrl, savePayload(imbalanceConfirmed));
+      const result = await post(
+        config.saveUrl,
+        savePayload(imbalanceConfirmed, unassignedConfirmed),
+      );
       data.lock_version = result.lock_version;
       saved = structuredClone(data);
       isDirty = false;
       renderTutorBoard();
+      showSaveNotice(true);
     } catch (error) {
+      // 미배정 인원과 인원 불균형은 각자 별도로 확인받는다 - 하나만 확인하고 넘어가면
+      // 나머지 경고를 놓칠 수 있어서, 서버가 알려주는 대로 하나씩 다시 확인한다.
+      if (
+        error.code === "unassigned_confirmation_required" &&
+        window.confirm(
+          `미배정 학생 ${data.unassigned_members.length}명은 팀 없이 저장됩니다. ` +
+            "이 상태로는 회차를 시작할 수 없고, 나중에 다시 편성해서 배정을 마쳐야 합니다. " +
+            "그래도 지금 저장할까요?",
+        )
+      ) {
+        await saveConfiguration(imbalanceConfirmed, true);
+        return;
+      }
       if (
         error.code === "imbalance_confirmation_required" &&
         window.confirm("팀별 인원 차이가 큽니다. 현재 구성으로 저장하시겠습니까?")
       ) {
-        await saveConfiguration(true);
+        await saveConfiguration(true, unassignedConfirmed);
         return;
       }
       throw error;
@@ -400,13 +441,13 @@
   } else {
     if (!data.is_configured) {
       showEmptyState(
-        "팀 편성 전",
+        "팀 배정 전",
         "현재 배정된 팀이 없습니다",
-        "다음 프로젝트 팀 편성이 완료되면 이곳에서 확인할 수 있습니다.",
+        "다음 프로젝트 팀 배정이 완료되면 이곳에서 확인할 수 있습니다.",
       );
       return;
     }
-    byId("statusBadge").textContent = "팀 편성 완료";
+    byId("statusBadge").textContent = "팀 배정 완료";
     byId("pageDescription").textContent = "현재 프로젝트의 전체 팀과 나의 팀을 확인하세요.";
     byId("legend").textContent = "";
     renderBoard({ showMyTeam: true });

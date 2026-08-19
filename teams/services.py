@@ -43,6 +43,14 @@ class ImbalanceConfirmationRequired(AssignmentValidationError):
     """인원 차이가 큰 수동 편성을 저장하기 전에 재확인이 필요하다."""
 
 
+class UnassignedParticipantsConfirmationRequired(AssignmentValidationError):
+    """일부 참가자가 아직 어느 팀에도 없는 채로 저장하기 전에 재확인이 필요하다.
+
+    회차 시작(rounds.services.round_start_errors)은 전원 배정을 여전히 강제한다 -
+    여기서는 "편성 중 임시 저장"만 허용하는 것이라 안전하다.
+    """
+
+
 def distribute_participants(
     participant_ids: Sequence[int],
     team_count: int,
@@ -228,8 +236,14 @@ def validate_assignment(
     expected_participant_ids: Sequence[int],
     *,
     imbalance_confirmed: bool = False,
+    unassigned_confirmed: bool = False,
 ) -> AssignmentValidation:
-    """저장 요청의 누락·중복·빈 팀·인원 불균형을 검증한다."""
+    """저장 요청의 누락·중복·빈 팀·인원 불균형을 검증한다.
+
+    참가자 전원 배정은 더 이상 저장 자체의 필수조건이 아니다 - 편성 도중에도
+    저장해 둘 수 있어야 한다. 대신 회차 시작(rounds.services.round_start_errors)이
+    전원 배정을 강제하는 마지막 관문 역할을 한다.
+    """
     expected_participants = list(expected_participant_ids)
     if len(expected_participants) != len(set(expected_participants)):
         raise ValueError("expected_participant_ids must not contain duplicates")
@@ -251,11 +265,17 @@ def validate_assignment(
     assigned_participant_set = set(assigned_participants)
     missing_participants = sorted(expected_participant_set - assigned_participant_set)
     unexpected_participants = sorted(assigned_participant_set - expected_participant_set)
-    if missing_participants:
-        raise AssignmentValidationError(f"participants are missing: {missing_participants}")
+    # 회차에 속하지 않는 참가자가 섞여 들어온 건 확인으로 넘어갈 수 있는 상황이 아니라
+    # 데이터가 어긋난 것이다 - 항상 막는다.
     if unexpected_participants:
         raise AssignmentValidationError(
             f"unexpected participants were assigned: {unexpected_participants}"
+        )
+    # 반면 일부만 배정하고 나머지는 나중에 배정하려는 건 정상적인 작업 흐름이라,
+    # 명시적으로 확인한 요청에서만 통과시킨다.
+    if missing_participants and not unassigned_confirmed:
+        raise UnassignedParticipantsConfirmationRequired(
+            f"participants are not yet assigned to any team: {missing_participants}"
         )
 
     has_size_imbalance = max(team_sizes) - min(team_sizes) > 1

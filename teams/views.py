@@ -3,6 +3,7 @@ from typing import Protocol
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from teams.application import (
@@ -25,7 +26,11 @@ from teams.queries import (
     RoundParticipantNotFoundError,
     StudentTeamView,
 )
-from teams.services import AssignmentValidationError, ImbalanceConfirmationRequired
+from teams.services import (
+    AssignmentValidationError,
+    ImbalanceConfirmationRequired,
+    UnassignedParticipantsConfirmationRequired,
+)
 
 
 class TeamsHttpBackend(Protocol):
@@ -196,6 +201,8 @@ def management_team_page(request: HttpRequest, round_id: int) -> HttpResponse:
             "my_participant_id": None,
             "auto_url": f"/teams/manage/rounds/{round_id}/teams/auto/",
             "save_url": f"/teams/manage/rounds/{round_id}/teams/save/",
+            # 저장 뒤 무엇을 해야 하는지 화면에서 바로 알려주기 위한 다음 단계 주소다.
+            "next_url": reverse("rounds:reviews", kwargs={"round_id": round_id}),
             "preview_mode": False,
         },
     )
@@ -261,6 +268,8 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
         return JsonResponse(saved_team_board_response(board))
     except ImbalanceConfirmationRequired as error:
         return _error_response("imbalance_confirmation_required", str(error), 409)
+    except UnassignedParticipantsConfirmationRequired as error:
+        return _error_response("unassigned_confirmation_required", str(error), 409)
     except TeamVersionConflictError as error:
         return _error_response("version_conflict", str(error), 409)
     except RoundNotEditableError as error:
@@ -333,4 +342,3 @@ def send_team_announcement_view(request: HttpRequest, team_id: int) -> HttpRespo
         request, f"'{team.name}' 팀원 총 {sent_count}명에게 공지 메일이 성공적으로 발송되었습니다."
     )
     return redirect(request.META.get("HTTP_REFERER", "/manage/"))
-

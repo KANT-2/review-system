@@ -5,27 +5,35 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ round_obj.title }} 진행 현황</h1>
-      <p class="page-desc">
-        시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.
-        <span class="badge bg-info text-dark ms-2"><i class="bi bi-clock-history me-1"></i>마감 10분 전 자동 제출 알림 활성화됨</span>
-        {% if round_obj.auto_reminder_sent_at %}
-          <span class="badge bg-success text-white ms-1"><i class="bi bi-check-circle-fill me-1"></i>자동 제출 알림 발송완료 ({{ round_obj.auto_reminder_sent_at|date:"H:i" }})</span>
-        {% endif %}
-      </p>
+      <p class="page-desc">시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.</p>
     </div>
     <div class="d-flex gap-2">
-      <form action="{% url 'rounds:send_reminders' round_obj.pk %}" method="post" class="d-inline">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-warning fw-bold text-dark">
-          ⏰ 미제출자 제출 안내 메일 발송
-        </button>
-      </form>
-      <a href="{% url 'rounds:text-answers' round_obj.pk %}" class="btn btn-ax-secondary">
+      {% if round_obj.status == 'IN_PROGRESS' %}
+        <form action="{% url 'rounds:send_reminders' round_obj.pk %}"
+              method="post"
+              class="d-inline"
+              onsubmit="return confirm('미제출 수강생에게 제출 안내 메일을 보냅니다. 계속할까요?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-warning fw-bold text-dark">
+            <i class="bi bi-envelope me-1"></i>미제출자 제출 안내
+          </button>
+        </form>
+      {% endif %}
+      {% if round_obj.status != 'DRAFT' %}
+        <a href="{% url 'rounds:tutor-review-list' round_obj.pk %}"
+           class="btn btn-ax-secondary">
+          <i class="bi bi-person-check me-1"></i>튜터 개인평가
+          {% if tutor_review_count %}<span class="badge badge-ax badge-ax-completed ms-1">{{ tutor_review_count }}</span>{% endif %}
+        </a>
+      {% endif %}
+      <a href="{% url 'rounds:text-answers' round_obj.pk %}"
+         class="btn btn-ax-secondary">
         <i class="bi bi-chat-left-text me-1"></i>서술형 응답
         {% if text_answer_count %}<span class="badge badge-ax badge-ax-pending ms-1">{{ text_answer_count }}</span>{% endif %}
       </a>
       {% if round_obj.status == 'COMPLETED' %}
-        <a href="{% url 'rounds:results' round_obj.pk %}" class="btn btn-ax-primary">결과·공개</a>
+        <a href="{% url 'rounds:results' round_obj.pk %}"
+           class="btn btn-ax-primary">결과·공개</a>
       {% endif %}
     </div>
   </div>

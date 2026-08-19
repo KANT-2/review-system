@@ -1,6 +1,15 @@
 from django.contrib import admin, messages
 
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
+from rounds.services import pending_participant_rows
+
+
+def _round_recipient_emails(round_obj):
+    return list(
+        round_obj.participants.filter(user__is_active=True)
+        .exclude(user__email="")
+        .values_list("user__email", flat=True)
+    )
 
 
 class TemplateQuestionInline(admin.TabularInline):
@@ -48,42 +57,47 @@ class EvaluationRoundAdmin(admin.ModelAdmin):
     @admin.action(description="🚀 선택한 회차 '평가 시작 안내' 이메일 수강생 전원 발송")
     def send_round_started_mail(self, request, queryset):
         from accounts.email_services import send_round_started_email
-        from accounts.models import User
-        student_emails = list(
-            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list("email", flat=True)
-        )
+
         total_sent = 0
-        for round_obj in queryset:
-            total_sent += send_round_started_email(round_obj, student_emails)
-        self.message_user(request, f"수강생들에게 총 {total_sent}건의 평가 개시 알림 메일이 발송되었습니다.", messages.SUCCESS)
+        for round_obj in queryset.filter(status=EvaluationRound.Status.IN_PROGRESS):
+            total_sent += send_round_started_email(round_obj, _round_recipient_emails(round_obj))
+        self.message_user(
+            request,
+            f"회차 참가자들에게 총 {total_sent}건의 평가 개시 알림 메일이 발송되었습니다.",
+            messages.SUCCESS,
+        )
 
     @admin.action(description="👁️ 선택한 회차 '성적 및 피드백 공개' 이메일 수강생 전원 발송")
     def send_results_released_mail(self, request, queryset):
         from accounts.email_services import send_results_released_email
-        from accounts.models import User
-        student_emails = list(
-            User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list("email", flat=True)
-        )
+
         total_sent = 0
-        for round_obj in queryset:
-            total_sent += send_results_released_email(round_obj, student_emails)
-        self.message_user(request, f"수강생들에게 총 {total_sent}건의 성적 공개 알림 메일이 발송되었습니다.", messages.SUCCESS)
+        for round_obj in queryset.filter(status=EvaluationRound.Status.COMPLETED):
+            total_sent += send_results_released_email(round_obj, _round_recipient_emails(round_obj))
+        self.message_user(
+            request,
+            f"회차 참가자들에게 총 {total_sent}건의 성적 공개 알림 메일이 발송되었습니다.",
+            messages.SUCCESS,
+        )
 
     @admin.action(description="⏰ 선택한 회차 '평가 미제출자' 독촉 이메일 발송")
     def send_submission_reminders(self, request, queryset):
-        from django.contrib import messages
-
         from accounts.email_services import send_submission_reminder_email
-        from accounts.models import User
-        students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
+
         total_sent = 0
-        for round_obj in queryset:
-            for student in students:
+        for round_obj in queryset.filter(status=EvaluationRound.Status.IN_PROGRESS):
+            for row in pending_participant_rows(round_obj):
+                student = row["participant"].user
+                if not student.is_active or not student.email:
+                    continue
                 name = student.first_name if student.first_name else student.email
                 send_submission_reminder_email(round_obj, name, student.email)
                 total_sent += 1
-        self.message_user(request, f"미제출 수강생들에게 총 {total_sent}건의 제출 독촉 메일이 발송되었습니다.", messages.SUCCESS)
-
+        self.message_user(
+            request,
+            f"미제출 참가자들에게 총 {total_sent}건의 제출 안내 메일이 발송되었습니다.",
+            messages.SUCCESS,
+        )
 
 
 @admin.register(RoundParticipant)

@@ -121,6 +121,13 @@ class ServiceTeamsBackendTests(TestCase):
         self.assertEqual(len(view.teams), 2)
         self.assertFalse(view.is_read_only)
 
+    def test_management_team_includes_seed_scores_for_every_participant(self):
+        view = self.backend.get_management_team(round_id=10)
+
+        self.assertEqual(self.data_source.seed_calls, [(10, (101, 102, 103, 104))])
+        self.assertEqual(view.seed_scores[101], Decimal("90"))
+        self.assertIsNone(view.seed_scores[104])
+
     def test_collects_round_seed_and_previous_pair_data_for_auto_assignment(self):
         result = self.backend.create_auto_assignment(
             10,

@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from accounts.models import User
 from audit.services import record_event
 from results.models import CalculationRun, EvaluationResult, TutorNote
 from results.services import (
@@ -19,7 +20,7 @@ from results.services import (
     round_to_display,
 )
 from reviews.models import ReviewSubmission
-from rounds.models import EvaluationRound, RoundParticipant
+from rounds.models import EvaluationRound
 
 # toggle_publication이 "한 번 더 확인이 필요하다"고 알릴 때 쓰는 ValidationError code.
 PARTIAL_CONFIRMATION_REQUIRED = "partial_confirmation_required"
@@ -243,36 +244,80 @@ def toggle_all_publications(*, round_id, actor, partial_confirmed=False):
 
 
 @transaction.atomic
-def save_tutor_note(*, round_id, participant_id, body, actor):
-    """수강생 한 명에 대한 튜터 전용 메모를 저장한다. 빈 내용으로 저장하면 메모를 지운다.
+def add_tutor_note(*, student_id, body, actor):
+    """수강생 한 명에 대한 튜터 전용 메모를 기록에 새로 추가한다.
 
-    감사 로그에는 메모 원문을 남기지 않는다 (audit.services.record_event 규칙).
+    회차와 무관하게 학생당 여러 건이 쌓이며, 기존 메모는 건드리지 않는다 - 언제 무슨
+    맥락으로 남겼는지가 중요해서 덮어쓰지 않는다. 감사 로그에는 메모 원문을 남기지
+    않는다 (audit.services.record_event 규칙).
     """
-    participant = RoundParticipant.objects.filter(pk=participant_id, round_id=round_id).first()
-    if not participant:
-        raise ValidationError("이 회차의 수강생이 아닙니다.")
+    student = User.objects.filter(pk=student_id, role=User.Role.STUDENT).first()
+    if not student:
+        raise ValidationError("수강생 계정이 아닙니다.")
     body = (body or "").strip()
+    if not body:
+        raise ValidationError("메모 내용을 입력해 주세요.")
     if len(body) > TUTOR_NOTE_MAX_LENGTH:
         raise ValidationError(f"메모는 {TUTOR_NOTE_MAX_LENGTH}자까지 저장할 수 있습니다.")
-    if body:
-        note, _ = TutorNote.objects.update_or_create(
-            participant=participant, defaults={"body": body, "author": actor}
-        )
-        cleared = False
-    else:
-        note = TutorNote.objects.filter(participant=participant).first()
-        if not note:
-            return None
-        TutorNote.objects.filter(pk=note.pk).delete()
-        cleared = True
+    note = TutorNote.objects.create(student=student, body=body, author=actor)
     record_event(
-        action="TUTOR_NOTE_CHANGED",
-        target=participant,
+        action="TUTOR_NOTE_ADDED",
+        target=student,
         actor=actor,
-        round_obj=participant.round,
-        summary={"participant_id": participant.pk, "cleared": cleared, "length": len(body)},
+        summary={"student_id": student.pk, "length": len(body)},
     )
-    return None if cleared else note
+    return note
+
+
+@transaction.atomic
+def delete_tutor_note(*, student_id, note_id, actor):
+    """메모 기록 한 건을 지운다. 학생 ID까지 맞아야 지운다 - URL의 note_id만으로
+    다른 학생의 메모를 잘못 지우는 사고를 막는다."""
+    note = (
+        TutorNote.objects.filter(pk=note_id, student_id=student_id)
+        .select_related("student")
+        .first()
+    )
+    if not note:
+        raise ValidationError("이미 지워졌거나 존재하지 않는 메모입니다.")
+    student = note.student
+    note.delete()
+    record_event(
+        action="TUTOR_NOTE_DELETED",
+        target=student,
+        actor=actor,
+        summary={"student_id": student_id, "note_id": note_id},
+    )
+
+
+@transaction.atomic
+def delete_all_tutor_notes(*, student_id, actor):
+    """수강생 한 명의 메모 기록을 전부 지운다."""
+    student = User.objects.filter(pk=student_id, role=User.Role.STUDENT).first()
+    if not student:
+        raise ValidationError("수강생 계정이 아닙니다.")
+    deleted_count, _ = TutorNote.objects.filter(student=student).delete()
+    if not deleted_count:
+        return
+    record_event(
+        action="TUTOR_NOTE_ALL_DELETED",
+        target=student,
+        actor=actor,
+        summary={"student_id": student.pk, "count": deleted_count},
+    )
+
+
+def tutor_notes_by_student():
+    """수강생 관리 화면용 - 학생 계정 ID -> 메모 기록(최신순).
+
+    화면에 뿌릴 만큼 가벼운 목록이라(학생 한 명당 많아야 수십 건) 학생별로 쪼개 조회하지
+    않고 한 번에 불러와 그룹만 짓는다.
+    """
+    notes_by_student = defaultdict(list)
+    notes = TutorNote.objects.select_related("author").filter(student__role=User.Role.STUDENT)
+    for note in notes:
+        notes_by_student[note.student_id].append(note)
+    return dict(notes_by_student)
 
 
 def previous_final_scores(round_obj):

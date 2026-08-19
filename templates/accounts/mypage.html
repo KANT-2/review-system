@@ -1,15 +1,18 @@
 {% extends "base.html" %}
-{% load results_extras %}
+{% load static results_extras %}
 {% block title %}마이페이지 - AX Evaluation Console{% endblock %}
 {% block breadcrumb %}마이페이지{% endblock %}
 {% block content %}
   <div class="page-header">
     <div>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <h1 class="page-title mb-0">마이페이지</h1>
-        {% if portal.is_demo %}<span class="badge text-bg-secondary">DEMO RESULTS</span>{% endif %}
-      </div>
-      <p class="page-desc">계정 정보와 공개된 평가 결과를 확인합니다.</p>
+      <h1 class="page-title mb-0">마이페이지</h1>
+      <p class="page-desc">
+        {% if is_student %}
+          계정 정보와 공개된 평가 결과를 확인합니다.
+        {% else %}
+          계정 정보를 관리합니다.
+        {% endif %}
+      </p>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <button type="button"
@@ -22,119 +25,181 @@
       {% endif %}
     </div>
   </div>
-  <section class="card-custom mb-4" aria-labelledby="account-profile-title">
-    <div class="card-body-custom">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <div class="d-flex align-items-center gap-3">
-          <div class="member-avatar avatar-lg">{{ user.first_name|default:user.email|slice:":1" }}</div>
-          <div>
-            <h5 class="fw-bold mb-1" id="account-profile-title">{{ user.first_name|default:"이름 미등록" }}</h5>
-            <div class="text-muted small">{{ user.email }}</div>
+  <div class="row g-4 mb-4">
+    <div class="{% if is_student %}col-12 col-lg-5{% else %}col-12{% endif %}">
+      <section class="card-custom h-100 mb-0"
+               aria-labelledby="account-profile-title">
+        <div class="card-body-custom">
+          <div class="d-flex align-items-center gap-3">
+            <div class="member-avatar avatar-lg">
+              {% if user.profile_image %}
+                <img src="{{ user.profile_image.url }}" alt="{{ user.first_name }} 프로필 사진">
+              {% else %}
+                {{ user.first_name|default:user.email|slice:":1" }}
+              {% endif %}
+            </div>
+            <div class="min-width-0">
+              <h2 class="h5 fw-bold mb-1" id="account-profile-title">{{ user.first_name|default:"이름 미등록" }}</h2>
+              <div class="text-muted font-size-135">{{ user.email }}</div>
+              <div class="text-muted font-size-135">
+                {{ user.session_info|default:"기수 미등록" }} · {{ user.phone_number|default:"연락처 미등록" }}
+              </div>
+            </div>
           </div>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-          <span class="badge bg-primary">{{ user.get_role_display }}</span>
-          <span class="badge bg-light text-dark border">{{ user.session_info|default:"기수 미등록" }}</span>
-          <span class="badge badge-ax badge-ax-completed">{{ user.get_approval_status_display }}</span>
-        </div>
-      </div>
-      <hr class="my-4">
-      <dl class="row mb-0 small">
-        <dt class="col-sm-3 text-muted">연락처</dt>
-        <dd class="col-sm-9">
-          {{ user.phone_number|default:"미등록" }}
-        </dd>
-        <dt class="col-sm-3 text-muted">가입 방식</dt>
-        <dd class="col-sm-9">
-          {{ user.login_provider|default:"email" }}
-        </dd>
-      </dl>
+      </section>
     </div>
-  </section>
-  {% if portal %}
-    <div class="row g-4">
+    {% if is_student %}
       <div class="col-12 col-lg-7">
-        <section class="card-custom h-100"
-                 aria-labelledby="latest-result-detail-title">
+        <section class="card-custom h-100 mb-0"
+                 aria-labelledby="competency-radar-title">
           <div class="card-header-custom">
-            <div class="card-title-custom" id="latest-result-detail-title">
-              <i class="bi bi-bar-chart-line-fill text-primary"></i>{{ portal.latest_result.round_name }} 공개 결과
+            <div class="card-title-custom" id="competency-radar-title">
+              <i class="bi bi-diagram-3-fill text-primary"></i>5대 역량 분석
             </div>
-            <span class="badge badge-ax {% if portal.latest_result.data_status == 'COMPLETE' %}badge-ax-completed{% else %}badge-ax-warning{% endif %}">{{ portal.latest_result.data_status }}</span>
+            {% if portal.competency.strengths %}
+              <span class="text-muted font-size-115">
+                강점 {{ portal.competency.strengths.0.label }}
+                {% if portal.competency.weaknesses %}· 보완 {{ portal.competency.weaknesses.0.label }}{% endif %}
+              </span>
+            {% endif %}
           </div>
           <div class="card-body-custom">
-            <div class="row g-3 mb-4 text-center">
-              <div class="col-sm-4">
-                <div class="p-3 rounded-3 border bg-body-secondary h-100">
-                  <div class="text-muted small">팀 점수</div>
-                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.team_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
-                </div>
-              </div>
-              <div class="col-sm-4">
-                <div class="p-3 rounded-3 border bg-body-secondary h-100">
-                  <div class="text-muted small">개인 점수</div>
-                  <div class="fs-3 fw-bold mt-1">{{ portal.latest_result.peer_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small></div>
-                </div>
-              </div>
-              <div class="col-sm-4">
-                <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100">
-                  <div class="text-muted small">최종 점수</div>
-                  <div class="fs-3 fw-bold text-primary mt-1">{{ portal.latest_result.final_score|as_five_point|default:"N/A" }}<small class="fs-6">/5</small></div>
-                </div>
-              </div>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <tbody>
-                  <tr>
-                    <th scope="row" class="text-muted">계산식</th>
-                    <td class="text-end">팀 40% + 개인 60%</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" class="text-muted">개인 순위</th>
-                    <td class="text-end">{{ portal.latest_result.primary_rank|default:"비공개" }}</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" class="text-muted">개인 평가 응답</th>
-                    <td class="text-end">{{ portal.latest_result.valid_count }}/{{ portal.latest_result.expected_count }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-      </div>
-      <div class="col-12 col-lg-5">
-        <section class="card-custom" aria-labelledby="result-history-title">
-          <div class="card-header-custom">
-            <div class="card-title-custom" id="result-history-title">
-              <i class="bi bi-clock-history text-muted"></i>최근 유효 결과
-            </div>
-          </div>
-          <div class="card-body-custom p-0">
-            <div class="list-group list-group-flush">
-              {% for result in portal.score_history reversed %}
-                <div class="list-group-item d-flex justify-content-between align-items-center px-4 py-3">
-                  <div>
-                    <div class="fw-bold small">{{ result.round_name }}</div>
-                    <div class="font-size-11 text-muted">{{ result.data_status }}</div>
+            {% if portal.competency.has_data %}
+              <div class="row g-3 align-items-center">
+                <div class="col-7">
+                  <div class="ax-radar-compact">
+                    <canvas id="competencyRadarChart"></canvas>
                   </div>
-                  <strong>{{ result.final_score|as_five_point }}/5</strong>
                 </div>
-              {% endfor %}
-            </div>
+                <div class="col-5">
+                  <div class="text-success fw-bold font-size-135 mb-2">
+                    <i class="bi bi-trophy-fill me-1"></i>가장 뛰어난 역량
+                  </div>
+                  <ul class="list-unstyled font-size-135 mb-3">
+                    {% for item in portal.competency.strengths %}
+                      <li class="d-flex justify-content-between">
+                        <span>{{ item.label }}</span><strong>{{ item.score }}</strong>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                  <div class="text-warning fw-bold font-size-135 mb-2">
+                    <i class="bi bi-arrow-up-circle-fill me-1"></i>보완이 필요한 역량
+                  </div>
+                  <ul class="list-unstyled font-size-135 mb-0">
+                    {% for item in portal.competency.weaknesses %}
+                      <li class="d-flex justify-content-between">
+                        <span>{{ item.label }}</span><strong>{{ item.score }}</strong>
+                      </li>
+                    {% empty %}
+                      <li class="text-muted">데이터가 쌓이면 표시됩니다.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            {% else %}
+              <p class="text-muted text-center py-4 mb-0">아직 역량이 표시된 문항의 평가 데이터가 없습니다. 튜터가 문항에 역량을 지정하고 결과가 공개되면 이곳에 나타납니다.</p>
+            {% endif %}
           </div>
         </section>
       </div>
-    </div>
-  {% else %}
-    <div class="card-custom">
-      <div class="card-body-custom text-center py-5">
-        <i class="bi bi-bar-chart-line fs-1 text-muted"></i>
-        <h5 class="fw-bold mt-3">공개된 평가 결과가 없습니다</h5>
-        <p class="text-muted mb-0">튜터가 결과를 공개하면 회차별 점수와 순위가 이곳에 표시됩니다.</p>
+    {% endif %}
+  </div>
+  {% if is_student %}
+    {% if portal %}
+      <section class="card-custom mb-4" aria-labelledby="my-result-title">
+        <div class="card-header-custom">
+          <div class="card-title-custom" id="my-result-title">
+            <i class="bi bi-bar-chart-line-fill text-primary"></i>평가 결과
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            {% if portal.round_options|length > 1 %}
+              <form method="get" class="d-flex align-items-center gap-2">
+                <label for="resultRoundSelect" class="visually-hidden">회차 선택</label>
+                <select id="resultRoundSelect"
+                        name="round"
+                        class="ax-round-select"
+                        onchange="this.form.submit()">
+                  {% for option in portal.round_options %}
+                    <option value="{{ option.round_id }}"
+                            {% if option.round_id == portal.selected.round_id %}selected{% endif %}>
+                      {{ option.round_name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </form>
+            {% else %}
+              <span class="badge badge-ax badge-ax-completed">{{ portal.selected.round_name }}</span>
+            {% endif %}
+            <a href="{% url 'accounts:mypage_round_result_csv' portal.selected.round_id %}"
+               class="btn btn-sm btn-ax-secondary"><i class="bi bi-download me-1"></i>CSV</a>
+          </div>
+        </div>
+        <div class="card-body-custom">
+          <div class="row g-3">
+            <div class="col-6 col-lg-3">
+              <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100">
+                <div class="text-muted font-size-135">최종 점수</div>
+                <div class="fs-3 fw-bold text-primary mt-1">
+                  {{ portal.selected.final_score|as_five_point|default:"N/A" }}<small class="fs-6">/5</small>
+                </div>
+                {% include "accounts/_score_delta.html" with delta=portal.deltas.final_score %}
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="p-3 rounded-3 border bg-body-secondary h-100">
+                <div class="text-muted font-size-135">팀 점수</div>
+                <div class="fs-3 fw-bold mt-1">
+                  {{ portal.selected.team_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small>
+                </div>
+                {% include "accounts/_score_delta.html" with delta=portal.deltas.team_score %}
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="p-3 rounded-3 border bg-body-secondary h-100">
+                <div class="text-muted font-size-135">개인 점수</div>
+                <div class="fs-3 fw-bold mt-1">
+                  {{ portal.selected.peer_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small>
+                </div>
+                {% include "accounts/_score_delta.html" with delta=portal.deltas.peer_score %}
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="p-3 rounded-3 border bg-body-secondary h-100">
+                <div class="text-muted font-size-135">
+                  <i class="bi bi-trophy-fill text-warning me-1"></i>1등 팀
+                </div>
+                {% if portal.team_winner %}
+                  <div class="fs-5 fw-bold mt-1">{{ portal.team_winner.name }}</div>
+                  <div class="text-muted font-size-115">{{ portal.team_winner.score|as_five_point }}/5</div>
+                {% else %}
+                  <div class="fs-5 fw-bold mt-1 text-muted">비공개</div>
+                  <div class="text-muted font-size-115">튜터가 공개하면 표시됩니다.</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <hr class="my-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold font-size-135">회차별 점수</span>
+            <span class="text-muted font-size-115">팀 40% + 개인 60%로 최종 점수를 계산합니다</span>
+          </div>
+          <div class="ax-trend-compact">
+            <canvas id="scoreTrendChart"></canvas>
+          </div>
+        </div>
+      </section>
+      {{ portal.competency.entries|json_script:"competency-radar-data" }}
+      {{ portal.score_trend|json_script:"score-trend-data" }}
+    {% else %}
+      <div class="card-custom">
+        <div class="card-body-custom text-center py-5">
+          <i class="bi bi-bar-chart-line fs-1 text-muted"></i>
+          <h2 class="h5 fw-bold mt-3">공개된 평가 결과가 없습니다</h2>
+          <p class="text-muted mb-0">튜터가 결과를 공개하면 회차별 점수가 이곳에 표시됩니다.</p>
+        </div>
       </div>
-    </div>
+    {% endif %}
   {% endif %}
 {% endblock %}
 {% block modals %}
@@ -154,9 +219,40 @@
         </div>
         <form id="profileForm"
               method="post"
+              enctype="multipart/form-data"
               action="{% url 'accounts:api_update_profile' %}">
           {% csrf_token %}
           <div class="modal-body px-4 py-4">
+            <div class="mb-3">
+              <label class="form-label small fw-bold" for="profileImage">프로필 사진</label>
+              <div class="d-flex align-items-center gap-3">
+                <div class="member-avatar avatar-lg flex-shrink-0">
+                  {% if user.profile_image %}
+                    <img src="{{ user.profile_image.url }}" alt="현재 프로필 사진">
+                  {% else %}
+                    {{ user.first_name|default:user.email|slice:":1" }}
+                  {% endif %}
+                </div>
+                <div class="flex-grow-1">
+                  <input type="file"
+                         class="form-control"
+                         id="profileImage"
+                         name="profile_image"
+                         accept="image/*">
+                  <div class="form-text">2MB 이하 이미지 파일을 올릴 수 있습니다.</div>
+                  {% if user.profile_image %}
+                    <div class="form-check mt-2">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             value="1"
+                             name="clear_profile_image"
+                             id="clearProfileImage">
+                      <label class="form-check-label small" for="clearProfileImage">현재 사진 삭제</label>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
             <div class="mb-3">
               <label class="form-label small fw-bold" for="profileName">이름</label>
               <input type="text"
@@ -195,6 +291,7 @@
   </div>
 {% endblock %}
 {% block extra_js %}
+  <script src="{% static 'js/mypage-charts.js' %}"></script>
   <script>
   const profileForm = document.getElementById('profileForm');
   if (profileForm) {

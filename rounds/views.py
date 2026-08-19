@@ -1,13 +1,20 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
 from accounts.permissions import is_operations_user
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.forms import ReviewForm
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
+from reviews.services import (
+    get_tutor_review,
+    submit_tutor_review,
+    tutor_review_questions,
+    tutor_review_targets,
+    tutor_reviewable,
+)
 from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
 from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
 from rounds.services import (
@@ -16,6 +23,8 @@ from rounds.services import (
     delete_question_template,
     delete_round,
     get_review_progress,
+    participant_progress_rows,
+    pending_participant_rows,
     question_template_rows,
     reopen_round,
     revert_round_to_draft,
@@ -39,7 +48,7 @@ def operations_dashboard(request):
     latest_draft = rounds_dashboard_rows().filter(status=EvaluationRound.Status.DRAFT).first()
     completed = rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED)[:5]
     progress = get_review_progress(current) if current else None
-    # 승인 화면(accounts:tutor_dashboard)이 세는 기준과 같아야 배지 숫자가 목록과 맞는다.
+    # 승인 화면(accounts:account_admin)이 세는 기준과 같아야 배지 숫자가 목록과 맞는다.
     pending_approvals = User.objects.filter(
         role=User.Role.STUDENT,
         approval_status=User.ApprovalStatus.PENDING,
@@ -64,6 +73,80 @@ def round_list(request):
 
 
 @login_required
+def results_entry(request):
+    """사이드바 '결과 공개' - 가장 최근 완료 회차의 결과 화면으로 바로 이동한다.
+
+    채점은 완료된 회차에서만 가능하므로(results.application.calculate_round),
+    완료된 회차가 하나도 없으면 공개할 결과 자체가 없다.
+    """
+    _require_operations(request.user)
+    latest_completed = (
+        EvaluationRound.objects.filter(status=EvaluationRound.Status.COMPLETED)
+        .order_by("-completed_at")
+        .first()
+    )
+    if not latest_completed:
+        messages.info(
+            request,
+            "아직 완료된 회차가 없어 결과를 공개할 수 없습니다. 회차를 마감한 뒤 다시 시도해 주세요.",
+        )
+        return redirect("rounds:list")
+    return redirect("rounds:results", round_id=latest_completed.pk)
+
+
+@login_required
+def publish_entry(request):
+    """사이드바 '공개 설정' - 가장 최근 완료 회차의 공개 설정 화면으로 바로 이동한다."""
+    _require_operations(request.user)
+    latest_completed = (
+        EvaluationRound.objects.filter(status=EvaluationRound.Status.COMPLETED)
+        .order_by("-completed_at")
+        .first()
+    )
+    if not latest_completed:
+        messages.info(
+            request,
+            "아직 완료된 회차가 없어 공개 설정을 할 수 없습니다. 회차를 마감한 뒤 다시 시도해 주세요.",
+        )
+        return redirect("rounds:list")
+    return redirect("rounds:publish-settings", round_id=latest_completed.pk)
+
+
+def _participant_count(form, round_obj):
+    """회차 설정 화면에 보여줄 참가자 수 - 저장했을 때 실제로 들어갈 인원과 같아야 한다."""
+    user_ids = set(form.fields["participants"].queryset.values_list("pk", flat=True))
+    if round_obj:
+        user_ids |= set(round_obj.participants.values_list("user_id", flat=True))
+    return len(user_ids)
+
+
+def _template_previews():
+    """회차 설정 화면의 '미리보기' 창에 넣을 템플릿별 문항 목록.
+
+    선택하기 전에 어떤 문항이 들어 있는지 확인할 수 있어야 잘못된 템플릿을 붙이지 않는다.
+    """
+    return {
+        str(template.pk): {
+            "name": template.name,
+            "category": template.get_category_display(),
+            "description": template.description,
+            "questions": [
+                {
+                    "prompt": question.prompt,
+                    "response_type": question.get_response_type_display(),
+                    "competency": (
+                        question.get_competency_display() if question.competency else ""
+                    ),
+                    "is_required": question.is_required,
+                }
+                for question in template.questions.all()
+            ],
+        }
+        for template in QuestionTemplate.objects.prefetch_related("questions")
+    }
+
+
+@login_required
 @require_http_methods(["GET", "POST"])
 def round_edit(request, round_id=None):
     _require_operations(request.user)
@@ -81,12 +164,18 @@ def round_edit(request, round_id=None):
         except ValidationError as error:
             form.add_error(None, error)
         else:
-            messages.success(request, "회차 정보를 저장했습니다.")
-            return redirect("rounds:edit", round_id=saved.pk)
+            messages.success(request, "회차 정보를 저장했습니다. 이제 팀을 편성해 주세요.")
+            return redirect("rounds:teams", round_id=saved.pk)
     return render(
         request,
         "rounds/form.html",
-        {"round_obj": round_obj, "form": form, "read_only": False},
+        {
+            "round_obj": round_obj,
+            "form": form,
+            "read_only": False,
+            "participant_count": _participant_count(form, round_obj),
+            "template_previews": _template_previews(),
+        },
     )
 
 
@@ -101,40 +190,6 @@ def round_start(request, round_id):
     else:
         messages.success(request, "회차를 시작했습니다. 참가자·팀·질문지가 동결됩니다.")
     return redirect("rounds:reviews", round_id=round_id)
-
-
-def _participant_progress_rows(round_obj):
-    team_count = round_obj.teams.count()
-    completed = (
-        ReviewSubmission.objects.filter(round=round_obj)
-        .values("evaluator_id", "review_type")
-        .annotate(count=Count("id"))
-    )
-    completed_map = {(row["evaluator_id"], row["review_type"]): row["count"] for row in completed}
-    rows = []
-    participants = round_obj.participants.select_related("team_membership__team").all()
-    for participant in participants:
-        team_size = (
-            participant.team_membership.team.memberships.count()
-            if hasattr(participant, "team_membership")
-            else 0
-        )
-        team_expected = max(team_count - 1, 0)
-        peer_expected = max(team_size - 1, 0)
-        rows.append(
-            {
-                "participant": participant,
-                "team_expected": team_expected,
-                "team_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
-                ),
-                "peer_expected": peer_expected,
-                "peer_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
-                ),
-            }
-        )
-    return rows
 
 
 @login_required
@@ -159,8 +214,11 @@ def round_reviews(request, round_id):
             "start_errors": round_start_errors(round_obj)
             if round_obj.status == EvaluationRound.Status.DRAFT
             else [],
-            "participant_rows": _participant_progress_rows(round_obj),
+            "participant_rows": participant_progress_rows(round_obj),
             "text_answer_count": _text_answers(round_obj).count(),
+            "tutor_review_count": TutorReview.objects.filter(
+                round=round_obj, evaluator=request.user
+            ).count(),
         },
     )
 
@@ -220,6 +278,78 @@ def round_text_answers(request, round_id):
                 {"question": question, "answers": rows} for question, rows in grouped.items()
             ],
             "total_count": sum(len(rows) for rows in grouped.values()),
+        },
+    )
+
+
+@login_required
+def tutor_review_list(request, round_id):
+    """튜터 개인평가 - 회차 참가자 목록에서 한 명씩 평가한다.
+
+    학생끼리 하는 개인 평가와 저장 위치가 다르고(reviews.TutorReview), 지금은 기록만 남는다
+    - 최종점수 계산에는 반영하지 않는다.
+    """
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = tutor_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    return render(
+        request,
+        "rounds/tutor_review_list.html",
+        {
+            "round_obj": round_obj,
+            "targets": targets,
+            "completed_count": sum(target.completed for target in targets),
+            "editable": tutor_reviewable(round_obj),
+            "has_questions": tutor_review_questions(round_obj).exists(),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tutor_review_form(request, round_id, participant_id):
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = tutor_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    target = next((row for row in targets if row.pk == participant_id), None)
+    if not target:
+        raise PermissionDenied("평가할 수 없는 대상입니다.")
+    existing = get_tutor_review(round_obj, request.user, participant_id)
+    questions = list(tutor_review_questions(round_obj))
+    initial = None
+    if existing:
+        initial = {
+            f"question_{answer.question_id}": (
+                answer.rating_value if answer.rating_value is not None else answer.text_value
+            )
+            for answer in existing.answers.all()
+        }
+    form = ReviewForm(request.POST or None, questions=questions, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        try:
+            submit_tutor_review(
+                round_obj=round_obj,
+                tutor=request.user,
+                participant_id=participant_id,
+                answers=form.answer_values(),
+            )
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(
+                request,
+                "평가를 수정했습니다." if existing else "평가를 저장했습니다.",
+            )
+            return redirect("rounds:tutor-review-list", round_id=round_obj.pk)
+    return render(
+        request,
+        "rounds/tutor_review_form.html",
+        {
+            "round_obj": round_obj,
+            "target": target,
+            "form": form,
+            "questions": questions,
+            "existing": existing,
         },
     )
 
@@ -343,17 +473,22 @@ def send_submission_reminders_view(request, round_id):
     """특정 회차 미제출 수강생들에게 독촉 이메일을 일괄 발송합니다."""
     _require_operations(request.user)
     round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    if round_obj.status != EvaluationRound.Status.IN_PROGRESS:
+        messages.error(request, "진행 중인 회차만 제출 안내 메일을 보낼 수 있습니다.")
+        return redirect("rounds:reviews", round_id=round_id)
 
     from accounts.email_services import send_submission_reminder_email
-    from accounts.models import User
 
-    students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
     sent_count = 0
-    for student in students:
+    for row in pending_participant_rows(round_obj):
+        student = row["participant"].user
+        if not student.is_active or not student.email:
+            continue
         name = student.first_name if student.first_name else student.email
         send_submission_reminder_email(round_obj, name, student.email)
         sent_count += 1
 
-    messages.success(request, f"총 {sent_count}명의 미제출 수강생에게 제출 안내 이메일이 발송되었습니다.")
+    messages.success(
+        request, f"총 {sent_count}명의 미제출 수강생에게 제출 안내 이메일이 발송되었습니다."
+    )
     return redirect("rounds:reviews", round_id=round_id)
-

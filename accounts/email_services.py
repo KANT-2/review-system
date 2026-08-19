@@ -62,7 +62,7 @@ def send_email_verification_code(email, purpose):
     purpose_text = purpose_text_map.get(purpose, "본인 인증")
 
     subject = f"[AX 평가 시스템] {purpose_text} 인증코드: [{code}]"
-    
+
     html_content = render_to_string(
         "emails/verification_code.html",
         {
@@ -128,7 +128,9 @@ def check_email_is_verified(email, purpose):
     ).exists()
 
 
-def send_tutor_announcement_email(subject, message, recipient_emails, dashboard_url="http://127.0.0.1:8000/"):
+def send_tutor_announcement_email(
+    subject, message, recipient_emails, dashboard_url="http://127.0.0.1:8000/"
+):
     """
     튜터/관리자가 지정된 수강생/조 수신자 목록에게 커스텀 공지 메일을 발송합니다.
     """
@@ -151,13 +153,15 @@ def send_tutor_announcement_email(subject, message, recipient_emails, dashboard_
         subject=full_subject,
         body=text_content,
         from_email=None,
-        bcc=clean_emails, # Bcc로 안전하게 발송
+        bcc=clean_emails,  # Bcc로 안전하게 발송
     )
     msg.attach_alternative(html_content, "text/html")
     return _safe_send_mail(msg)
 
 
-def send_round_started_email(evaluation_round, recipient_emails, evaluation_url="http://127.0.0.1:8000/"):
+def send_round_started_email(
+    evaluation_round, recipient_emails, evaluation_url="http://127.0.0.1:8000/"
+):
     """
     평가 회차가 '진행 중'으로 변경되었을 때 대상 수강생들에게 개시 알림 메일을 발송합니다.
     """
@@ -186,7 +190,9 @@ def send_round_started_email(evaluation_round, recipient_emails, evaluation_url=
     return _safe_send_mail(msg)
 
 
-def send_results_released_email(evaluation_round, recipient_emails, result_url="http://127.0.0.1:8000/"):
+def send_results_released_email(
+    evaluation_round, recipient_emails, result_url="http://127.0.0.1:8000/"
+):
     """
     평가 성적/피드백이 '공개' 상태로 변경되었을 때 수강생들에게 알림 메일을 발송합니다.
     """
@@ -214,7 +220,9 @@ def send_results_released_email(evaluation_round, recipient_emails, result_url="
     return _safe_send_mail(msg)
 
 
-def send_submission_reminder_email(evaluation_round, student_name, student_email, evaluation_url="http://127.0.0.1:8000/"):
+def send_submission_reminder_email(
+    evaluation_round, student_name, student_email, evaluation_url="http://127.0.0.1:8000/"
+):
     """
     특정 미제출 수강생에게 제출 독촉 알림 메일을 발송합니다.
     """
@@ -238,5 +246,3 @@ def send_submission_reminder_email(evaluation_round, student_name, student_email
     )
     msg.attach_alternative(html_content, "text/html")
     return _safe_send_mail(msg)
-
-

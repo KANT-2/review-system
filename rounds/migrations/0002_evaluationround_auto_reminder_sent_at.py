@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('rounds', '0001_initial'),
+        ("rounds", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='evaluationround',
-            name='auto_reminder_sent_at',
+            model_name="evaluationround",
+            name="auto_reminder_sent_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]

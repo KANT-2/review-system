@@ -256,6 +256,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# 사용자가 올린 파일(프로필 사진). 정적 파일과 달리 배포 때마다 새로 만들면 안 되므로
+# 운영 환경에서는 이 경로를 영구 볼륨에 연결해야 한다.
+MEDIA_URL = "media/"
+MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT") or BASE_DIR / "media")
+# 프로필 사진 업로드 상한 (bytes). accounts.forms에서 함께 확인한다.
+PROFILE_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {

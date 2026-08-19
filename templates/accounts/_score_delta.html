@@ -1,0 +1,16 @@
+{% comment %}전 회차 대비 변화 배지. delta가 없으면(첫 회차이거나 한쪽이 N/A) 아무것도 그리지 않는다.{% endcomment %}
+{% if delta %}
+  {% if delta.direction == "up" %}
+    <span class="ax-trend-badge ax-trend-up" title="전 회차 대비 상승">
+      <i class="bi bi-arrow-up-short"></i>{{ delta.value }}
+    </span>
+  {% elif delta.direction == "down" %}
+    <span class="ax-trend-badge ax-trend-down" title="전 회차 대비 하락">
+      <i class="bi bi-arrow-down-short"></i>{{ delta.value }}
+    </span>
+  {% else %}
+    <span class="ax-trend-badge ax-trend-flat" title="전 회차와 동일">
+      <i class="bi bi-arrow-right-short"></i>변화없음
+    </span>
+  {% endif %}
+{% endif %}

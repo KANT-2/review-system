@@ -1,6 +1,9 @@
+import io
 import json
+import tempfile
 import threading
 import time
+from datetime import timedelta
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -8,15 +11,23 @@ from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.core import mail
 from django.core.exceptions import PermissionDenied
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, connections, transaction
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
+from PIL import Image
 
 from accounts.adapters import CustomSocialAccountAdapter
 from accounts.middleware import TrustedProxyMiddleware
 from accounts.models import User, WhitelistEmail
+from accounts.portal import build_student_result_portal
 from accounts.services import InvalidAccountTransition, set_account_active
 from audit.models import AuditEvent
+from results.application import calculate_round, toggle_publication
+from reviews.models import ReviewAnswer, ReviewSubmission
+from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
+from teams.models import Team, TeamMembership
 
 STRONG_PASSWORD = "Correct-Horse-Battery-2026!"
 NEW_STRONG_PASSWORD = "Another-Correct-Battery-2026!"
@@ -254,14 +265,14 @@ class AccountsTests(TestCase):
         self.client.force_login(self.tutor_user)
 
         response = self.client.post(
-            reverse("accounts:whitelist"),
+            reverse("accounts:whitelist_add"),
             {
                 "emails": "First@AX.com\nsecond@ax.com, third@ax.com\n\n",
                 "session_info": "5기 풀스택",
             },
         )
 
-        self.assertRedirects(response, reverse("accounts:whitelist"))
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         registered = set(WhitelistEmail.objects.values_list("email", flat=True))
         self.assertTrue({"first@ax.com", "second@ax.com", "third@ax.com"} <= registered)
         self.assertEqual(
@@ -272,7 +283,7 @@ class AccountsTests(TestCase):
         self.client.force_login(self.tutor_user)
 
         self.client.post(
-            reverse("accounts:whitelist"),
+            reverse("accounts:whitelist_add"),
             {"emails": self.whitelist_entry.email, "session_info": "3기"},
         )
 
@@ -285,19 +296,20 @@ class AccountsTests(TestCase):
         before = WhitelistEmail.objects.count()
 
         response = self.client.post(
-            reverse("accounts:whitelist"), {"emails": "ok@ax.com\n엉망진창", "session_info": ""}
+            reverse("accounts:whitelist_add"),
+            {"emails": "ok@ax.com\n엉망진창", "session_info": ""},
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         self.assertEqual(WhitelistEmail.objects.count(), before)
 
     def test_whitelist_screen_shows_whether_each_email_signed_up(self):
         WhitelistEmail.objects.create(email=self.approved_student.email, session_info="1기")
         self.client.force_login(self.tutor_user)
 
-        response = self.client.get(reverse("accounts:whitelist"))
+        response = self.client.get(reverse("accounts:account_admin"))
 
-        rows = {entry.email: entry.account for entry in response.context["entries"]}
+        rows = {entry.email: entry.account for entry in response.context["whitelist_entries"]}
         self.assertEqual(rows[self.approved_student.email], self.approved_student)
         self.assertIsNone(rows[self.whitelist_entry.email])
 
@@ -308,13 +320,13 @@ class AccountsTests(TestCase):
             reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
         )
 
-        self.assertRedirects(response, reverse("accounts:whitelist"))
+        self.assertRedirects(response, reverse("accounts:account_admin"))
         self.assertFalse(WhitelistEmail.objects.filter(pk=self.whitelist_entry.pk).exists())
 
     def test_students_cannot_touch_the_whitelist(self):
         self.client.force_login(self.approved_student)
 
-        listing = self.client.get(reverse("accounts:whitelist"))
+        listing = self.client.get(reverse("accounts:account_admin"))
         removal = self.client.post(
             reverse("accounts:whitelist_delete", args=[self.whitelist_entry.pk])
         )
@@ -578,19 +590,10 @@ class AccountsTests(TestCase):
             self.client.post(reverse("accounts:logout")), reverse("accounts:login")
         )
 
-    def test_student_logout_is_available_from_profile_menu(self):
-        self.client.force_login(self.approved_student)
-
-        response = self.client.get(reverse("accounts:mypage"))
-
-        self.assertContains(response, 'id="user-profile-menu-button"')
-        self.assertContains(response, f'action="{reverse("accounts:logout")}"')
-        self.assertContains(response, "로그아웃")
-
     def test_tutor_logout_is_available_from_profile_menu(self):
         self.client.force_login(self.tutor_user)
 
-        response = self.client.get(reverse("accounts:tutor_dashboard"))
+        response = self.client.get(reverse("accounts:account_admin"))
 
         self.assertContains(response, 'id="tutor-profile-menu-button"')
         self.assertContains(response, f'action="{reverse("accounts:logout")}"')
@@ -1141,88 +1144,388 @@ class StudentDashboardTests(TestCase):
             self.assertFalse(portal["round"]["is_urgent"])
 
 
-class AccountProfileEditTests(TestCase):
-    """계정 관리에서 이름·식별번호를 다룬다(ACC-001)."""
+class CompetencyAnalysisTests(TestCase):
+    """마이페이지 역량 분석·점수 추이·CSV 다운로드(MVP 의도적 확장 - CONTEXT.md 참고)."""
 
     def setUp(self):
         self.tutor = User.objects.create_user(
-            email="profile-tutor@ax.com",
+            email="competency-tutor@example.com",
             password=STRONG_PASSWORD,
-            _email_verified=True,
+            first_name="튜터",
             role=User.Role.TUTOR,
             approval_status=User.ApprovalStatus.APPROVED,
         )
-        self.student = User.objects.create_user(
-            email="profile-student@ax.com",
+        self.students = [
+            User.objects.create_user(
+                email=f"competency-student-{index}@example.com",
+                password=STRONG_PASSWORD,
+                first_name=f"학생{index}",
+                student_number=f"C{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
+            )
+            for index in range(4)
+        ]
+        team_template = QuestionTemplate.objects.create(
+            name="역량 팀", category="TEAM", created_by=self.tutor
+        )
+        peer_template = QuestionTemplate.objects.create(
+            name="역량 개인", category="PEER", created_by=self.tutor
+        )
+        self.teamwork_question = TemplateQuestion.objects.create(
+            template=team_template,
+            response_type="RATING_5",
+            prompt="팀워크는 어땠나요?",
+            competency=TemplateQuestion.Competency.TEAMWORK,
+            display_order=1,
+        )
+        self.untagged_team_question = TemplateQuestion.objects.create(
+            template=team_template,
+            response_type="RATING_5",
+            prompt="역량 태그 없는 문항",
+            display_order=2,
+        )
+        self.communication_question = TemplateQuestion.objects.create(
+            template=peer_template,
+            response_type="RATING_5",
+            prompt="의사소통은 어땠나요?",
+            competency=TemplateQuestion.Competency.COMMUNICATION,
+            display_order=1,
+        )
+        self.responsibility_question = TemplateQuestion.objects.create(
+            template=peer_template,
+            response_type="RATING_5",
+            prompt="책임감은 어땠나요?",
+            competency=TemplateQuestion.Competency.RESPONSIBILITY,
+            display_order=2,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="역량 회차",
+            status=EvaluationRound.Status.COMPLETED,
+            evaluation_start_at=now - timedelta(days=2),
+            evaluation_end_at=now - timedelta(days=1),
+            target_team_count=2,
+            team_template=team_template,
+            peer_template=peer_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(days=2),
+            completed_at=now,
+        )
+        self.participants = [
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        self.teams = [
+            Team.objects.create(round=self.round, team_number=index, name=f"{index}팀")
+            for index in (1, 2)
+        ]
+        for participant in self.participants[:2]:
+            TeamMembership.objects.create(team=self.teams[0], participant=participant)
+        for participant in self.participants[2:]:
+            TeamMembership.objects.create(team=self.teams[1], participant=participant)
+
+        # 팀B(2팀)가 팀A(1팀)를 평가 - 팀워크 4점, 태그 없는 문항 1점(집계에서 빠져야 한다).
+        for evaluator in self.participants[2:]:
+            submission = ReviewSubmission.objects.create(
+                round=self.round,
+                review_type="TEAM",
+                evaluator=evaluator,
+                target_team=self.teams[0],
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.teamwork_question, rating_value=4
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.untagged_team_question, rating_value=1
+            )
+        # 팀A가 팀B를 평가(회차 채점에 팀 결과가 필요하므로 함께 채운다).
+        for evaluator in self.participants[:2]:
+            submission = ReviewSubmission.objects.create(
+                round=self.round,
+                review_type="TEAM",
+                evaluator=evaluator,
+                target_team=self.teams[1],
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.teamwork_question, rating_value=3
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.untagged_team_question, rating_value=2
+            )
+        # student0의 유일한 팀원(student1)이 student0을 평가 - 의사소통 5점, 책임감 3점.
+        submission = ReviewSubmission.objects.create(
+            round=self.round,
+            review_type="PEER",
+            evaluator=self.participants[1],
+            target_participant=self.participants[0],
+        )
+        ReviewAnswer.objects.create(
+            submission=submission, question=self.communication_question, rating_value=5
+        )
+        ReviewAnswer.objects.create(
+            submission=submission, question=self.responsibility_question, rating_value=3
+        )
+        # student0도 student1을 평가해야 팀A 내부 짝이 완성된다(팀 인원수 검증용은 아니지만
+        # calculate_round가 팀B 쪽 짝도 요구하므로 함께 채운다).
+        submission = ReviewSubmission.objects.create(
+            round=self.round,
+            review_type="PEER",
+            evaluator=self.participants[0],
+            target_participant=self.participants[1],
+        )
+        ReviewAnswer.objects.create(
+            submission=submission, question=self.communication_question, rating_value=5
+        )
+        ReviewAnswer.objects.create(
+            submission=submission, question=self.responsibility_question, rating_value=5
+        )
+        for evaluator_index, target_index in ((2, 3), (3, 2)):
+            submission = ReviewSubmission.objects.create(
+                round=self.round,
+                review_type="PEER",
+                evaluator=self.participants[evaluator_index],
+                target_participant=self.participants[target_index],
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.communication_question, rating_value=4
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.responsibility_question, rating_value=4
+            )
+
+    def test_competency_scores_ignore_untagged_questions_and_only_use_published_rounds(self):
+        # 공개 전에는 역량 데이터가 전혀 안 보여야 한다.
+        portal = build_student_result_portal(self.students[0])
+        self.assertIsNone(portal)
+
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+
+        portal = build_student_result_portal(self.students[0])
+        competency = portal["competency"]
+        scores = {entry["code"]: entry["score"] for entry in competency["entries"]}
+
+        self.assertEqual(scores["TEAMWORK"], 4.0)
+        self.assertEqual(scores["COMMUNICATION"], 5.0)
+        self.assertEqual(scores["RESPONSIBILITY"], 3.0)
+        # 태그 없는 문항은 어떤 역량으로도 새지 않는다.
+        self.assertNotIn(1, scores.values())
+        self.assertIsNone(scores["DEV_UNDERSTANDING"])
+        self.assertIsNone(scores["PROBLEM_SOLVING"])
+
+    def test_strengths_and_weaknesses_are_top_two_and_bottom_two(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+
+        competency = build_student_result_portal(self.students[0])["competency"]
+
+        self.assertEqual(
+            [entry["code"] for entry in competency["strengths"]], ["COMMUNICATION", "TEAMWORK"]
+        )
+        self.assertEqual([entry["code"] for entry in competency["weaknesses"]], ["RESPONSIBILITY"])
+        self.assertTrue(competency["has_data"])
+
+    def test_mypage_shows_radar_chart_only_after_competency_data_exists(self):
+        self.client.force_login(self.students[0])
+
+        before = self.client.get(reverse("accounts:mypage"))
+        self.assertContains(before, "공개된 평가 결과가 없습니다")
+
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+
+        after = self.client.get(reverse("accounts:mypage"))
+        self.assertContains(after, 'id="competencyRadarChart"')
+        self.assertContains(after, "가장 뛰어난 역량")
+        self.assertContains(after, "보완이 필요한 역량")
+
+    def test_round_result_csv_download(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+        self.client.force_login(self.students[0])
+
+        response = self.client.get(
+            reverse("accounts:mypage_round_result_csv", args=[self.round.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        # BOM은 파일 맨 앞에 한 번만 있어야 한다(줄마다 반복되면 엑셀에서 깨져 보인다).
+        self.assertEqual(response.content.count("﻿".encode()), 1)
+        body = response.content.decode("utf-8-sig")
+        self.assertIn("역량 회차", body)
+        self.assertIn("팀 점수", body)
+
+    def test_round_result_csv_requires_published_result(self):
+        # 채점 전 - 공개된 결과가 없으므로 404.
+        self.client.force_login(self.students[0])
+        response = self.client.get(
+            reverse("accounts:mypage_round_result_csv", args=[self.round.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_round_result_csv_is_scoped_to_the_requesting_student(self):
+        calculate_round(round_id=self.round.pk, actor=self.tutor)
+        toggle_publication(round_id=self.round.pk, item_key="my_score", actor=self.tutor)
+        outsider = User.objects.create_user(
+            email="competency-outsider@example.com",
             password=STRONG_PASSWORD,
-            _email_verified=True,
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
             is_onboarded=True,
         )
-        self.url = reverse("accounts:account_profile_update", args=(self.student.pk,))
+        self.client.force_login(outsider)
+
+        response = self.client.get(
+            reverse("accounts:mypage_round_result_csv", args=[self.round.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+
+class BulkApprovalTests(TestCase):
+    """승인 대기 목록 - 체크한 계정만 한 번에 승인·반려한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="bulk-tutor@example.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.pending = [
+            User.objects.create_user(
+                email=f"bulk-pending-{index}@example.com",
+                password=STRONG_PASSWORD,
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.PENDING,
+            )
+            for index in range(3)
+        ]
+
+    def test_checked_accounts_are_approved_together(self):
         self.client.force_login(self.tutor)
 
-    def test_tutor_sets_name_and_student_number(self):
         response = self.client.post(
-            self.url,
-            {"first_name": " 김민준 ", "student_number": "AX2026", "session_info": "5기"},
+            reverse("accounts:bulk_approval"),
+            {"decision": "approve", "user_ids": [self.pending[0].pk, self.pending[1].pk]},
         )
 
         self.assertRedirects(response, reverse("accounts:account_admin"))
-        self.student.refresh_from_db()
-        self.assertEqual(self.student.first_name, "김민준")
-        self.assertEqual(self.student.student_number, "AX2026")
-        self.assertEqual(self.student.session_info, "5기")
+        for user in self.pending[:2]:
+            user.refresh_from_db()
+            self.assertEqual(user.approval_status, User.ApprovalStatus.APPROVED)
+        self.pending[2].refresh_from_db()
+        self.assertEqual(self.pending[2].approval_status, User.ApprovalStatus.PENDING)
 
-    def test_duplicate_student_number_is_rejected(self):
-        User.objects.create_user(
-            email="taken@ax.com",
+    def test_checked_accounts_can_be_rejected_together(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "reject", "user_ids": [self.pending[0].pk]},
+        )
+
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.REJECTED)
+
+    def test_unknown_decision_changes_nothing(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(
+            reverse("accounts:bulk_approval"),
+            {"decision": "delete", "user_ids": [self.pending[0].pk]},
+        )
+
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.PENDING)
+
+    def test_students_cannot_bulk_approve(self):
+        student = User.objects.create_user(
+            email="bulk-student@example.com",
             password=STRONG_PASSWORD,
-            _email_verified=True,
-            student_number="AX2026",
+            role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
         )
-
-        self.client.post(
-            self.url,
-            {"first_name": "김민준", "student_number": "AX2026", "session_info": ""},
-        )
-
-        self.student.refresh_from_db()
-        self.assertIsNone(self.student.student_number)
-
-    def test_blank_student_number_is_stored_as_null_not_empty(self):
-        """빈 문자열이 여러 건이면 unique 제약에 걸리므로 NULL로 비운다."""
-        self.client.post(
-            self.url, {"first_name": "김민준", "student_number": "  ", "session_info": ""}
-        )
-
-        self.student.refresh_from_db()
-        self.assertIsNone(self.student.student_number)
-
-    def test_edit_is_audited_without_storing_the_values(self):
-        self.client.post(
-            self.url,
-            {"first_name": "김민준", "student_number": "AX9999", "session_info": ""},
-        )
-
-        event = AuditEvent.objects.get(action="ACCOUNT_PROFILE_UPDATED")
-        self.assertEqual(event.actor, self.tutor)
-        self.assertEqual(event.summary, {"fields": ["first_name", "student_number"]})
-        self.assertNotIn("김민준", str(event.summary))
-
-    def test_students_cannot_edit_accounts(self):
-        self.client.force_login(self.student)
+        self.client.force_login(student)
 
         response = self.client.post(
-            self.url, {"first_name": "해킹", "student_number": "", "session_info": ""}
+            reverse("accounts:bulk_approval"),
+            {"decision": "approve", "user_ids": [self.pending[0].pk]},
         )
 
         self.assertEqual(response.status_code, 403)
+        self.pending[0].refresh_from_db()
+        self.assertEqual(self.pending[0].approval_status, User.ApprovalStatus.PENDING)
 
-    def test_screen_shows_the_edit_form(self):
-        response = self.client.get(reverse("accounts:account_admin"))
 
-        self.assertContains(response, 'name="student_number"')
-        self.assertContains(response, "식별번호")
+class ProfileImageTests(TestCase):
+    """마이페이지 프로필 사진 업로드."""
+
+    def setUp(self):
+        self.student = User.objects.create_user(
+            email="photo-student@example.com",
+            password=STRONG_PASSWORD,
+            first_name="사진",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.client.force_login(self.student)
+
+    def _png_bytes(self):
+        buffer = io.BytesIO()
+        Image.new("RGB", (8, 8), "blue").save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def test_uploaded_image_is_saved_and_can_be_cleared(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile("me.png", self._png_bytes(), content_type="image/png")
+
+                response = self.client.post(
+                    reverse("accounts:api_update_profile"), {"profile_image": upload}
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.student.refresh_from_db()
+                self.assertTrue(self.student.profile_image)
+
+                self.client.post(
+                    reverse("accounts:api_update_profile"), {"clear_profile_image": "1"}
+                )
+
+                self.student.refresh_from_db()
+                self.assertFalse(self.student.profile_image)
+
+    def test_a_file_that_is_not_an_image_is_rejected(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile(
+                    "fake.png", b"not really an image", content_type="image/png"
+                )
+
+                response = self.client.post(
+                    reverse("accounts:api_update_profile"), {"profile_image": upload}
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.student.refresh_from_db()
+                self.assertFalse(self.student.profile_image)
+
+    def test_profile_text_fields_still_update_without_a_photo(self):
+        response = self.client.post(
+            reverse("accounts:api_update_profile"), {"first_name": "이름변경"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.first_name, "이름변경")
