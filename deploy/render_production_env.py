@@ -11,7 +11,14 @@ SECRET_RULES = {
     "POSTGRES_PASSWORD": 48,
     "DJANGO_EMAIL_HOST_PASSWORD": 32,
 }
+OAUTH_SECRET_RULES = {
+    "GOOGLE_OAUTH_CLIENT_ID": 20,
+    "GOOGLE_OAUTH_CLIENT_SECRET": 20,
+    "KAKAO_OAUTH_CLIENT_ID": 20,
+    "KAKAO_OAUTH_CLIENT_SECRET": 20,
+}
 SAFE_SECRET = re.compile(r"^[A-Za-z0-9_-]+$")
+SAFE_OAUTH_SECRET = re.compile(r"^[^\s\r\n]+$")
 
 
 def read_secrets() -> dict[str, str]:
@@ -20,6 +27,13 @@ def read_secrets() -> dict[str, str]:
         value = os.environ.get(name, "")
         if len(value) < minimum_length or not SAFE_SECRET.fullmatch(value):
             raise SystemExit(f"{name} must contain at least {minimum_length} URL-safe characters")
+        secrets[name] = value
+    for name, minimum_length in OAUTH_SECRET_RULES.items():
+        value = os.environ.get(name, "")
+        if len(value) < minimum_length or not SAFE_OAUTH_SECRET.fullmatch(value):
+            raise SystemExit(
+                f"{name} must contain at least {minimum_length} non-whitespace characters"
+            )
         secrets[name] = value
     return secrets
 
