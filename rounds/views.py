@@ -36,6 +36,9 @@ from rounds.services import (
     start_round,
 )
 
+# 진행 현황 표에서 접지 않고 바로 보여줄 참가자 수 - 이보다 많으면 나머지는 접힌다.
+VISIBLE_PARTICIPANT_ROWS = 6
+
 
 def _require_operations(user):
     if not is_operations_user(user):
@@ -94,24 +97,6 @@ def results_entry(request):
         )
         return redirect("rounds:list")
     return redirect("rounds:results", round_id=latest_completed.pk)
-
-
-@login_required
-def publish_entry(request):
-    """사이드바 '공개 설정' - 가장 최근 완료 회차의 공개 설정 화면으로 바로 이동한다."""
-    _require_operations(request.user)
-    latest_completed = (
-        EvaluationRound.objects.filter(status=EvaluationRound.Status.COMPLETED)
-        .order_by("-completed_at")
-        .first()
-    )
-    if not latest_completed:
-        messages.info(
-            request,
-            "아직 완료된 회차가 없어 공개 설정을 할 수 없습니다. 회차를 마감한 뒤 다시 시도해 주세요.",
-        )
-        return redirect("rounds:list")
-    return redirect("rounds:publish-settings", round_id=latest_completed.pk)
 
 
 def _participant_count(form, round_obj):
@@ -214,18 +199,20 @@ def round_reviews(request, round_id):
     start_checks = (
         round_start_checks(round_obj) if round_obj.status == EvaluationRound.Status.DRAFT else []
     )
+    participant_rows = participant_progress_rows(round_obj)
     return render(
         request,
         "rounds/reviews.html",
         {
             "round_obj": round_obj,
             "progress": progress,
-            "participant_rows": participant_progress_rows(round_obj),
+            "start_blocking": [check.message for check in start_checks if not check.confirmable],
+            "start_confirmable": [check.message for check in start_checks if check.confirmable],
+            "participant_head": participant_rows[:VISIBLE_PARTICIPANT_ROWS],
+            "participant_rest": participant_rows[VISIBLE_PARTICIPANT_ROWS:],
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user
             ).count(),
-            "start_blocking": [check.message for check in start_checks if not check.confirmable],
-            "start_confirmable": [check.message for check in start_checks if check.confirmable],
         },
     )
 

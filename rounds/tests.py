@@ -116,6 +116,115 @@ class RoundLifecycleTests(TestCase):
             start_round(round_id=other.pk, actor=self.tutor)
 
 
+class ParticipantProgressScreenTests(TestCase):
+    """진행 현황 표(rounds:reviews)는 미완료·미배정 참가자를 위로 정렬하고,
+    VISIBLE_PARTICIPANT_ROWS를 넘으면 나머지를 접어 둔다.
+    """
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="progress-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"progress-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"P{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            )
+            for index in range(1, 9)
+        ]
+        team_template = QuestionTemplate.objects.create(
+            name="팀 평가", category="TEAM", created_by=self.tutor
+        )
+        peer_template = QuestionTemplate.objects.create(
+            name="개인 평가", category="PEER", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=team_template, response_type="RATING_5", prompt="팀 점수", display_order=1
+        )
+        TemplateQuestion.objects.create(
+            template=peer_template, response_type="RATING_5", prompt="개인 점수", display_order=1
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="진행 현황 테스트",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now,
+            evaluation_end_at=now + timedelta(days=1),
+            target_team_count=2,
+            team_template=team_template,
+            peer_template=peer_template,
+            created_by=self.tutor,
+            started_at=now,
+        )
+        self.participants = [
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        self.teams = [
+            Team.objects.create(round=self.round, team_number=index, name=f"{index}팀")
+            for index in (1, 2)
+        ]
+        # 앞 4명만 팀에 배정한다 - 나머지 4명은 미배정 상태로 남겨, 총 8명이 접기 임계값도 넘기게 한다.
+        for index, participant in enumerate(self.participants[:4]):
+            TeamMembership.objects.create(team=self.teams[index % 2], participant=participant)
+        # 첫 참가자만 팀·개인 평가를 모두 채워 '완료' 상태로 만든다.
+        ReviewSubmission.objects.create(
+            round=self.round,
+            review_type=ReviewSubmission.ReviewType.TEAM,
+            evaluator=self.participants[0],
+            target_team=self.teams[1],
+        )
+        ReviewSubmission.objects.create(
+            round=self.round,
+            review_type=ReviewSubmission.ReviewType.PEER,
+            evaluator=self.participants[0],
+            target_participant=self.participants[1],
+        )
+
+    def test_incomplete_and_unassigned_participants_are_sorted_first(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:reviews", kwargs={"round_id": self.round.pk}))
+
+        all_rows = response.context["participant_head"] + response.context["participant_rest"]
+        self.assertEqual(len(all_rows), 8)
+        self.assertEqual(all_rows[-1]["participant"].student_number_snapshot, "P001")
+        self.assertTrue(all(not row["is_complete"] for row in all_rows[:-1]))
+
+    def test_more_than_visible_limit_is_split_for_collapsing(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:reviews", kwargs={"round_id": self.round.pk}))
+
+        self.assertEqual(len(response.context["participant_head"]), 6)
+        self.assertEqual(len(response.context["participant_rest"]), 2)
+        self.assertContains(response, "나머지 2명 더보기")
+
+    def test_at_or_under_visible_limit_has_no_collapse_toggle(self):
+        RoundParticipant.objects.filter(
+            round=self.round, student_number_snapshot__in=["P007", "P008"]
+        ).delete()
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:reviews", kwargs={"round_id": self.round.pk}))
+
+        self.assertEqual(response.context["participant_rest"], [])
+        self.assertNotContains(response, "더보기")
+
+
 class QuestionTemplateScreenTests(TestCase):
     """운영자가 Django admin 없이 문항 템플릿을 관리할 수 있어야 한다.
 
