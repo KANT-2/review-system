@@ -6,34 +6,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('rounds', '0003_merge_competency_and_email_notifications'),
+        ("rounds", "0003_merge_competency_and_email_notifications"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='evaluationround',
-            name='personal_score_weight',
+            model_name="evaluationround",
+            name="personal_score_weight",
             field=models.PositiveSmallIntegerField(default=60),
         ),
         migrations.AddField(
-            model_name='evaluationround',
-            name='team_score_weight',
+            model_name="evaluationround",
+            name="team_score_weight",
             field=models.PositiveSmallIntegerField(default=40),
         ),
         migrations.AddField(
-            model_name='evaluationround',
-            name='tutor_score_weight',
+            model_name="evaluationround",
+            name="tutor_score_weight",
             field=models.PositiveSmallIntegerField(default=0),
         ),
         migrations.AddConstraint(
-            model_name='evaluationround',
-            constraint=models.CheckConstraint(condition=models.Q(('team_score_weight__gte', 0), ('team_score_weight__lte', 100), ('personal_score_weight__gte', 0), ('personal_score_weight__lte', 100), ('tutor_score_weight__gte', 0), ('tutor_score_weight__lte', 100)), name='rounds_score_weight_range'),
+            model_name="evaluationround",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    ("team_score_weight__gte", 0),
+                    ("team_score_weight__lte", 100),
+                    ("personal_score_weight__gte", 0),
+                    ("personal_score_weight__lte", 100),
+                    ("tutor_score_weight__gte", 0),
+                    ("tutor_score_weight__lte", 100),
+                ),
+                name="rounds_score_weight_range",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='evaluationround',
-            constraint=models.CheckConstraint(condition=models.Q(('team_score_weight', django.db.models.expressions.CombinedExpression(django.db.models.expressions.CombinedExpression(models.Value(100), '-', models.F('personal_score_weight')), '-', models.F('tutor_score_weight')))), name='rounds_score_weight_sums_to_100'),
+            model_name="evaluationround",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    (
+                        "team_score_weight",
+                        django.db.models.expressions.CombinedExpression(
+                            django.db.models.expressions.CombinedExpression(
+                                models.Value(100), "-", models.F("personal_score_weight")
+                            ),
+                            "-",
+                            models.F("tutor_score_weight"),
+                        ),
+                    )
+                ),
+                name="rounds_score_weight_sums_to_100",
+            ),
         ),
     ]
