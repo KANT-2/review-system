@@ -54,8 +54,8 @@ class ValidateAssignmentTests(TestCase):
             validate_assignment([[1, 2], [3, 4], [5]], self.participant_ids)
 
     def test_accepts_unassigned_participant_after_confirmation(self):
-        # 재확인만 하면 일부 미배정 상태로도 저장할 수 있다 - 회차 시작은 별도로
-        # 전원 배정을 강제하므로(rounds.services.round_start_errors) 안전하다.
+        # 재확인만 하면 일부 미배정 상태로도 저장할 수 있다. 회차 시작도 같은 방식으로
+        # 확인을 받으면 진행되고, 미배정 참가자는 그 회차 평가에서 빠질 뿐이다.
         result = validate_assignment(
             [[1, 2], [3, 4], [5]],
             self.participant_ids,

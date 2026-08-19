@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -156,7 +155,7 @@ class QuestionTemplateScreenTests(TestCase):
             "questions-1-prompt": "발표가 명확했나요?",
             "questions-1-response_type": "RATING_5",
             "questions-2-prompt": "",
-            "questions-2-response_type": "TEXT",
+            "questions-2-response_type": "RATING_5",
         }
         payload.update(overrides)
         return payload
@@ -402,143 +401,6 @@ class RoundLifecycleReversalTests(TestCase):
         self.assertTrue(EvaluationRound.objects.filter(pk=round_obj.pk).exists())
 
 
-class TextAnswerScreenTests(TestCase):
-    """서술형 응답 열람 - 운영자만, 원문 그대로(RES-013)."""
-
-    def setUp(self):
-        self.tutor = User.objects.create_user(
-            email="text-tutor@example.com",
-            password="strong-test-password",
-            role=User.Role.TUTOR,
-            approval_status=User.ApprovalStatus.APPROVED,
-        )
-        self.students = [
-            User.objects.create_user(
-                email=f"text-student-{index}@example.com",
-                password="strong-test-password",
-                first_name=f"학생{index}",
-                student_number=f"T{index:03d}",
-                role=User.Role.STUDENT,
-                approval_status=User.ApprovalStatus.APPROVED,
-                is_onboarded=True,
-            )
-            for index in range(1, 5)
-        ]
-        team_template = QuestionTemplate.objects.create(
-            name="팀", category=QuestionTemplate.Category.TEAM, created_by=self.tutor
-        )
-        self.rating_question = TemplateQuestion.objects.create(
-            template=team_template,
-            response_type=TemplateQuestion.ResponseType.RATING_5,
-            prompt="완성도는?",
-            display_order=1,
-        )
-        self.text_question = TemplateQuestion.objects.create(
-            template=team_template,
-            response_type=TemplateQuestion.ResponseType.TEXT,
-            prompt="인상 깊었던 점은?",
-            display_order=2,
-        )
-        peer_template = QuestionTemplate.objects.create(
-            name="개인", category=QuestionTemplate.Category.PEER, created_by=self.tutor
-        )
-        TemplateQuestion.objects.create(
-            template=peer_template,
-            response_type=TemplateQuestion.ResponseType.RATING_5,
-            prompt="기여도는?",
-            display_order=1,
-        )
-        now = timezone.now()
-        self.round = EvaluationRound.objects.create(
-            title="서술형 회차",
-            status=EvaluationRound.Status.IN_PROGRESS,
-            evaluation_start_at=now - timedelta(hours=1),
-            evaluation_end_at=now + timedelta(hours=1),
-            target_team_count=2,
-            team_template=team_template,
-            peer_template=peer_template,
-            created_by=self.tutor,
-            started_at=now,
-        )
-        self.participants = [
-            RoundParticipant.objects.create(
-                round=self.round,
-                user=user,
-                student_number_snapshot=user.student_number,
-                display_name_snapshot=user.first_name,
-            )
-            for user in self.students
-        ]
-        team_one = Team.objects.create(round=self.round, team_number=1, name="1팀")
-        self.team_two = Team.objects.create(round=self.round, team_number=2, name="2팀")
-        for participant in self.participants[:2]:
-            TeamMembership.objects.create(team=team_one, participant=participant)
-        for participant in self.participants[2:]:
-            TeamMembership.objects.create(team=self.team_two, participant=participant)
-        submission = ReviewSubmission.objects.create(
-            round=self.round,
-            evaluator=self.participants[0],
-            review_type=ReviewSubmission.ReviewType.TEAM,
-            target_team=self.team_two,
-        )
-        ReviewAnswer.objects.create(
-            submission=submission, question=self.rating_question, rating_value=4
-        )
-        ReviewAnswer.objects.create(
-            submission=submission,
-            question=self.text_question,
-            text_value="발표 흐름이 매끄러웠습니다.",
-        )
-        self.url = reverse("rounds:text-answers", args=(self.round.pk,))
-
-    def test_tutor_reads_the_free_text_answers(self):
-        self.client.force_login(self.tutor)
-
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "인상 깊었던 점은?")
-        self.assertContains(response, "발표 흐름이 매끄러웠습니다.")
-        self.assertContains(response, "학생1")
-        self.assertContains(response, "2팀")
-
-    def test_rating_answers_are_not_listed_here(self):
-        self.client.force_login(self.tutor)
-
-        response = self.client.get(self.url)
-
-        self.assertNotContains(response, "완성도는?")
-
-    def test_students_cannot_open_it(self):
-        self.client.force_login(self.students[0])
-
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, 403)
-
-    def test_blank_text_answers_cannot_even_be_stored(self):
-        """빈 응답은 화면에서 거를 필요도 없이 DB가 막는다(reviews_answer_exactly_one_value)."""
-        blank = ReviewSubmission.objects.create(
-            round=self.round,
-            evaluator=self.participants[1],
-            review_type=ReviewSubmission.ReviewType.TEAM,
-            target_team=self.team_two,
-        )
-
-        with self.assertRaises(IntegrityError):
-            ReviewAnswer.objects.create(
-                submission=blank, question=self.text_question, text_value=""
-            )
-
-    def test_progress_page_links_to_the_answers_screen(self):
-        self.client.force_login(self.tutor)
-
-        response = self.client.get(reverse("rounds:reviews", args=(self.round.pk,)))
-
-        self.assertContains(response, self.url)
-        self.assertEqual(response.context["text_answer_count"], 1)
-
-
 class QuestionRowAddingTests(TestCase):
     """문항 줄 추가 - 빈 행 3개 제한 때문에 저장·재편집을 반복해야 했다."""
 
@@ -572,11 +434,7 @@ class QuestionRowAddingTests(TestCase):
         }
         for index, prompt in enumerate(prompts):
             payload[f"questions-{index}-prompt"] = prompt
-            payload[f"questions-{index}-response_type"] = (
-                TemplateQuestion.ResponseType.RATING_5
-                if index < 3
-                else TemplateQuestion.ResponseType.TEXT
-            )
+            payload[f"questions-{index}-response_type"] = TemplateQuestion.ResponseType.RATING_5
             payload[f"questions-{index}-is_required"] = "on"
 
         response = self.client.post(reverse("rounds:template-create"), payload)

@@ -46,8 +46,8 @@ class ImbalanceConfirmationRequired(AssignmentValidationError):
 class UnassignedParticipantsConfirmationRequired(AssignmentValidationError):
     """일부 참가자가 아직 어느 팀에도 없는 채로 저장하기 전에 재확인이 필요하다.
 
-    회차 시작(rounds.services.round_start_errors)은 전원 배정을 여전히 강제한다 -
-    여기서는 "편성 중 임시 저장"만 허용하는 것이라 안전하다.
+    회차 시작(rounds.services.round_start_checks)도 이제는 미배정 참가자를 확인 후
+    진행할 수 있다 - 그 참가자는 해당 회차 평가·점수 계산에서 빠질 뿐이다.
     """
 
 
@@ -240,9 +240,9 @@ def validate_assignment(
 ) -> AssignmentValidation:
     """저장 요청의 누락·중복·빈 팀·인원 불균형을 검증한다.
 
-    참가자 전원 배정은 더 이상 저장 자체의 필수조건이 아니다 - 편성 도중에도
-    저장해 둘 수 있어야 한다. 대신 회차 시작(rounds.services.round_start_errors)이
-    전원 배정을 강제하는 마지막 관문 역할을 한다.
+    참가자 전원 배정은 저장의 필수조건이 아니다 - 편성 도중에도 저장해 둘 수 있고,
+    회차 시작(rounds.services.round_start_checks)도 미배정 참가자를 확인 후 진행할
+    수 있다. 그 참가자는 배정 전까지 어느 화면에서도 시작 자체를 막지 않는다.
     """
     expected_participants = list(expected_participant_ids)
     if len(expected_participants) != len(set(expected_participants)):

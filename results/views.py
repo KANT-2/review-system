@@ -1,5 +1,3 @@
-from collections import Counter
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -61,22 +59,18 @@ def manage_results(request, round_id):
     if run:
         # 순위가 없는 행(N/A)은 어느 DB에서든 항상 맨 뒤로 - SQLite와 PostgreSQL은
         # NULL 정렬 기본값이 서로 반대다.
-        team_results = _mark_ties(
-            list(
-                run.results.filter(result_type=EvaluationResult.ResultType.TEAM)
-                .select_related("team")
-                .prefetch_related("team__memberships__participant")
-                .order_by(F("primary_rank").asc(nulls_last=True), "team__team_number")
-            )
+        team_results = list(
+            run.results.filter(result_type=EvaluationResult.ResultType.TEAM)
+            .select_related("team")
+            .prefetch_related("team__memberships__participant")
+            .order_by(F("primary_rank").asc(nulls_last=True), "team__team_number")
         )
-        individual_results = _mark_ties(
-            list(
-                run.results.filter(result_type=EvaluationResult.ResultType.INDIVIDUAL)
-                .select_related("participant", "participant__team_membership__team")
-                .order_by(
-                    F("primary_rank").asc(nulls_last=True),
-                    "participant__display_name_snapshot",
-                )
+        individual_results = list(
+            run.results.filter(result_type=EvaluationResult.ResultType.INDIVIDUAL)
+            .select_related("participant", "participant__team_membership__team")
+            .order_by(
+                F("primary_rank").asc(nulls_last=True),
+                "participant__display_name_snapshot",
             )
         )
         _attach_trend(individual_results, previous_final_scores(round_obj))
@@ -140,14 +134,6 @@ def publish_settings(request, round_id):
             "has_partial": has_partial,
         },
     )
-
-
-def _mark_ties(results):
-    """같은 순위를 나눠 가진 행에 ``is_tied``를 달아 화면에서 '공동'으로 표시하게 한다."""
-    counts = Counter(result.primary_rank for result in results if result.primary_rank)
-    for result in results:
-        result.is_tied = counts.get(result.primary_rank, 0) > 1
-    return results
 
 
 def _attach_trend(results, previous_scores):

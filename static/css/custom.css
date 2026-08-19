@@ -471,11 +471,6 @@ a.card-link:hover .card-custom {
 .ax-rank-badge--gold { background: #FDF0D8; color: #A3690A; }
 .ax-rank-badge--silver { background: #EEF1F5; color: #5B6472; }
 .ax-rank-badge--bronze { background: #F7E8DE; color: #9A5228; }
-.ax-tie-note {
-  margin-left: 8px;
-  color: var(--ax-text-muted);
-  font-size: 11px;
-}
 .ax-na-value { color: var(--ax-text-muted); }
 
 /* 제출 현황 배지 (results_extras.status_badge_class와 짝) */
