@@ -328,6 +328,15 @@ a.card-link:hover .card-custom {
   border-color: var(--ax-primary);
 }
 
+/* 대시보드의 튜터 팀/개인 평가 바로가기 카드 - card-link와 같은 호버 효과. */
+a.ax-dashboard-eval-trigger {
+  transition: box-shadow 200ms ease-out, border-color 200ms ease-out;
+}
+a.ax-dashboard-eval-trigger:hover {
+  box-shadow: 0 8px 28px rgba(23, 105, 224, 0.16);
+  border-color: var(--ax-primary);
+}
+
 /* Template utility classes */
 .auth-page {
   min-height: 100vh;

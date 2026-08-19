@@ -10,6 +10,8 @@ from reviews.models import (
     ReviewSubmission,
     TutorReview,
     TutorReviewAnswer,
+    TutorTeamReview,
+    TutorTeamReviewAnswer,
 )
 from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
 from teams.models import Team
@@ -376,3 +378,79 @@ def submit_tutor_review(*, round_obj, tutor, participant_id, answers):
             ]
         )
         return review
+
+
+# --- 튜터 팀평가 ---------------------------------------------------------------
+# 튜터 개인평가와 짝을 이루는 팀 단위 버전. 대상이 참가자가 아니라 팀이라는 점만 다르고
+# 나머지 규칙(회차 시작 후에만, 다시 쓰면 덮어씀)은 동일하다.
+
+
+def tutor_team_review_targets(round_obj, tutor):
+    """회차의 팀 전체 - 튜터가 이미 쓴 팀은 completed로 표시한다."""
+    written_ids = set(
+        TutorTeamReview.objects.filter(round=round_obj, evaluator=tutor).values_list(
+            "target_team_id", flat=True
+        )
+    )
+    return [
+        ReviewTargetRow(
+            pk=team.pk,
+            label=team.name,
+            description=f"{team.memberships.count()}명 구성",
+            completed=team.pk in written_ids,
+            url_name="rounds:tutor-team-review-form",
+        )
+        for team in round_obj.teams.prefetch_related("memberships")
+    ]
+
+
+def get_tutor_team_review(round_obj, tutor, team_id):
+    return (
+        TutorTeamReview.objects.prefetch_related("answers__question")
+        .filter(round=round_obj, evaluator=tutor, target_team_id=team_id)
+        .first()
+    )
+
+
+def tutor_team_review_questions(round_obj):
+    """튜터 팀평가도 그 회차의 팀 평가 질문지를 그대로 쓴다."""
+    return questions_for(round_obj, ReviewSubmission.ReviewType.TEAM)
+
+
+def submit_tutor_team_review(*, round_obj, tutor, team_id, answers):
+    if not tutor_reviewable(round_obj):
+        raise ValidationError("회차를 시작한 뒤에 평가할 수 있습니다.")
+    team = Team.objects.filter(pk=team_id, round=round_obj).first()
+    if not team:
+        raise PermissionDenied("이 회차의 팀이 아닙니다.")
+    questions = list(tutor_team_review_questions(round_obj))
+    if not questions:
+        raise ValidationError("이 회차에 팀 평가 질문지가 없습니다.")
+    answer_rows = validated_answer_rows(questions, answers)
+    with transaction.atomic():
+        review, _ = TutorTeamReview.objects.get_or_create(
+            round=round_obj, evaluator=tutor, target_team=team
+        )
+        review.answers.all().delete()
+        TutorTeamReviewAnswer.objects.bulk_create(
+            [
+                TutorTeamReviewAnswer(
+                    review=review,
+                    question=question,
+                    rating_value=rating,
+                    text_value=text or "",
+                )
+                for question, rating, text in answer_rows
+            ]
+        )
+        return review
+
+
+def tutor_review_progress(round_obj, tutor):
+    """대시보드용 - 이 튜터가 이번 회차에서 실제로 작성한 팀/개인 평가 진행률."""
+    return {
+        "team_completed": TutorTeamReview.objects.filter(round=round_obj, evaluator=tutor).count(),
+        "team_expected": round_obj.teams.count(),
+        "peer_completed": TutorReview.objects.filter(round=round_obj, evaluator=tutor).count(),
+        "peer_expected": round_obj.participants.count(),
+    }

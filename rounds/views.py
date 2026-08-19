@@ -11,10 +11,15 @@ from reviews.forms import ReviewForm
 from reviews.models import TutorReview
 from reviews.services import (
     get_tutor_review,
+    get_tutor_team_review,
     submit_tutor_review,
+    submit_tutor_team_review,
+    tutor_review_progress,
     tutor_review_questions,
     tutor_review_targets,
     tutor_reviewable,
+    tutor_team_review_questions,
+    tutor_team_review_targets,
 )
 from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
 from rounds.models import EvaluationRound, QuestionTemplate
@@ -49,6 +54,7 @@ def operations_dashboard(request):
     latest_draft = rounds_dashboard_rows().filter(status=EvaluationRound.Status.DRAFT).first()
     completed = rounds_dashboard_rows().filter(status=EvaluationRound.Status.COMPLETED)[:5]
     progress = get_review_progress(current) if current else None
+    tutor_progress = tutor_review_progress(current, request.user) if current else None
     # 승인 화면(accounts:account_admin)이 세는 기준과 같아야 배지 숫자가 목록과 맞는다.
     pending_approvals = User.objects.filter(
         role=User.Role.STUDENT,
@@ -62,6 +68,7 @@ def operations_dashboard(request):
             "latest_draft": latest_draft,
             "completed_rounds": completed,
             "progress": progress,
+            "tutor_progress": tutor_progress,
             "pending_approvals": pending_approvals,
             "active_notices": active_notices(),
         },
@@ -292,6 +299,78 @@ def tutor_review_form(request, round_id, participant_id):
     return render(
         request,
         "rounds/tutor_review_form.html",
+        {
+            "round_obj": round_obj,
+            "target": target,
+            "form": form,
+            "questions": questions,
+            "existing": existing,
+        },
+    )
+
+
+@login_required
+def tutor_team_review_list(request, round_id):
+    """튜터 팀평가 - 회차 팀 목록에서 한 팀씩 평가한다. tutor_review_list의 팀 단위 버전."""
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = (
+        tutor_team_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    )
+    return render(
+        request,
+        "rounds/tutor_team_review_list.html",
+        {
+            "round_obj": round_obj,
+            "targets": targets,
+            "completed_count": sum(target.completed for target in targets),
+            "editable": tutor_reviewable(round_obj),
+            "has_questions": tutor_team_review_questions(round_obj).exists(),
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def tutor_team_review_form(request, round_id, team_id):
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    targets = (
+        tutor_team_review_targets(round_obj, request.user) if tutor_reviewable(round_obj) else []
+    )
+    target = next((row for row in targets if row.pk == team_id), None)
+    if not target:
+        raise PermissionDenied("평가할 수 없는 대상입니다.")
+    existing = get_tutor_team_review(round_obj, request.user, team_id)
+    questions = list(tutor_team_review_questions(round_obj))
+    initial = None
+    if existing:
+        initial = {
+            f"question_{answer.question_id}": (
+                answer.rating_value if answer.rating_value is not None else answer.text_value
+            )
+            for answer in existing.answers.all()
+        }
+    form = ReviewForm(request.POST or None, questions=questions, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        try:
+            submit_tutor_team_review(
+                round_obj=round_obj,
+                tutor=request.user,
+                team_id=team_id,
+                answers=form.answer_values(),
+            )
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(
+                request,
+                "평가를 수정했습니다." if existing else "평가를 저장했습니다.",
+            )
+            return redirect("rounds:tutor-team-review-list", round_id=round_obj.pk)
+    return render(
+        request,
+        "rounds/tutor_team_review_form.html",
         {
             "round_obj": round_obj,
             "target": target,

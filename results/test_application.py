@@ -15,7 +15,14 @@ from results.application import (
     toggle_publication,
 )
 from results.models import CalculationRun, EvaluationResult, TutorNote
-from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview, TutorReviewAnswer
+from reviews.models import (
+    ReviewAnswer,
+    ReviewSubmission,
+    TutorReview,
+    TutorReviewAnswer,
+    TutorTeamReview,
+    TutorTeamReviewAnswer,
+)
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from teams.models import Team, TeamMembership
 
@@ -146,6 +153,45 @@ class ResultWorkflowTests(TestCase):
         self.assertContains(mypage, "팀 40% + 개인 60%")
         self.assertContains(mypage, '4.00<small class="fs-6">/5</small>', html=True)
         self.assertNotContains(mypage, "다음 회차 편성 기준 점수")
+
+    def test_tutor_team_review_blends_into_team_score_when_weight_enabled(self):
+        # teams[0]은 학생 팀평가만으로는 4.0/5 - 여기에 튜터 팀평가(2점)가 섞이면
+        # (4+4+2)/3 = 3.333333으로 내려가야 한다.
+        self.round.team_score_weight = 30
+        self.round.personal_score_weight = 40
+        self.round.tutor_score_weight = 30
+        self.round.save(
+            update_fields=["team_score_weight", "personal_score_weight", "tutor_score_weight"]
+        )
+        review = TutorTeamReview.objects.create(
+            round=self.round, evaluator=self.tutor, target_team=self.teams[0]
+        )
+        TutorTeamReviewAnswer.objects.create(
+            review=review, question=self.team_question, rating_value=2
+        )
+
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+
+        team_result = run.results.get(
+            result_type=EvaluationResult.ResultType.TEAM, team=self.teams[0]
+        )
+        self.assertEqual(team_result.team_score_raw, Decimal("3.333333"))
+
+    def test_tutor_team_review_is_ignored_when_tutor_weight_is_zero(self):
+        # 기본값(tutor_score_weight=0)이면 튜터 팀평가가 있어도 학생 평가만으로 계산한다.
+        review = TutorTeamReview.objects.create(
+            round=self.round, evaluator=self.tutor, target_team=self.teams[0]
+        )
+        TutorTeamReviewAnswer.objects.create(
+            review=review, question=self.team_question, rating_value=2
+        )
+
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+
+        team_result = run.results.get(
+            result_type=EvaluationResult.ResultType.TEAM, team=self.teams[0]
+        )
+        self.assertEqual(team_result.team_score_raw, Decimal("4.000000"))
 
     def test_recalculation_replaces_active_run_and_resets_publication(self):
         first = calculate_round(round_id=self.round.pk, actor=self.tutor)
