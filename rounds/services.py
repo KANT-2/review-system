@@ -401,6 +401,10 @@ def delete_round(*, round_id, actor):
 
     시작된 회차는 참가자 스냅샷이 동결되고 제출·채점이 붙기 때문에 지울 수 없다. 준비 중
     회차는 팀·구성원·참가자를 함께 정리해야 지워진다(모두 PROTECT로 묶여 있다).
+
+    한 번 시작됐다가 되돌려진(revert_round_to_draft) 회차는 튜터 개인/팀평가
+    (TutorReview/TutorTeamReview)가 남아 있을 수 있다 - 이것들도 참가자·팀을 PROTECT로
+    참조하므로, 먼저 지우지 않으면 팀·참가자 삭제에서 ProtectedError가 난다.
     """
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
     if round_obj.status != EvaluationRound.Status.DRAFT:
@@ -413,6 +417,8 @@ def delete_round(*, round_id, actor):
         actor=actor,
         summary={"title": round_obj.title, "participant_count": round_obj.participants.count()},
     )
+    round_obj.tutor_reviews.all().delete()
+    round_obj.tutor_team_reviews.all().delete()
     for team in round_obj.teams.all():
         team.memberships.all().delete()
     round_obj.teams.all().delete()
@@ -432,6 +438,10 @@ def revert_round_to_draft(*, round_id, actor):
         raise ValidationError("진행 중인 회차만 되돌릴 수 있습니다.")
     if round_obj.review_submissions.exists():
         raise ValidationError("이미 제출된 평가가 있어 되돌릴 수 없습니다. 마감 후 채점해 주세요.")
+    if round_obj.tutor_reviews.exists() or round_obj.tutor_team_reviews.exists():
+        raise ValidationError(
+            "이미 작성된 튜터 평가가 있어 되돌릴 수 없습니다. 마감 후 채점해 주세요."
+        )
     round_obj.status = EvaluationRound.Status.DRAFT
     round_obj.started_at = None
     round_obj.save(update_fields=("status", "started_at", "updated_at"))
