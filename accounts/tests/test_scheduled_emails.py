@@ -9,6 +9,7 @@ from accounts.scheduler_services import (
     process_auto_submission_reminders,
     process_scheduled_emails,
 )
+from notifications.services import unread_count
 from rounds.models import EvaluationRound, RoundParticipant
 from teams.models import Team, TeamMembership
 
@@ -74,6 +75,7 @@ class ScheduledEmailsTestCase(TestCase):
         self.assertIsNotNone(round_obj.auto_reminder_sent_at)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("평가 제출 안내", mail.outbox[0].subject)
+        self.assertEqual(unread_count(self.student), 1)
 
         # 2번째 실행 시 제출 안내 메일이 중복 발송되지 않는지 검증
         mail.outbox.clear()
