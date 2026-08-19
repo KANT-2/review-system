@@ -371,9 +371,8 @@
       if (
         error.code === "unassigned_confirmation_required" &&
         window.confirm(
-          `미배정 학생 ${data.unassigned_members.length}명은 팀 없이 저장됩니다. ` +
-            "이 상태로는 회차를 시작할 수 없고, 나중에 다시 편성해서 배정을 마쳐야 합니다. " +
-            "그래도 지금 저장할까요?",
+          `다음 학생은 팀 없이 저장됩니다: ${data.unassigned_members.map((person) => person.display_name).join(", ")}. ` +
+            "이 학생들은 배정 전까지 이번 회차 평가에서 빠집니다. 그래도 지금 저장할까요?",
         )
       ) {
         await saveConfiguration(imbalanceConfirmed, true);
