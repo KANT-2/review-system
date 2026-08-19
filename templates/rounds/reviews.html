@@ -7,9 +7,9 @@
       <h1 class="page-title">{{ round_obj.title }} 진행 현황</h1>
       <p class="page-desc">
         시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.
-        <span class="badge bg-info text-dark ms-2"><i class="bi bi-clock-history me-1"></i>마감 10분 전 자동 독촉 활성화됨</span>
+        <span class="badge bg-info text-dark ms-2"><i class="bi bi-clock-history me-1"></i>마감 10분 전 자동 제출 알림 활성화됨</span>
         {% if round_obj.auto_reminder_sent_at %}
-          <span class="badge bg-success text-white ms-1"><i class="bi bi-check-circle-fill me-1"></i>자동 독촉 발송완료 ({{ round_obj.auto_reminder_sent_at|date:"H:i" }})</span>
+          <span class="badge bg-success text-white ms-1"><i class="bi bi-check-circle-fill me-1"></i>자동 제출 알림 발송완료 ({{ round_obj.auto_reminder_sent_at|date:"H:i" }})</span>
         {% endif %}
       </p>
     </div>
@@ -17,7 +17,7 @@
       <form action="{% url 'rounds:send_reminders' round_obj.pk %}" method="post" class="d-inline">
         {% csrf_token %}
         <button type="submit" class="btn btn-warning fw-bold text-dark">
-          ⏰ 미제출자 독촉 메일 발송
+          ⏰ 미제출자 제출 안내 메일 발송
         </button>
       </form>
       <a href="{% url 'rounds:text-answers' round_obj.pk %}" class="btn btn-ax-secondary">

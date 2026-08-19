@@ -354,6 +354,6 @@ def send_submission_reminders_view(request, round_id):
         send_submission_reminder_email(round_obj, name, student.email)
         sent_count += 1
 
-    messages.success(request, f"총 {sent_count}명의 미제출 수강생에게 독촉 이메일이 발송되었습니다.")
+    messages.success(request, f"총 {sent_count}명의 미제출 수강생에게 제출 안내 이메일이 발송되었습니다.")
     return redirect("rounds:reviews", round_id=round_id)
 

@@ -219,7 +219,7 @@ def send_submission_reminder_email(evaluation_round, student_name, student_email
     특정 미제출 수강생에게 제출 독촉 알림 메일을 발송합니다.
     """
     clean_email = canonicalize_email(student_email)
-    subject = f"[AX 평가 독촉] '{evaluation_round.title}' 평가를 제출해 주세요!"
+    subject = f"[AX 평가 안내] '{evaluation_round.title}' 평가 제출 안내"
     html_content = render_to_string(
         "emails/submission_reminder.html",
         {

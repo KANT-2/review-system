@@ -50,8 +50,10 @@
             <div class="p-3 border rounded-3">개인 평가 <strong class="float-end">{{ progress.peer_completed }}/{{ progress.peer_expected }}</strong></div>
           </div>
         </div>
-        <a href="{% url 'rounds:reviews' current_round.pk %}"
-           class="btn btn-ax-primary">제출 현황 및 마감</a>
+        <div class="d-flex gap-2 mt-3">
+          <a href="{% url 'rounds:reviews' current_round.pk %}"
+             class="btn btn-warning fw-bold text-dark"><i class="bi bi-play-circle-fill me-1"></i>🚀 평가 현황 및 마감·채점 실행</a>
+        </div>
       </div>
     </section>
   {% elif latest_draft %}
