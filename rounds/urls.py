@@ -20,7 +20,6 @@ urlpatterns = [
     path("rounds/<int:round_id>/", views.round_edit, name="edit"),
     path("rounds/<int:round_id>/start/", views.round_start, name="start"),
     path("rounds/<int:round_id>/reviews/", views.round_reviews, name="reviews"),
-    path("rounds/<int:round_id>/answers/", views.round_text_answers, name="text-answers"),
     path(
         "rounds/<int:round_id>/tutor-review/",
         views.tutor_review_list,

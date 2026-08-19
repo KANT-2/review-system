@@ -15,11 +15,6 @@
           {% if tutor_review_count %}<span class="badge badge-ax badge-ax-completed ms-1">{{ tutor_review_count }}</span>{% endif %}
         </a>
       {% endif %}
-      <a href="{% url 'rounds:text-answers' round_obj.pk %}"
-         class="btn btn-ax-secondary">
-        <i class="bi bi-chat-left-text me-1"></i>서술형 응답
-        {% if text_answer_count %}<span class="badge badge-ax badge-ax-pending ms-1">{{ text_answer_count }}</span>{% endif %}
-      </a>
       {% if round_obj.status == 'COMPLETED' %}
         <a href="{% url 'rounds:results' round_obj.pk %}"
            class="btn btn-ax-primary">결과·공개</a>

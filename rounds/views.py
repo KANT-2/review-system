@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.forms import ReviewForm
-from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
+from reviews.models import ReviewSubmission, TutorReview
 from reviews.services import (
     get_tutor_review,
     submit_tutor_review,
@@ -17,7 +17,7 @@ from reviews.services import (
     tutor_reviewable,
 )
 from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
-from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
+from rounds.models import EvaluationRound, QuestionTemplate
 from rounds.services import (
     complete_round,
     copy_question_template,
@@ -248,69 +248,9 @@ def round_reviews(request, round_id):
             if round_obj.status == EvaluationRound.Status.DRAFT
             else [],
             "participant_rows": _participant_progress_rows(round_obj),
-            "text_answer_count": _text_answers(round_obj).count(),
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user
             ).count(),
-        },
-    )
-
-
-def _text_answers(round_obj):
-    """회차의 자유 서술형 답변만 모은다.
-
-    빈 문자열 제외는 방어용이다 - reviews_answer_exactly_one_value 제약이 이미 막고 있다.
-    """
-    return (
-        ReviewAnswer.objects.filter(
-            submission__round=round_obj,
-            question__response_type=TemplateQuestion.ResponseType.TEXT,
-        )
-        .exclude(text_value="")
-        .select_related(
-            "question",
-            "submission__evaluator",
-            "submission__target_team",
-            "submission__target_participant",
-        )
-        .order_by("question__display_order", "submission__submitted_at")
-    )
-
-
-@login_required
-def round_text_answers(request, round_id):
-    """서술형 응답 열람 - 운영자 전용(RES-013).
-
-    학생 화면에는 원문도 작성자도 나가지 않는다. 이 화면이 없으면 서술형 문항을 받아도
-    읽을 방법이 없어서 문항 유형 자체가 무의미해진다.
-    """
-    _require_operations(request.user)
-    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
-    grouped = {}
-    for answer in _text_answers(round_obj):
-        submission = answer.submission
-        grouped.setdefault(answer.question, []).append(
-            {
-                "evaluator": submission.evaluator.display_name_snapshot,
-                "target": (
-                    submission.target_team.name
-                    if submission.review_type == ReviewSubmission.ReviewType.TEAM
-                    else submission.target_participant.display_name_snapshot
-                ),
-                "review_type": submission.review_type,
-                "submitted_at": submission.submitted_at,
-                "text": answer.text_value,
-            }
-        )
-    return render(
-        request,
-        "rounds/text_answers.html",
-        {
-            "round_obj": round_obj,
-            "question_groups": [
-                {"question": question, "answers": rows} for question, rows in grouped.items()
-            ],
-            "total_count": sum(len(rows) for rows in grouped.values()),
         },
     )
 
