@@ -8,7 +8,7 @@ from django.utils import timezone
 from accounts.models import User
 from audit.models import AuditEvent
 from results.models import CalculationRun
-from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview, TutorTeamReview
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from rounds.services import start_round
 from teams.models import Team, TeamMembership
@@ -579,6 +579,99 @@ class TutorPeerReviewTests(TestCase):
         self.assertFalse(TutorReview.objects.exists())
 
     def test_tutor_review_is_not_counted_as_a_student_peer_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertFalse(ReviewSubmission.objects.exists())
+
+
+class TutorTeamReviewTests(TestCase):
+    """튜터 팀평가 - TutorPeerReviewTests의 팀 단위 버전."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="ttr-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="ttr-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            student_number="T200",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.team_template = QuestionTemplate.objects.create(
+            name="팀 평가", category="TEAM", created_by=self.tutor
+        )
+        self.question = TemplateQuestion.objects.create(
+            template=self.team_template,
+            response_type="RATING_5",
+            prompt="팀이 협업을 잘했나요?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="튜터 팀평가 회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            evaluation_end_at=now + timedelta(days=1),
+            team_template=self.team_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(hours=1),
+        )
+        self.team = Team.objects.create(round=self.round, team_number=1, name="1팀")
+        participant = RoundParticipant.objects.create(
+            round=self.round,
+            user=self.student,
+            student_number_snapshot=self.student.student_number,
+            display_name_snapshot=self.student.first_name,
+        )
+        TeamMembership.objects.create(team=self.team, participant=participant)
+
+    def _form_url(self):
+        return reverse(
+            "rounds:tutor-team-review-form",
+            kwargs={"round_id": self.round.pk, "team_id": self.team.pk},
+        )
+
+    def test_tutor_can_write_and_rewrite_a_team_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        review = TutorTeamReview.objects.get(round=self.round, target_team=self.team)
+        self.assertEqual(review.evaluator, self.tutor)
+        self.assertEqual(review.answers.get().rating_value, 4)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "5"})
+
+        self.assertEqual(TutorTeamReview.objects.count(), 1)
+        self.assertEqual(review.answers.get().rating_value, 5)
+
+    def test_students_cannot_open_tutor_team_review(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(self._form_url())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorTeamReview.objects.exists())
+
+    def test_draft_round_cannot_be_reviewed_yet(self):
+        self.round.status = EvaluationRound.Status.DRAFT
+        self.round.save(update_fields=["status"])
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorTeamReview.objects.exists())
+
+    def test_tutor_review_is_not_counted_as_a_student_team_review(self):
         self.client.force_login(self.tutor)
 
         self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})

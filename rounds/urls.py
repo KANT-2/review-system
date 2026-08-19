@@ -30,6 +30,16 @@ urlpatterns = [
         views.tutor_review_form,
         name="tutor-review-form",
     ),
+    path(
+        "rounds/<int:round_id>/tutor-team-review/",
+        views.tutor_team_review_list,
+        name="tutor-team-review-list",
+    ),
+    path(
+        "rounds/<int:round_id>/tutor-team-review/<int:team_id>/",
+        views.tutor_team_review_form,
+        name="tutor-team-review-form",
+    ),
     path("rounds/<int:round_id>/complete/", views.round_complete, name="complete"),
     path(
         "rounds/<int:round_id>/send-reminders/",

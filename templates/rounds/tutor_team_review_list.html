@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}튜터 팀평가 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}튜터 팀평가{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ round_obj.title }} 튜터 팀평가</h1>
+      <p class="page-desc">팀 하나씩 직접 평가합니다. 이 평가는 팀 점수 계산에 반영됩니다.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      {% if targets %}
+        <span class="badge badge-ax {% if completed_count == targets|length %}badge-ax-completed{% else %}badge-ax-pending{% endif %} fs-6">
+          {{ completed_count }}/{{ targets|length }} 작성
+        </span>
+      {% endif %}
+      <a href="{% url 'rounds:reviews' round_obj.pk %}"
+         class="btn btn-ax-secondary"><i class="bi bi-arrow-left me-1"></i>진행 현황</a>
+    </div>
+  </div>
+  {% if not editable %}
+    <section class="card-custom">
+      <div class="card-body-custom ax-empty-state">
+        <i class="bi bi-hourglass-split"></i>
+        <p class="fw-semibold mb-1">아직 평가할 수 없습니다.</p>
+        <p class="text-muted mb-0">회차를 시작해 팀과 질문지가 확정된 뒤에 작성할 수 있습니다.</p>
+      </div>
+    </section>
+  {% elif not has_questions %}
+    <section class="card-custom">
+      <div class="card-body-custom ax-empty-state">
+        <i class="bi bi-card-checklist"></i>
+        <p class="fw-semibold mb-1">팀 평가 질문지가 없습니다.</p>
+        <p class="text-muted mb-0">이 회차에 팀 평가 템플릿이 지정되어 있어야 평가할 수 있습니다.</p>
+      </div>
+    </section>
+  {% else %}
+    <div class="row g-3">
+      {% for target in targets %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <article class="card-custom h-100 mb-0">
+            <div class="card-body-custom d-flex flex-column h-100">
+              <div>
+                {% if target.completed %}
+                  <span class="badge badge-ax badge-ax-completed">
+                    <i class="bi bi-check-lg me-1"></i>작성함
+                  </span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-danger">미작성</span>
+                {% endif %}
+                <h2 class="h5 fw-bold mt-3 mb-1">{{ target.label }}</h2>
+                <p class="text-muted small mb-0">{{ target.description }}</p>
+              </div>
+              <a href="{% url 'rounds:tutor-team-review-form' round_obj.pk target.pk %}"
+                 class="btn {% if target.completed %}btn-ax-secondary{% else %}btn-ax-primary{% endif %} mt-3">
+                {% if target.completed %}고쳐 쓰기{% else %}평가하기{% endif %}
+              </a>
+            </div>
+          </article>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <section class="card-custom">
+            <div class="card-body-custom ax-empty-state">
+              <i class="bi bi-people"></i>
+              <p class="fw-semibold mb-1">팀이 없습니다.</p>
+              <p class="text-muted mb-0">회차에 편성된 팀이 있어야 평가할 수 있습니다.</p>
+            </div>
+          </section>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}
