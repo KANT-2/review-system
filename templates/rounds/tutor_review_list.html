@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}튜터 개인평가 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}튜터 개인평가{% endblock %}
 {% block content %}
@@ -33,41 +34,62 @@
         <p class="text-muted mb-0">이 회차에 개인 평가 템플릿이 지정되어 있어야 평가할 수 있습니다.</p>
       </div>
     </section>
+  {% elif not targets %}
+    <section class="card-custom">
+      <div class="card-body-custom ax-empty-state">
+        <i class="bi bi-people"></i>
+        <p class="fw-semibold mb-1">참가자가 없습니다.</p>
+        <p class="text-muted mb-0">회차에 참가한 수강생이 있어야 평가할 수 있습니다.</p>
+      </div>
+    </section>
   {% else %}
-    <div class="row g-3">
-      {% for target in targets %}
-        <div class="col-12 col-md-6 col-xl-4">
-          <article class="card-custom h-100 mb-0">
-            <div class="card-body-custom d-flex flex-column h-100">
-              <div>
-                {% if target.completed %}
-                  <span class="badge badge-ax badge-ax-completed">
-                    <i class="bi bi-check-lg me-1"></i>작성함
-                  </span>
-                {% else %}
-                  <span class="badge badge-ax badge-ax-danger">미작성</span>
-                {% endif %}
-                <h2 class="h5 fw-bold mt-3 mb-1">{{ target.label }}</h2>
-                <p class="text-muted small mb-0">{{ target.description }}</p>
-              </div>
-              <a href="{% url 'rounds:tutor-review-form' round_obj.pk target.pk %}"
-                 class="btn {% if target.completed %}btn-ax-secondary{% else %}btn-ax-primary{% endif %} mt-3">
-                {% if target.completed %}고쳐 쓰기{% else %}평가하기{% endif %}
-              </a>
-            </div>
-          </article>
+    <section class="card-custom" data-result-table>
+      <div class="card-header-custom">
+        <div class="card-title-custom">수강생 목록</div>
+        <div class="ax-filter-group">
+          <button type="button" class="ax-filter-chip active" data-filter="ALL">전체</button>
+          <button type="button" class="ax-filter-chip" data-filter="PENDING">미작성</button>
+          <button type="button" class="ax-filter-chip" data-filter="DONE">작성함</button>
         </div>
-      {% empty %}
-        <div class="col-12">
-          <section class="card-custom">
-            <div class="card-body-custom ax-empty-state">
-              <i class="bi bi-people"></i>
-              <p class="fw-semibold mb-1">참가자가 없습니다.</p>
-              <p class="text-muted mb-0">회차에 참가한 수강생이 있어야 평가할 수 있습니다.</p>
-            </div>
-          </section>
-        </div>
-      {% endfor %}
-    </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">상태</th>
+              <th scope="col">이름</th>
+              <th scope="col">소속</th>
+              <th scope="col" class="text-end">평가</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for target in targets %}
+              <tr data-status="{% if target.completed %}DONE{% else %}PENDING{% endif %}">
+                <td>
+                  {% if target.completed %}
+                    <span class="badge badge-ax badge-ax-completed">
+                      <i class="bi bi-check-lg me-1"></i>작성함
+                    </span>
+                  {% else %}
+                    <span class="badge badge-ax badge-ax-danger">미작성</span>
+                  {% endif %}
+                </td>
+                <td class="fw-semibold">{{ target.label }}</td>
+                <td class="text-muted">{{ target.description }}</td>
+                <td class="text-end">
+                  <a href="{% url target.url_name round_obj.pk target.pk %}"
+                     class="btn btn-sm {% if target.completed %}btn-ax-secondary{% else %}btn-ax-primary{% endif %}">
+                    {% if target.completed %}고쳐 쓰기{% else %}평가하기{% endif %}
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
   {% endif %}
+{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/results-manage.js' %}"></script>
 {% endblock %}
