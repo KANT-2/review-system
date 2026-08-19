@@ -35,6 +35,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - production_media:/app/media
     expose:
       - "8000"
     healthcheck:
@@ -153,6 +155,7 @@ services:
 
 volumes:
   production_postgres_data:
+  production_media:
   production_caddy_data:
   production_caddy_config:
   production_mail_data:

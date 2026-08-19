@@ -17,6 +17,10 @@ COPY --chown=app:app . .
 RUN DJANGO_DEBUG=True DJANGO_SECRET_KEY=collectstatic-only \
     python manage.py collectstatic --noinput
 
+# 사용자가 올린 프로필 사진이 저장되는 곳. git에는 없는 디렉터리라 미리 만들어
+# app 사용자가 쓸 수 있게 해야 한다 - 운영에서는 이 경로에 영구 볼륨을 마운트한다.
+RUN mkdir -p /app/media && chown app:app /app/media
+
 USER app
 
 EXPOSE 8000
