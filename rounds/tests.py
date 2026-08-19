@@ -7,10 +7,11 @@ from django.utils import timezone
 
 from accounts.models import User
 from audit.models import AuditEvent
+from notifications.services import unread_count
 from results.models import CalculationRun
 from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview, TutorTeamReview
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
-from rounds.services import start_round
+from rounds.services import complete_round, start_round
 from teams.models import Team, TeamMembership
 
 
@@ -114,6 +115,51 @@ class RoundLifecycleTests(TestCase):
             TeamMembership.objects.create(team=other_teams[index % 2], participant=participant)
         with self.assertRaises(ValidationError):
             start_round(round_id=other.pk, actor=self.tutor)
+
+
+class RoundCompletionNotificationTests(TestCase):
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="complete-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"complete-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"C{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            )
+            for index in range(1, 3)
+        ]
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="마감 알림 테스트",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now,
+            evaluation_end_at=now + timedelta(days=1),
+            target_team_count=2,
+            created_by=self.tutor,
+            started_at=now,
+        )
+        for user in self.students:
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+
+    def test_completing_a_round_notifies_its_participants(self):
+        complete_round(round_id=self.round.pk, actor=self.tutor, force_confirmed=True)
+
+        self.assertEqual(unread_count(self.students[0]), 1)
+        self.assertEqual(unread_count(self.students[1]), 1)
 
 
 class QuestionTemplateScreenTests(TestCase):
@@ -726,6 +772,21 @@ class RoundFormTests(TestCase):
         self.assertRedirects(response, reverse("rounds:teams", kwargs={"round_id": created.pk}))
         self.assertEqual(created.participants.count(), len(self.approved))
         self.assertFalse(created.participants.filter(user=self.pending).exists())
+
+    def test_creating_a_round_notifies_its_participants(self):
+        now = timezone.now()
+        self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "알림 확인용 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(unread_count(self.approved[0]), 1)
+        self.assertEqual(unread_count(self.pending), 0)
 
     def test_existing_participant_is_kept_even_if_no_longer_eligible(self):
         """비활성이 된 참가자를 자동으로 빼면 팀 배정 때문에 저장이 막힌다(회귀 방지)."""
