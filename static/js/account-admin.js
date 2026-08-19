@@ -1,5 +1,87 @@
 // 수강생 관리 화면 전용 스크립트.
 document.addEventListener("DOMContentLoaded", () => {
+  // 수강생 공지 메일 - 대상과 발송 시점에 필요한 입력만 활성화한다.
+  const announcementForm = document.getElementById("announcement_form");
+  if (announcementForm) {
+    const targetType = document.getElementById("send_target_type");
+    const teamWrapper = document.getElementById("team_select_wrapper");
+    const teamSelect = document.getElementById("target_team_id");
+    const sendType = document.getElementById("send_type");
+    const scheduleWrapper = document.getElementById("schedule_time_wrapper");
+    const scheduledAt = document.getElementById("scheduled_at");
+    const submitButton = document.getElementById("submit_email_btn");
+    const recipientSelectAll = document.getElementById("emailRecipientSelectAll");
+    const selectedUsersContainer = document.getElementById("selected_users_container");
+    const recipientBoxes = () => document.querySelectorAll(".student-user-checkbox");
+    const selectedRecipientBoxes = () =>
+      document.querySelectorAll(".student-user-checkbox:checked");
+
+    const syncSelectedUsers = () => {
+      selectedUsersContainer.replaceChildren();
+      if (targetType.value !== "select") return;
+
+      selectedRecipientBoxes().forEach((box) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "selected_user_ids";
+        input.value = box.value;
+        selectedUsersContainer.appendChild(input);
+      });
+    };
+
+    const refreshRecipientSelection = () => {
+      const selected = selectedRecipientBoxes().length;
+      const total = recipientBoxes().length;
+      if (recipientSelectAll) {
+        recipientSelectAll.checked = total > 0 && selected === total;
+        recipientSelectAll.indeterminate = selected > 0 && selected < total;
+      }
+      syncSelectedUsers();
+    };
+
+    const refreshTargetFields = () => {
+      const isTeam = targetType.value === "team";
+      teamWrapper.classList.toggle("d-none", !isTeam);
+      teamSelect.required = isTeam;
+      if (!isTeam) teamSelect.value = "";
+      syncSelectedUsers();
+    };
+
+    const refreshScheduleFields = () => {
+      const isScheduled = sendType.value === "scheduled";
+      scheduleWrapper.classList.toggle("d-none", !isScheduled);
+      scheduledAt.required = isScheduled;
+      if (!isScheduled) scheduledAt.value = "";
+      submitButton.textContent = isScheduled ? "공지 메일 예약하기" : "공지 메일 보내기";
+    };
+
+    targetType.addEventListener("change", refreshTargetFields);
+    sendType.addEventListener("change", refreshScheduleFields);
+    recipientSelectAll?.addEventListener("change", () => {
+      recipientBoxes().forEach((box) => {
+        box.checked = recipientSelectAll.checked;
+      });
+      refreshRecipientSelection();
+    });
+    document.addEventListener("change", (event) => {
+      if (event.target.classList.contains("student-user-checkbox")) {
+        refreshRecipientSelection();
+      }
+    });
+
+    announcementForm.addEventListener("submit", (event) => {
+      syncSelectedUsers();
+      if (targetType.value === "select" && selectedRecipientBoxes().length === 0) {
+        window.alert("발송할 수강생을 목록에서 한 명 이상 선택해 주세요.");
+        event.preventDefault();
+      }
+    });
+
+    refreshTargetFields();
+    refreshScheduleFields();
+    refreshRecipientSelection();
+  }
+
   // "더보기" 버튼 문구를 펼침 상태에 맞춰 바꾼다.
   // (아이콘 회전은 custom.css의 [aria-expanded="true"] 규칙이 처리한다)
   document.querySelectorAll(".ax-toggle-rest").forEach((button) => {

@@ -8,8 +8,9 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.forms import (
@@ -20,7 +21,7 @@ from accounts.forms import (
     WhitelistEntryForm,
     clean_profile_image,
 )
-from accounts.models import User
+from accounts.models import EmailVerificationCode, ScheduledEmail, User
 from accounts.portal import (
     build_student_portal,
     build_student_result_portal,
@@ -337,6 +338,29 @@ def account_admin(request):
         role = ""
     if status not in dict(User.ApprovalStatus.choices):
         status = ""
+    from rounds.models import EvaluationRound
+    from teams.models import Team
+
+    current_round = (
+        EvaluationRound.objects.filter(status=EvaluationRound.Status.IN_PROGRESS)
+        .order_by("-id")
+        .first()
+        or EvaluationRound.objects.order_by("-id").first()
+    )
+    if current_round:
+        teams = list(
+            Team.objects.filter(round=current_round)
+            .prefetch_related("memberships")
+            .order_by("team_number")
+        )
+        current_round_title = current_round.title
+    else:
+        teams = []
+        current_round_title = ""
+    scheduled_emails = ScheduledEmail.objects.filter(status=ScheduledEmail.Status.PENDING).order_by(
+        "scheduled_at"
+    )
+
     pending_users = list(
         User.objects.filter(
             role=User.Role.STUDENT,
@@ -348,6 +372,9 @@ def account_admin(request):
         request,
         "accounts/account_admin.html",
         {
+            "teams": teams,
+            "current_round_title": current_round_title,
+            "scheduled_emails": scheduled_emails,
             "notes": tutor_notes_by_student(),
             "pending_users": pending_users,
             "pending_head": pending_users[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
@@ -662,3 +689,227 @@ def password_change_view(request):
             messages.success(request, "비밀번호를 변경했습니다.")
             return redirect("accounts:mypage")
     return render(request, "accounts/password_change.html", {"form": form})
+
+
+@require_POST
+def api_send_email_code(request):
+    """6자리 본인 인증 이메일 코드를 발송합니다."""
+    data = _safe_json(request)
+    if not data:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+
+    email = data.get("email", "").strip()
+    purpose = data.get("purpose", "").strip()
+
+    if not email or "@" not in email:
+        return JsonResponse(
+            {"success": False, "message": "올바른 이메일 주소를 입력해 주세요."}, status=400
+        )
+
+    if purpose not in [
+        EmailVerificationCode.Purpose.SIGNUP,
+        EmailVerificationCode.Purpose.PASSWORD_RESET,
+    ]:
+        return JsonResponse(
+            {"success": False, "message": "올바르지 않은 인증 목적입니다."}, status=400
+        )
+
+    if purpose == EmailVerificationCode.Purpose.PASSWORD_RESET:
+        if not User.objects.filter(email=email).exists():
+            return JsonResponse(
+                {"success": False, "message": "등록되지 않은 이메일 주소입니다."}, status=404
+            )
+
+    try:
+        from accounts.email_services import send_email_verification_code
+
+        send_email_verification_code(email, purpose)
+        return JsonResponse(
+            {"success": True, "message": "6자리 인증코드가 이메일로 발송되었습니다. (유효시간 5분)"}
+        )
+    except Exception as error:
+        return JsonResponse({"success": False, "message": f"이메일 발송 오류: {error}"}, status=500)
+
+
+@require_POST
+def api_verify_email_code(request):
+    """입력한 6자리 이메일 인증코드를 검증합니다."""
+    data = _safe_json(request)
+    if not data:
+        return JsonResponse({"success": False, "message": "잘못된 요청입니다."}, status=400)
+
+    email = data.get("email", "").strip()
+    code = data.get("code", "").strip()
+    purpose = data.get("purpose", "").strip()
+
+    if not email or not code:
+        return JsonResponse(
+            {"success": False, "message": "이메일과 6자리 인증코드를 모두 입력해 주세요."},
+            status=400,
+        )
+
+    from accounts.email_services import verify_email_code
+
+    success = verify_email_code(email, code, purpose)
+
+    if success:
+        return JsonResponse(
+            {"success": True, "message": "이메일 본인 인증이 성공적으로 완료되었습니다."}
+        )
+    return JsonResponse(
+        {"success": False, "message": "인증코드가 올바르지 않거나 5분 유효시간이 만료되었습니다."},
+        status=400,
+    )
+
+
+@login_required
+@require_POST
+def send_tutor_announcement_view(request):
+    """튜터/관리자가 선택된 수강생 개인들 또는 전체에게 공지/안내 이메일을 발송합니다."""
+    if not (request.user.is_staff or request.user.role in [User.Role.TUTOR, User.Role.ADMIN]):
+        raise PermissionDenied
+
+    subject = request.POST.get("subject", "").strip()
+    message = request.POST.get("message", "").strip()
+    target_type = request.POST.get("send_target_type", "all").strip()
+    target_user_id = request.POST.get("target_user_id", "").strip()
+    target_team_id = request.POST.get("target_team_id", "").strip()
+    selected_user_ids = request.POST.getlist("selected_user_ids")
+
+    if not subject or not message:
+        messages.error(request, "제목과 내용을 모두 입력해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+    if target_type not in {"all", "team", "select"}:
+        messages.error(request, "올바른 발송 대상을 선택해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+    if target_type == "team":
+        from teams.models import Team
+
+        team = Team.objects.filter(id=target_team_id).first() if target_team_id else None
+        if not team:
+            messages.error(request, "발송할 조(팀)를 선택해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+        recipient_emails = list(
+            team.memberships.filter(participant__user__is_active=True)
+            .exclude(participant__user__email="")
+            .values_list("participant__user__email", flat=True)
+        )
+        team_name = team.name
+        target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
+    elif target_type == "select":
+        recipient_emails = list(
+            User.objects.filter(
+                id__in=selected_user_ids,
+                role=User.Role.STUDENT,
+                is_active=True,
+            )
+            .exclude(email="")
+            .values_list("email", flat=True)
+        )
+        if not recipient_emails:
+            messages.error(request, "발송할 수강생을 한 명 이상 선택해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+        target_info_str = f"선택한 수강생 (총 {len(recipient_emails)}명)"
+    elif target_user_id:
+        target_user = User.objects.filter(id=target_user_id).first()
+        if target_user and target_user.role == User.Role.STUDENT and target_user.is_active:
+            recipient_emails = [target_user.email]
+            name = target_user.first_name or target_user.email
+            target_info_str = f"수강생 {name}님"
+        else:
+            recipient_emails = []
+            target_info_str = "선택한 수강생 (0명)"
+    else:
+        recipient_emails = list(
+            User.objects.filter(role=User.Role.STUDENT, is_active=True)
+            .exclude(email="")
+            .values_list("email", flat=True)
+        )
+        target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
+
+    send_type = request.POST.get("send_type", "now").strip()
+    scheduled_at_str = request.POST.get("scheduled_at", "").strip()
+    if send_type not in {"now", "scheduled"}:
+        messages.error(request, "올바른 발송 시점을 선택해 주세요.")
+        return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+    if send_type == "scheduled":
+        if not scheduled_at_str:
+            messages.error(request, "예약 발송 일시를 입력해 주세요.")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+        try:
+            import json
+
+            from django.utils.dateparse import parse_datetime
+
+            from accounts.models import ScheduledEmail
+
+            scheduled_at = parse_datetime(scheduled_at_str)
+            if scheduled_at and timezone.is_naive(scheduled_at):
+                scheduled_at = timezone.make_aware(scheduled_at)
+
+            if not scheduled_at or scheduled_at <= timezone.now():
+                messages.error(request, "예약 발송 일시는 현재 시각 이후로 지정해 주세요.")
+                return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+            scheduled_target_type = ScheduledEmail.TargetType.ALL
+            target_team_obj = None
+            if target_type == "team":
+                from teams.models import Team
+
+                scheduled_target_type = ScheduledEmail.TargetType.TEAM
+                target_team_obj = Team.objects.filter(id=target_team_id).first()
+            elif target_type == "select":
+                scheduled_target_type = ScheduledEmail.TargetType.SELECT
+            elif target_user_id:
+                scheduled_target_type = ScheduledEmail.TargetType.SINGLE
+
+            ScheduledEmail.objects.create(
+                sender=request.user,
+                subject=subject,
+                message=message,
+                target_type=scheduled_target_type,
+                target_team=target_team_obj,
+                selected_user_ids_json=json.dumps(
+                    selected_user_ids
+                    if selected_user_ids
+                    else ([target_user_id] if target_user_id else [])
+                ),
+                scheduled_at=scheduled_at,
+                status=ScheduledEmail.Status.PENDING,
+            )
+            messages.success(
+                request,
+                f"{scheduled_at.strftime('%Y-%m-%d %H:%M')}에 {target_info_str} 대상으로 공지 메일을 예약했습니다.",
+            )
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+        except Exception as e:
+            messages.error(request, f"예약 일시 처리 중 오류가 발생했습니다: {e}")
+            return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+    from accounts.email_services import send_tutor_announcement_email
+
+    send_tutor_announcement_email(subject, message, recipient_emails)
+    messages.success(request, f"{target_info_str}에게 공지 메일을 발송했습니다.")
+    return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
+
+
+@login_required
+@require_POST
+def cancel_scheduled_email_view(request, email_id):
+    """예약된 공지 이메일을 발송 취소합니다."""
+    if not (request.user.is_staff or request.user.role in [User.Role.TUTOR, User.Role.ADMIN]):
+        raise PermissionDenied
+
+    from accounts.models import ScheduledEmail
+
+    scheduled_item = get_object_or_404(ScheduledEmail, pk=email_id)
+    if scheduled_item.status == ScheduledEmail.Status.PENDING:
+        scheduled_item.status = ScheduledEmail.Status.CANCELLED
+        scheduled_item.save(update_fields=["status"])
+        messages.success(request, f"'{scheduled_item.subject}' 예약 공지가 취소되었습니다.")
+    else:
+        messages.error(request, "이미 처리되었거나 취소할 수 없는 예약 건입니다.")
+
+    return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))

@@ -1,14 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
 from accounts.permissions import is_operations_user
 from reviews.forms import ReviewForm
-from reviews.models import ReviewSubmission, TutorReview
+from reviews.models import TutorReview
 from reviews.services import (
     get_tutor_review,
     submit_tutor_review,
@@ -24,6 +23,8 @@ from rounds.services import (
     delete_question_template,
     delete_round,
     get_review_progress,
+    participant_progress_rows,
+    pending_participant_rows,
     question_template_rows,
     reopen_round,
     revert_round_to_draft,
@@ -195,38 +196,6 @@ def round_start(request, round_id):
     return redirect("rounds:reviews", round_id=round_id)
 
 
-def _participant_progress_rows(round_obj):
-    team_count = round_obj.teams.count()
-    completed = (
-        ReviewSubmission.objects.filter(round=round_obj)
-        .values("evaluator_id", "review_type")
-        .annotate(count=Count("id"))
-    )
-    completed_map = {(row["evaluator_id"], row["review_type"]): row["count"] for row in completed}
-    rows = []
-    participants = round_obj.participants.select_related("team_membership__team").all()
-    for participant in participants:
-        is_unassigned = not hasattr(participant, "team_membership")
-        team_size = 0 if is_unassigned else participant.team_membership.team.memberships.count()
-        team_expected = max(team_count - 1, 0)
-        peer_expected = max(team_size - 1, 0)
-        rows.append(
-            {
-                "participant": participant,
-                "is_unassigned": is_unassigned,
-                "team_expected": team_expected,
-                "team_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
-                ),
-                "peer_expected": peer_expected,
-                "peer_completed": completed_map.get(
-                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
-                ),
-            }
-        )
-    return rows
-
-
 @login_required
 def round_reviews(request, round_id):
     _require_operations(request.user)
@@ -249,12 +218,12 @@ def round_reviews(request, round_id):
         {
             "round_obj": round_obj,
             "progress": progress,
-            "start_blocking": [check.message for check in start_checks if not check.confirmable],
-            "start_confirmable": [check.message for check in start_checks if check.confirmable],
-            "participant_rows": _participant_progress_rows(round_obj),
+            "participant_rows": participant_progress_rows(round_obj),
             "tutor_review_count": TutorReview.objects.filter(
                 round=round_obj, evaluator=request.user
             ).count(),
+            "start_blocking": [check.message for check in start_checks if not check.confirmable],
+            "start_confirmable": [check.message for check in start_checks if check.confirmable],
         },
     )
 
@@ -442,3 +411,30 @@ def round_reopen(request, round_id):
     return _round_lifecycle_action(
         request, round_id, action=reopen_round, success_message="회차를 다시 열었습니다."
     )
+
+
+@login_required
+@require_POST
+def send_submission_reminders_view(request, round_id):
+    """특정 회차 미제출 수강생들에게 제출 안내 메일을 발송합니다."""
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    if round_obj.status != EvaluationRound.Status.IN_PROGRESS:
+        messages.error(request, "진행 중인 회차만 제출 안내 메일을 보낼 수 있습니다.")
+        return redirect("rounds:reviews", round_id=round_id)
+
+    from accounts.email_services import send_submission_reminder_email
+
+    sent_count = 0
+    for row in pending_participant_rows(round_obj):
+        student = row["participant"].user
+        if not student.is_active or not student.email:
+            continue
+        name = student.first_name if student.first_name else student.email
+        send_submission_reminder_email(round_obj, name, student.email)
+        sent_count += 1
+
+    messages.success(
+        request, f"총 {sent_count}명의 미제출 수강생에게 제출 안내 이메일이 발송되었습니다."
+    )
+    return redirect("rounds:reviews", round_id=round_id)

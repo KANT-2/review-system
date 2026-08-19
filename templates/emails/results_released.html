@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>성적 및 피드백 공개 안내</title>
+  </head>
+  <body style="margin: 0;
+               padding: 0;
+               background-color: #F4F6F9;
+               font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+    <table border="0"
+           cellpadding="0"
+           cellspacing="0"
+           width="100%"
+           style="table-layout: fixed">
+      <tr>
+        <td align="center" style="padding: 40px 16px;">
+          <table border="0"
+                 cellpadding="0"
+                 cellspacing="0"
+                 width="100%"
+                 style="max-width: 560px;
+                        background-color: #FFFFFF;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                        border: 1px solid #E2E8F0">
+            <tr>
+              <td style="background-color: #166534;
+                         padding: 28px 32px;
+                         text-align: center">
+                <h1 style="color: #FFFFFF; margin: 0; font-size: 20px; font-weight: 700;">성적 및 피드백이 공개되었습니다</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 36px 32px;">
+                <p style="color: #182230;
+                          font-size: 16px;
+                          font-weight: 700;
+                          margin: 0 0 12px 0">안녕하세요, 수강생님.</p>
+                <p style="color: #475569;
+                          font-size: 14px;
+                          line-height: 1.6;
+                          margin: 0 0 24px 0">
+                  <strong>[{{ round_title }}]</strong> 회차의 튜터 종합 평가 점수와 동료 피드백 조회가 개시되었습니다. 마이페이지 또는 성적 조회 화면에서 결과를 확인하세요.
+                </p>
+                <div style="background-color: #F0FDF4;
+                            border: 1px solid #BBF7D0;
+                            border-radius: 8px;
+                            padding: 20px;
+                            margin-bottom: 28px">
+                  <p style="margin: 0 0 8px 0;
+                            font-weight: 700;
+                            color: #166534;
+                            font-size: 15px">결과 공개 정보</p>
+                  <ul style="margin: 0;
+                             padding-left: 20px;
+                             color: #334155;
+                             font-size: 14px;
+                             line-height: 1.6">
+                    <li><strong>평가회차</strong>: {{ round_title }}</li>
+                    <li><strong>공개 항목</strong>: 팀 점수, 튜터총평, 동료 서술형 피드백</li>
+                  </ul>
+                </div>
+                <div style="text-align: center;">
+                  <a href="{{ result_url }}"
+                     style="display: inline-block;
+                            background-color: #166534;
+                            color: #FFFFFF;
+                            text-decoration: none;
+                            font-weight: 700;
+                            font-size: 15px;
+                            padding: 14px 28px;
+                            border-radius: 6px;
+                            box-shadow: 0 2px 4px rgba(22,101,52,0.3)">성적 및 피드백 확인하기 &rarr;</a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color: #F8FAFC;
+                         padding: 20px 32px;
+                         border-top: 1px solid #E2E8F0;
+                         text-align: center">
+                <p style="color: #94A3B8; font-size: 12px; margin: 0;">본 메일은 AX 평가 시스템 자동 발송 메일입니다. © AX Evaluation System.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

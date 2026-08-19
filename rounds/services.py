@@ -170,6 +170,51 @@ def get_review_progress(round_obj):
     )
 
 
+def participant_progress_rows(round_obj):
+    """회차 참가자별 팀·개인 평가 제출 현황을 반환한다."""
+    team_count = round_obj.teams.count()
+    completed = (
+        ReviewSubmission.objects.filter(round=round_obj)
+        .values("evaluator_id", "review_type")
+        .annotate(count=Count("id"))
+    )
+    completed_map = {(row["evaluator_id"], row["review_type"]): row["count"] for row in completed}
+    rows = []
+    participants = round_obj.participants.select_related("team_membership__team", "user").all()
+    for participant in participants:
+        team_size = (
+            participant.team_membership.team.memberships.count()
+            if hasattr(participant, "team_membership")
+            else 0
+        )
+        team_expected = max(team_count - 1, 0)
+        peer_expected = max(team_size - 1, 0)
+        rows.append(
+            {
+                "participant": participant,
+                "team_expected": team_expected,
+                "team_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
+                ),
+                "peer_expected": peer_expected,
+                "peer_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
+                ),
+            }
+        )
+    return rows
+
+
+def pending_participant_rows(round_obj):
+    """팀·개인 평가 중 하나라도 덜 제출한 참가자 행만 반환한다."""
+    return [
+        row
+        for row in participant_progress_rows(round_obj)
+        if row["team_completed"] < row["team_expected"]
+        or row["peer_completed"] < row["peer_expected"]
+    ]
+
+
 @transaction.atomic
 def complete_round(*, round_id, actor, force_confirmed=False):
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
