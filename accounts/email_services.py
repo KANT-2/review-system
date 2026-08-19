@@ -2,8 +2,10 @@ import random
 import sys
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 
@@ -20,6 +22,16 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+
+def absolute_url(view_name, *args, **kwargs):
+    """메일에 넣을 절대 URL을 만든다.
+
+    예약 발송·스케줄러·관리 명령에는 request가 없어 build_absolute_uri를 쓸 수 없다.
+    기준 주소는 settings.SITE_URL이고 경로는 URL 이름에서 뽑아, 라우팅이 바뀌어도
+    링크가 따라간다.
+    """
+    return f"{settings.SITE_URL}{reverse(view_name, args=args, kwargs=kwargs)}"
 
 
 def _safe_send_mail(msg):
@@ -128,9 +140,7 @@ def check_email_is_verified(email, purpose):
     ).exists()
 
 
-def send_tutor_announcement_email(
-    subject, message, recipient_emails, dashboard_url="http://127.0.0.1:8000/"
-):
+def send_tutor_announcement_email(subject, message, recipient_emails, dashboard_url=None):
     """
     튜터/관리자가 지정된 수강생/조 수신자 목록에게 커스텀 공지 메일을 발송합니다.
     """
@@ -138,6 +148,7 @@ def send_tutor_announcement_email(
     if not clean_emails:
         return 0
 
+    dashboard_url = dashboard_url or absolute_url("accounts:dashboard")
     full_subject = f"[AX 평가 공지] {subject}"
     html_content = render_to_string(
         "emails/custom_announcement.html",
@@ -159,9 +170,7 @@ def send_tutor_announcement_email(
     return _safe_send_mail(msg)
 
 
-def send_round_started_email(
-    evaluation_round, recipient_emails, evaluation_url="http://127.0.0.1:8000/"
-):
+def send_round_started_email(evaluation_round, recipient_emails, evaluation_url=None):
     """
     평가 회차가 '진행 중'으로 변경되었을 때 대상 수강생들에게 개시 알림 메일을 발송합니다.
     """
@@ -169,6 +178,7 @@ def send_round_started_email(
     if not clean_emails:
         return 0
 
+    evaluation_url = evaluation_url or absolute_url("reviews:status")
     subject = f"[AX 평가 시작] '{evaluation_round.title}' 회차 평가가 개시되었습니다!"
     html_content = render_to_string(
         "emails/round_started.html",
@@ -190,9 +200,7 @@ def send_round_started_email(
     return _safe_send_mail(msg)
 
 
-def send_results_released_email(
-    evaluation_round, recipient_emails, result_url="http://127.0.0.1:8000/"
-):
+def send_results_released_email(evaluation_round, recipient_emails, result_url=None):
     """
     평가 성적/피드백이 '공개' 상태로 변경되었을 때 수강생들에게 알림 메일을 발송합니다.
     """
@@ -200,6 +208,7 @@ def send_results_released_email(
     if not clean_emails:
         return 0
 
+    result_url = result_url or absolute_url("results:me")
     subject = f"[AX 성적 공개] '{evaluation_round.title}' 최종 성적 및 피드백이 공개되었습니다!"
     html_content = render_to_string(
         "emails/results_released.html",
@@ -221,12 +230,13 @@ def send_results_released_email(
 
 
 def send_submission_reminder_email(
-    evaluation_round, student_name, student_email, evaluation_url="http://127.0.0.1:8000/"
+    evaluation_round, student_name, student_email, evaluation_url=None
 ):
     """
     특정 미제출 수강생에게 제출 안내 메일을 발송합니다.
     """
     clean_email = canonicalize_email(student_email)
+    evaluation_url = evaluation_url or absolute_url("reviews:status")
     subject = f"[AX 평가 안내] '{evaluation_round.title}' 평가 제출 안내"
     html_content = render_to_string(
         "emails/submission_reminder.html",
