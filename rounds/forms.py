@@ -27,11 +27,17 @@ class EvaluationRoundForm(forms.ModelForm):
             "evaluation_end_at",
             "team_template",
             "peer_template",
+            "team_score_weight",
+            "personal_score_weight",
+            "tutor_score_weight",
         )
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
             "evaluation_start_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
             "evaluation_end_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "team_score_weight": forms.NumberInput(attrs={"min": 0, "max": 100}),
+            "personal_score_weight": forms.NumberInput(attrs={"min": 0, "max": 100}),
+            "tutor_score_weight": forms.NumberInput(attrs={"min": 0, "max": 100}),
         }
         labels = {
             "title": "회차 제목",
@@ -40,6 +46,12 @@ class EvaluationRoundForm(forms.ModelForm):
             "evaluation_end_at": "평가 종료",
             "team_template": "팀 평가 템플릿",
             "peer_template": "개인 평가 템플릿",
+            "team_score_weight": "팀 점수 비율(%)",
+            "personal_score_weight": "개인 점수 비율(%)",
+            "tutor_score_weight": "튜터 점수 비율(%)",
+        }
+        help_texts = {
+            "tutor_score_weight": "0%면 튜터 점수를 최종 점수에 반영하지 않습니다. 세 비율의 합은 100%여야 합니다.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -59,6 +71,11 @@ class EvaluationRoundForm(forms.ModelForm):
             self.fields["participants"].initial = self.instance.participants.values_list(
                 "user_id", flat=True
             )
+        # 세 비율 필드는 옛 폼(비율 필드가 없던 시절)이 보낸 요청도 계속 통과해야 하므로
+        # 필수로 두지 않는다 - 값이 안 오면 clean()에서 모델 기본값(40/60/0) 또는 기존 값으로
+        # 채운다.
+        for weight_field in ("team_score_weight", "personal_score_weight", "tutor_score_weight"):
+            self.fields[weight_field].required = False
         for field in self.fields.values():
             if not isinstance(field.widget, forms.CheckboxSelectMultiple):
                 field.widget.attrs.setdefault(
@@ -76,6 +93,14 @@ class EvaluationRoundForm(forms.ModelForm):
             # 것도 곤란하다 - 내보내려면 팀 편성에서 먼저 빼야 한다.
             user_ids |= set(self.instance.participants.values_list("user_id", flat=True))
         cleaned["participants"] = User.objects.filter(pk__in=user_ids)
+        for weight_field in ("team_score_weight", "personal_score_weight", "tutor_score_weight"):
+            if cleaned.get(weight_field) is None:
+                default = (
+                    getattr(self.instance, weight_field)
+                    if self.instance.pk
+                    else EvaluationRound._meta.get_field(weight_field).default
+                )
+                cleaned[weight_field] = default
         return cleaned
 
 

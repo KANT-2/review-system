@@ -168,7 +168,7 @@
                 <i class="bi bi-info-circle ax-info-icon"
                    data-bs-toggle="tooltip"
                    data-bs-placement="top"
-                   title="팀 {{ team_weight_percent }}% + 개인 {{ peer_weight_percent }}%"></i>
+                   title="팀 {{ team_weight_percent }}% + 개인 {{ peer_weight_percent }}%{% if tutor_weight_percent %} + 튜터 {{ tutor_weight_percent }}%{% endif %}"></i>
               </th>
               <th scope="col" class="text-end">최종점수 (5점 만점)</th>
               <th scope="col" class="text-center">개인 평가 제출 현황</th>

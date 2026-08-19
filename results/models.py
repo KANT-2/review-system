@@ -105,6 +105,7 @@ class EvaluationResult(models.Model):
     )
     team_score_raw = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     peer_score_raw = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    tutor_score_raw = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     final_score_raw = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     display_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     primary_rank = models.PositiveIntegerField(null=True, blank=True)
@@ -137,6 +138,11 @@ class EvaluationResult(models.Model):
                 condition=Q(peer_score_raw__isnull=True)
                 | Q(peer_score_raw__gte=1, peer_score_raw__lte=5),
                 name="results_peer_score_five_point_range",
+            ),
+            models.CheckConstraint(
+                condition=Q(tutor_score_raw__isnull=True)
+                | Q(tutor_score_raw__gte=1, tutor_score_raw__lte=5),
+                name="results_tutor_score_five_point_range",
             ),
             models.CheckConstraint(
                 condition=Q(final_score_raw__isnull=True)

@@ -86,13 +86,21 @@ def calculate_final_score(
     team_score: Decimal | None,
     peer_score: Decimal | None,
     tutor_score: Decimal | None = None,
+    *,
+    team_weight: Decimal | None = None,
+    peer_weight: Decimal | None = None,
+    tutor_weight: Decimal | None = None,
 ) -> Decimal | None:
     """개인 최종점수 (raw 정밀도).
 
     ``tutor_score``를 안 주면(기본값) 팀 점수 40% + 개인 점수 60% (RES-004). 이 회차가
     튜터 평가를 반영하는 회차라 ``tutor_score``가 주어지면 팀 30% + 개인 40% + 튜터 30%로
-    바뀐다 - 정확한 비율은 아직 팀 협의로 확정 전이라 바뀔 수 있다(모듈 상단
-    TEAM_WEIGHT_WITH_TUTOR 등 참고).
+    바뀐다 - 정확한 비율은 이 모듈의 기본 상수(TEAM_WEIGHT_WITH_TUTOR 등)다.
+
+    ``team_weight``/``peer_weight``/``tutor_weight``는 회차별로 튜터가 설정한 비율
+    (rounds.EvaluationRound.team_score_weight 등을 100으로 나눈 값)을 넘길 때 쓴다 - 아무도
+    넘기지 않으면(기존 호출부는 전부 그렇다) 이 모듈의 기본 상수를 그대로 쓰므로 기존 동작은
+    바뀌지 않는다.
 
     구성 점수 중 하나라도 N/A(``None``)면 최종점수도 N/A다. ``tutor_score``는 다른
     구성요소와 달리 "이 회차가 튜터 평가를 반영하는지" 자체를 결정하는 파라미터라, None이면
@@ -102,12 +110,13 @@ def calculate_final_score(
     if team_score is None or peer_score is None:
         return None
     if tutor_score is None:
-        return round_to_raw(team_score * TEAM_WEIGHT + peer_score * PEER_WEIGHT)
-    return round_to_raw(
-        team_score * TEAM_WEIGHT_WITH_TUTOR
-        + peer_score * PEER_WEIGHT_WITH_TUTOR
-        + tutor_score * TUTOR_WEIGHT
-    )
+        tw = team_weight if team_weight is not None else TEAM_WEIGHT
+        pw = peer_weight if peer_weight is not None else PEER_WEIGHT
+        return round_to_raw(team_score * tw + peer_score * pw)
+    tw = team_weight if team_weight is not None else TEAM_WEIGHT_WITH_TUTOR
+    pw = peer_weight if peer_weight is not None else PEER_WEIGHT_WITH_TUTOR
+    tuw = tutor_weight if tutor_weight is not None else TUTOR_WEIGHT
+    return round_to_raw(team_score * tw + peer_score * pw + tutor_score * tuw)
 
 
 def determine_data_status(expected_count: int, valid_count: int) -> str:

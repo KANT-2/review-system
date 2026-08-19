@@ -15,7 +15,7 @@ from results.application import (
     toggle_publication,
 )
 from results.models import CalculationRun, EvaluationResult, TutorNote
-from reviews.models import ReviewAnswer, ReviewSubmission
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview, TutorReviewAnswer
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from teams.models import Team, TeamMembership
 
@@ -626,3 +626,156 @@ class StudentResultRoundSelectionTests(TestCase):
         response = self.client.get(reverse("accounts:mypage"), {"round": outsider_round.pk})
 
         self.assertEqual(response.context["portal"]["selected"]["round_id"], self.newer.pk)
+
+
+class TutorWeightScoringTests(TestCase):
+    """회차별 점수 반영 비율(팀/개인/튜터) - 기본값은 기존 계산식과 동일해야 한다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="weight-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"weight-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"W{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+                is_onboarded=True,
+            )
+            for index in range(1, 5)
+        ]
+        team_template = QuestionTemplate.objects.create(
+            name="비율 팀", category="TEAM", created_by=self.tutor
+        )
+        peer_template = QuestionTemplate.objects.create(
+            name="비율 개인", category="PEER", created_by=self.tutor
+        )
+        self.team_question = TemplateQuestion.objects.create(
+            template=team_template, response_type="RATING_5", prompt="팀 완성도", display_order=1
+        )
+        self.peer_question = TemplateQuestion.objects.create(
+            template=peer_template, response_type="RATING_5", prompt="개인 기여도", display_order=1
+        )
+        self.peer_template = peer_template
+        self.team_template = team_template
+
+    def _make_round(self, **weight_kwargs):
+        now = timezone.now()
+        round_obj = EvaluationRound.objects.create(
+            title="비율 회차",
+            status=EvaluationRound.Status.COMPLETED,
+            evaluation_start_at=now - timedelta(days=2),
+            evaluation_end_at=now - timedelta(days=1),
+            target_team_count=2,
+            team_template=self.team_template,
+            peer_template=self.peer_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(days=2),
+            completed_at=now,
+            **weight_kwargs,
+        )
+        participants = [
+            RoundParticipant.objects.create(
+                round=round_obj,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+            for user in self.students
+        ]
+        team_a = Team.objects.create(round=round_obj, team_number=1, name="1팀")
+        team_b = Team.objects.create(round=round_obj, team_number=2, name="2팀")
+        team_a_members = participants[:2]
+        team_b_members = participants[2:]
+        for participant in team_a_members:
+            TeamMembership.objects.create(team=team_a, participant=participant)
+        for participant in team_b_members:
+            TeamMembership.objects.create(team=team_b, participant=participant)
+
+        for participant in team_a_members:
+            submission = ReviewSubmission.objects.create(
+                round=round_obj, review_type="TEAM", evaluator=participant, target_team=team_b
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.team_question, rating_value=4
+            )
+        for participant in team_b_members:
+            submission = ReviewSubmission.objects.create(
+                round=round_obj, review_type="TEAM", evaluator=participant, target_team=team_a
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.team_question, rating_value=4
+            )
+        peer_pairs = ((0, 1), (1, 0), (2, 3), (3, 2))
+        for evaluator_index, target_index in peer_pairs:
+            submission = ReviewSubmission.objects.create(
+                round=round_obj,
+                review_type="PEER",
+                evaluator=participants[evaluator_index],
+                target_participant=participants[target_index],
+            )
+            ReviewAnswer.objects.create(
+                submission=submission, question=self.peer_question, rating_value=2
+            )
+        return round_obj, participants
+
+    def _add_tutor_review(self, round_obj, target_participant, rating):
+        review = TutorReview.objects.create(
+            round=round_obj, evaluator=self.tutor, target_participant=target_participant
+        )
+        TutorReviewAnswer.objects.create(
+            review=review, question=self.peer_question, rating_value=rating
+        )
+
+    def test_default_weights_match_the_existing_formula(self):
+        round_obj, _participants = self._make_round()
+
+        run = calculate_round(round_id=round_obj.pk, actor=self.tutor)
+
+        individual = run.results.filter(result_type=EvaluationResult.ResultType.INDIVIDUAL).first()
+        # 팀 4점 * 40% + 개인 2점 * 60% = 2.8
+        self.assertEqual(individual.final_score_raw, Decimal("2.800000"))
+
+    def test_tutor_score_is_ignored_when_weight_is_zero(self):
+        round_obj, participants = self._make_round()
+        self._add_tutor_review(round_obj, participants[0], rating=5)
+
+        run = calculate_round(round_id=round_obj.pk, actor=self.tutor)
+
+        individual = run.results.get(participant=participants[0])
+        self.assertIsNone(individual.tutor_score_raw)
+        self.assertEqual(individual.final_score_raw, Decimal("2.800000"))
+
+    def test_custom_weights_change_the_final_score(self):
+        round_obj, participants = self._make_round(
+            team_score_weight=30, personal_score_weight=40, tutor_score_weight=30
+        )
+        self._add_tutor_review(round_obj, participants[0], rating=5)
+        self._add_tutor_review(round_obj, participants[1], rating=5)
+
+        run = calculate_round(round_id=round_obj.pk, actor=self.tutor)
+
+        individual = run.results.get(participant=participants[0])
+        self.assertEqual(individual.tutor_score_raw, Decimal("5.000000"))
+        # 팀 4점 * 30% + 개인 2점 * 40% + 튜터 5점 * 30% = 3.5
+        self.assertEqual(individual.final_score_raw, Decimal("3.500000"))
+
+    def test_weight_ratio_must_sum_to_100(self):
+        now = timezone.now()
+        with self.assertRaises(ValidationError):
+            EvaluationRound(
+                title="잘못된 비율",
+                evaluation_start_at=now,
+                evaluation_end_at=now + timedelta(days=1),
+                created_by=self.tutor,
+                team_score_weight=50,
+                personal_score_weight=50,
+                tutor_score_weight=10,
+            ).full_clean()

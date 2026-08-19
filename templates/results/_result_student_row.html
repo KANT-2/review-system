@@ -8,7 +8,7 @@
   <td>{{ result.participant.team_membership.team.name|default:"미배정" }}</td>
   <td class="text-end">
     <div class="ax-math-cell">
-      {% with team=result.team_score_raw|as_five_point peer=result.peer_score_raw|as_five_point %}
+      {% with team=result.team_score_raw|as_five_point peer=result.peer_score_raw|as_five_point tutor=result.tutor_score_raw|as_five_point %}
         <span class="ax-score-part">
           {% if team is not None %}{{ team }}{% else %}-{% endif %}<span class="ax-weight">×{{ team_weight_percent }}%</span>
         </span>
@@ -16,6 +16,12 @@
         <span class="ax-score-part">
           {% if peer is not None %}{{ peer }}{% else %}-{% endif %}<span class="ax-weight">×{{ peer_weight_percent }}%</span>
         </span>
+        {% if tutor_weight_percent %}
+          <span class="ax-math-sign">+</span>
+          <span class="ax-score-part">
+            {% if tutor is not None %}{{ tutor }}{% else %}-{% endif %}<span class="ax-weight">×{{ tutor_weight_percent }}%</span>
+          </span>
+        {% endif %}
       {% endwith %}
     </div>
   </td>
