@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% comment %}
+  CSRF(위조 요청 방지) 검증에 실패했을 때 나오는 화면.
+  Django가 csrf_failure 뷰에서 이 파일 이름을 직접 찾으므로 따로 설정하지 않는다.
+  실패 사유(reason)는 넘어오지 않는다 - 사용자 지정 템플릿은 render(request=request)로만
+  그려지기 때문이다. 그래서 원인 대신 다음에 할 일만 안내한다.
+  되돌아가면 만료된 폼이 그대로 다시 나와 같은 실패를 반복하므로 '이전 페이지'는 감춘다.
+{% endcomment %}
+{% block title %}보안 확인에 실패했습니다 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}보안 확인 실패{% endblock %}
+{% block content %}
+  {% url "accounts:login" as login_url %}
+  {% include "errors/_error_card.html" with code="403" tone="warning" icon="bi-shield-exclamation" title="보안 확인에 실패했습니다" message="로그인 정보가 만료됐거나 화면을 오래 열어 둔 뒤 제출해 요청이 취소됐습니다. 다시 로그인한 뒤 처음부터 진행해 주세요." hide_back=True action_url=login_url action_label="로그인 화면으로" action_icon="bi-box-arrow-in-right" %}
+{% endblock %}
+{% block auth_content %}
+  {% url "accounts:login" as login_url %}
+  {% include "errors/_error_card.html" with code="403" tone="warning" icon="bi-shield-exclamation" title="보안 확인에 실패했습니다" message="로그인 정보가 만료됐거나 화면을 오래 열어 둔 뒤 제출해 요청이 취소됐습니다. 다시 로그인한 뒤 처음부터 진행해 주세요." hide_back=True action_url=login_url action_label="로그인 화면으로" action_icon="bi-box-arrow-in-right" %}
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}페이지를 찾을 수 없습니다 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}페이지 없음{% endblock %}
+{% block content %}
+  {% include "errors/_error_card.html" with code="404" tone="info" icon="bi-compass" title="페이지를 찾을 수 없습니다" message="주소가 바뀌었거나 이미 삭제된 화면입니다. 주소를 다시 확인하거나 홈에서 이어서 이용해 주세요." %}
+{% endblock %}
+{% block auth_content %}
+  {% include "errors/_error_card.html" with code="404" tone="info" icon="bi-compass" title="페이지를 찾을 수 없습니다" message="주소가 바뀌었거나 이미 삭제된 화면입니다. 주소를 다시 확인하거나 홈에서 이어서 이용해 주세요." %}
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}접근 권한이 없습니다 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}접근 제한{% endblock %}
+{% block content %}
+  {% include "errors/_error_card.html" with code="403" tone="warning" icon="bi-shield-lock" title="접근 권한이 없습니다" message="계정 권한이나 승인 상태 때문에 열 수 없는 화면입니다. 필요한 화면이라면 운영 담당자에게 문의해 주세요." %}
+{% endblock %}
+{% block auth_content %}
+  {% include "errors/_error_card.html" with code="403" tone="warning" icon="bi-shield-lock" title="접근 권한이 없습니다" message="계정 권한이나 승인 상태 때문에 열 수 없는 화면입니다. 필요한 화면이라면 운영 담당자에게 문의해 주세요." %}
+{% endblock %}
