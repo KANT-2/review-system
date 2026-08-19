@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -15,6 +15,7 @@ from reviews.services import (
     final_submit_state,
     get_submission,
     is_final_submitted,
+    lock_submission,
     own_submission,
     participation_for_round,
     peer_targets,
@@ -60,6 +61,40 @@ def peer_review_list(request):
     return _list_page(request, review_type=ReviewSubmission.ReviewType.PEER)
 
 
+@login_required
+def review_home(request):
+    """팀 평가·개인 평가를 한 화면에서 보여주는 통합 페이지.
+
+    기존 team-list/peer-list 화면은 그대로 남아 있고(직접 링크·즐겨찾기 호환), 이 화면은
+    두 목록을 한 번에 모아 보여주는 진입점 역할만 한다.
+    """
+    participant = _participant_or_none(request)
+    team_targets_list = team_targets(participant)
+    peer_targets_list = peer_targets(participant)
+    return render(
+        request,
+        "reviews/home.html",
+        {
+            "participant": participant,
+            "team_targets": team_targets_list,
+            "peer_targets": peer_targets_list,
+            "window_state": review_window_state(participant.round) if participant else None,
+            "team_completed_count": sum(target.completed for target in team_targets_list),
+            "peer_completed_count": sum(target.completed for target in peer_targets_list),
+            "team_final_state": (
+                final_submit_state(participant, ReviewSubmission.ReviewType.TEAM)
+                if participant
+                else None
+            ),
+            "peer_final_state": (
+                final_submit_state(participant, ReviewSubmission.ReviewType.PEER)
+                if participant
+                else None
+            ),
+        },
+    )
+
+
 def _initial_from(submission):
     """이미 낸 답변을 폼에 채워 넣는다 - 수정 화면에서 처음부터 다시 쓰지 않게."""
     return {
@@ -71,6 +106,9 @@ def _initial_from(submission):
 
 
 def _form_page(request, *, review_type, target_id):
+    # panel=1 이면 통합 화면(reviews:home)의 슬라이드 패널이 fetch로 이 화면을 불러온 것이다 -
+    # 레이아웃 없는 조각을 돌려주고, 저장 성공은 204로만 알린다(패널 쪽 JS가 처리).
+    panel = request.GET.get("panel") == "1" or request.POST.get("panel") == "1"
     participant = _participant_or_none(request)
     if not participant:
         raise PermissionDenied("현재 회차 참가자가 아닙니다.")
@@ -81,11 +119,14 @@ def _form_page(request, *, review_type, target_id):
     existing = get_submission(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
     finalized = is_final_submitted(participant, review_type)
+    locked = bool(existing and existing.locked_at)
     initial = _initial_from(existing) if existing else None
     form = ReviewForm(request.POST or None, questions=questions, initial=initial)
     if request.method == "POST":
         if finalized:
             messages.info(request, "최종 제출한 평가는 수정할 수 없습니다.")
+        elif locked:
+            messages.info(request, "확정된 평가는 수정할 수 없습니다.")
         elif form.is_valid():
             try:
                 submit_review(
@@ -99,6 +140,9 @@ def _form_page(request, *, review_type, target_id):
             except ValidationError as error:
                 form.add_error(None, error)
             else:
+                if panel:
+                    # 본문 없이 204만 돌려주면 패널 JS가 성공으로 보고 화면을 새로고침한다.
+                    return HttpResponse(status=204)
                 messages.success(
                     request,
                     "평가를 수정했습니다." if existing else "평가를 제출했습니다.",
@@ -106,21 +150,21 @@ def _form_page(request, *, review_type, target_id):
                 return redirect(
                     "reviews:team-list" if review_type == "TEAM" else "reviews:peer-list"
                 )
-    return render(
-        request,
-        "reviews/form.html",
-        {
-            "participant": participant,
-            "target": target,
-            "review_type": review_type,
-            "form": form,
-            "questions": questions,
-            "existing": existing,
-            "finalized": finalized,
-            "readonly_answers": existing.answers.all() if existing else [],
-            "window_state": review_window_state(participant.round),
-        },
-    )
+    context = {
+        "participant": participant,
+        "target": target,
+        "review_type": review_type,
+        "form": form,
+        "questions": questions,
+        "existing": existing,
+        "finalized": finalized,
+        "locked": locked,
+        "readonly_answers": existing.answers.all() if existing else [],
+        "window_state": review_window_state(participant.round),
+        "panel": panel,
+    }
+    template = "reviews/_form_panel.html" if panel else "reviews/form.html"
+    return render(request, template, context)
 
 
 @login_required
@@ -161,7 +205,28 @@ def review_final_submit(request, review_type):
         messages.error(request, " ".join(error.messages))
     else:
         messages.success(request, "최종 제출했습니다. 이제 이 평가는 수정할 수 없습니다.")
-    return redirect("reviews:team-list" if review_type == "TEAM" else "reviews:peer-list")
+    return redirect("reviews:home")
+
+
+@login_required
+@require_http_methods(["POST"])
+def peer_review_lock(request, target_id):
+    """개인 평가는 대상 1명 단위로도 확정할 수 있다 - 유형 전체를 잠그는
+    final-submit과 달리 그 사람 평가 하나만 더 이상 못 고치게 한다."""
+    participant = _participant_or_none(request)
+    if not participant:
+        raise PermissionDenied("현재 회차 참가자가 아닙니다.")
+    try:
+        lock_submission(
+            participant=participant,
+            review_type=ReviewSubmission.ReviewType.PEER,
+            target_id=target_id,
+        )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "해당 평가를 확정했습니다. 이제 이 평가는 수정할 수 없습니다.")
+    return redirect("reviews:home")
 
 
 @login_required

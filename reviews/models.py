@@ -32,6 +32,14 @@ class ReviewSubmission(models.Model):
         related_name="received_peer_reviews",
     )
     submitted_at = models.DateTimeField(auto_now_add=True)
+    locked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "건별 확정 시각. 유형 전체를 잠그는 ReviewFinalSubmission과 달리, "
+            "이 건 하나만 더 이상 고칠 수 없게 한다(현재는 개인 평가에서만 쓴다)."
+        ),
+    )
 
     class Meta:
         ordering = ("submitted_at",)

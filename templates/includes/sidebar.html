@@ -60,10 +60,8 @@
       </ul>
       <div class="nav-section-title">평가 제출</div>
       <ul class="sidebar-nav">
-        <li class="sidebar-nav-item"><a href="{% url 'reviews:team-list' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'team-list' or request.resolver_match.url_name == 'team-form' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span class="nav-text">팀 평가</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'reviews:peer-list' %}"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'peer-list' or request.resolver_match.url_name == 'peer-form' %}active{% endif %}"><i class="bi bi-person-check"></i><span class="nav-text">개인 평가</span></a></li>
+        <li class="sidebar-nav-item"><a href="{% url 'reviews:home' %}"
+   class="sidebar-nav-link {% if request.resolver_match.url_name == 'home' or request.resolver_match.url_name == 'team-list' or request.resolver_match.url_name == 'team-form' or request.resolver_match.url_name == 'peer-list' or request.resolver_match.url_name == 'peer-form' %}active{% endif %}"><i class="bi bi-ui-checks-grid"></i><span class="nav-text">평가 제출</span></a></li>
         <li class="sidebar-nav-item"><a href="{% url 'reviews:status' %}"
    class="sidebar-nav-link {% if request.resolver_match.url_name == 'status' %}active{% endif %}"><i class="bi bi-list-check"></i><span class="nav-text">제출 현황</span></a></li>
       </ul>

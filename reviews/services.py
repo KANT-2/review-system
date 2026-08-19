@@ -28,6 +28,9 @@ class ReviewTargetRow:
     description: str
     completed: bool
     url_name: str
+    # 건별 확정 여부 - 지금은 개인 평가에서만 쓴다. 다른 호출부(팀 평가, 튜터 평가)는
+    # 기본값 False로 그대로 두면 되므로 이 필드를 몰라도 된다.
+    locked: bool = False
 
 
 def current_participation(user):
@@ -103,13 +106,17 @@ def peer_targets(participant):
     target_participants = RoundParticipant.objects.filter(
         team_membership__team=participant.team_membership.team
     ).exclude(pk=participant.pk)
-    submitted_ids = set(
-        ReviewSubmission.objects.filter(
-            round=participant.round,
-            evaluator=participant,
-            review_type=ReviewSubmission.ReviewType.PEER,
-        ).values_list("target_participant_id", flat=True)
-    )
+    peer_submissions = ReviewSubmission.objects.filter(
+        round=participant.round,
+        evaluator=participant,
+        review_type=ReviewSubmission.ReviewType.PEER,
+    ).values_list("target_participant_id", "locked_at")
+    submitted_ids = set()
+    locked_ids = set()
+    for target_id, locked_at in peer_submissions:
+        submitted_ids.add(target_id)
+        if locked_at is not None:
+            locked_ids.add(target_id)
     return [
         ReviewTargetRow(
             pk=target.pk,
@@ -117,6 +124,7 @@ def peer_targets(participant):
             description=target.student_number_snapshot,
             completed=target.pk in submitted_ids,
             url_name="reviews:peer-form",
+            locked=target.pk in locked_ids,
         )
         for target in target_participants
     ]
@@ -283,6 +291,9 @@ def submit_review(*, participant, review_type, target_id, answers):
         raise ValidationError("평가 제출 기간이 아닙니다.")
     if is_final_submitted(participant, review_type):
         raise ValidationError("최종 제출한 평가는 수정할 수 없습니다.")
+    existing = get_submission(participant, review_type, target_id)
+    if existing is not None and existing.locked_at is not None:
+        raise ValidationError("확정된 평가는 수정할 수 없습니다.")
     target = _validate_target(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
     answer_rows = validated_answer_rows(questions, answers)
@@ -302,6 +313,27 @@ def submit_review(*, participant, review_type, target_id, answers):
             ]
         )
         return submission
+
+
+def lock_submission(*, participant, review_type, target_id):
+    """대상 한 건만 확정해서 더 이상 못 고치게 한다(TR-010에 준하는 건별 확정).
+
+    유형 전체를 잠그는 final_submit()과는 별개다 - 지금은 개인 평가 카드에서만 쓴다.
+    """
+    if participant.round.status != EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError("진행 중인 회차가 아닙니다.")
+    if review_window_state(participant.round) != "OPEN":
+        raise ValidationError("평가 제출 기간이 아닙니다.")
+    if is_final_submitted(participant, review_type):
+        raise ValidationError("이미 유형 전체가 최종 제출되어 있습니다.")
+    existing = get_submission(participant, review_type, target_id)
+    if existing is None:
+        raise ValidationError("먼저 평가를 제출해야 확정할 수 있습니다.")
+    if existing.locked_at is not None:
+        raise ValidationError("이미 확정된 평가입니다.")
+    existing.locked_at = timezone.now()
+    existing.save(update_fields=["locked_at"])
+    return existing
 
 
 # --- 튜터 개인평가 -------------------------------------------------------------

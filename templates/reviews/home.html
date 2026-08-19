@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}평가 제출 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}평가 제출{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* 이 페이지 전용 - 팀 평가/개인 평가 두 컬럼과 "고쳐 쓰기" 슬라이드 패널. 색상·간격은
+     custom.css의 --ax-* 토큰을 그대로 쓴다(다크모드 자동 대응). */
+  .review-column-card { display: flex; flex-direction: column; height: 100%; }
+  .review-item {
+    border: 1px solid var(--ax-border); border-radius: var(--radius-sm);
+    background: var(--ax-surface-subtle); padding: 14px 16px; margin-bottom: 10px;
+  }
+  .review-item:last-child { margin-bottom: 0; }
+  .review-item .target-name { font-weight: 700; font-size: 15px; margin-top: 6px; }
+  .review-item .target-meta { font-size: 12.5px; color: var(--ax-text-muted); }
+  .review-item-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .review-item-actions .btn { flex: 1 1 0; min-width: 0; }
+
+  .review-row { position: relative; }
+  .slide-panel-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(15, 23, 42, 0.12);
+    border-radius: var(--radius-md);
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s ease;
+    z-index: 15;
+  }
+  .slide-panel-backdrop.show { opacity: 1; pointer-events: auto; }
+  .slide-panel {
+    position: absolute;
+    top: 0; bottom: 0; right: 0;
+    width: calc(50% - 0.75rem);
+    background: var(--ax-surface);
+    border: 1px solid var(--ax-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 32px rgba(15, 23, 42, 0.18);
+    z-index: 20;
+    display: flex; flex-direction: column;
+    pointer-events: none;
+    /* panel-left/panel-right가 아직 안 붙은 초기 상태(페이지 진입 직후)에도 접혀 있어야 한다 -
+       이 기본값이 없으면 아무 것도 안 눌렀는데 빈 패널이 펼쳐진 채로 보인다. */
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path .32s cubic-bezier(.22,.8,.32,1);
+  }
+  .slide-panel.show { pointer-events: auto; }
+  /* 팀 평가에서 열면 오른쪽(개인평가 자리) 위로, 중앙에서 오른쪽으로 펼쳐짐 */
+  .slide-panel.panel-right { right: 0; clip-path: inset(0 100% 0 0); }
+  .slide-panel.panel-right.show { clip-path: inset(0 0 0 0); }
+  /* 개인 평가에서 열면 왼쪽(팀평가 자리) 위로, 중앙에서 왼쪽으로 펼쳐짐 */
+  .slide-panel.panel-left { left: 0; clip-path: inset(0 0 0 100%); }
+  .slide-panel.panel-left.show { clip-path: inset(0 0 0 0); }
+  .slide-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--ax-border); flex-shrink: 0;
+  }
+  .slide-panel-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+  @media (max-width: 991.98px) {
+    /* 좁은 화면에서는 컬럼이 세로로 쌓이므로 패널도 전체 폭으로 덮는다 */
+    .slide-panel { width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">평가 제출</h1>
+      <p class="page-desc">팀 평가와 개인 평가를 한 화면에서 확인하고 제출합니다.</p>
+    </div>
+  </div>
+
+  {% if not participant %}
+    <section class="card-custom">
+      <div class="card-body-custom text-center py-5">
+        <i class="bi bi-calendar-x fs-1 text-muted"></i>
+        <h2 class="h5 fw-bold mt-3">현재 참가 중인 회차가 없습니다</h2>
+        <p class="text-muted mb-0">회차가 시작되면 평가 대상이 표시됩니다.</p>
+      </div>
+    </section>
+  {% else %}
+    {% if window_state == 'BEFORE' %}
+      <div class="alert alert-info">
+        평가 시작 전입니다. {{ participant.round.evaluation_start_at|date:"Y-m-d H:i" }}부터 제출할 수 있습니다.
+      </div>
+    {% elif window_state == 'CLOSED' %}
+      <div class="alert alert-warning">평가 기간이 종료되어 더 이상 제출·수정할 수 없습니다.</div>
+    {% endif %}
+
+    <div class="row g-3 align-items-stretch review-row">
+      <div class="col-lg-6 d-flex flex-column">
+        <section class="card-custom review-column-card">
+          <div class="card-header-custom">
+            <div class="card-title-custom">
+              <i class="bi bi-ui-checks-grid text-primary"></i>팀 평가
+              <span class="badge badge-ax badge-ax-expired fw-normal">
+                <i class="bi bi-calendar-week"></i>{{ participant.round.title }}
+              </span>
+            </div>
+            <span class="badge badge-ax {% if team_completed_count == team_targets|length %}badge-ax-completed{% else %}badge-ax-pending{% endif %} fs-6">
+              {{ team_completed_count }}/{{ team_targets|length }}
+            </span>
+          </div>
+          <div class="card-body-custom flex-grow-1">
+            <p class="text-muted small mb-3">내 팀을 제외한 다른 팀을 평가합니다.</p>
+            {% for target in team_targets %}
+              <div class="review-item">
+                {% if target.completed %}
+                  <span class="badge badge-ax badge-ax-completed"><i class="bi bi-check-lg me-1"></i>제출함</span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-danger">미제출</span>
+                {% endif %}
+                <div class="target-name">{{ target.label }}</div>
+                <div class="target-meta">{{ target.description }}</div>
+                <div class="review-item-actions">
+                  <a href="{% url target.url_name target.pk %}"
+                     class="btn btn-edit {% if target.completed %}btn-ax-secondary{% else %}btn-ax-primary{% endif %}"
+                     data-title="{{ target.label }} 평가"
+                     data-side="right">
+                    {% if team_final_state.finalized %}응답 보기{% elif target.completed %}수정하기{% else %}평가하기{% endif %}
+                  </a>
+                  {% if not team_final_state.finalized %}
+                    <button type="button"
+                            class="btn btn-ax-primary final-confirm-trigger"
+                            data-form-id="teamFinalSubmitForm"
+                            data-final-title="팀 평가 확정"
+                            data-final-msg="팀 평가를 최종 제출하면 더 이상 고칠 수 없습니다. 진행할까요?"
+                            {% if not team_final_state.can_finalize %}disabled{% endif %}>
+                      평가 확정
+                    </button>
+                  {% endif %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-center text-muted py-4">
+                <i class="bi bi-check2-circle fs-2 text-success"></i>
+                <p class="mb-0 mt-2">평가 대상 없음 — 정상 완료</p>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        {% if team_targets %}
+          {# 카드 안 "평가 확정" 버튼이 그대로 쓰는 실제 제출 폼 - 화면에는 안 보이고 폼만 남는다. #}
+          <form method="post" id="teamFinalSubmitForm" class="d-none" action="{% url 'reviews:final-submit' 'TEAM' %}">
+            {% csrf_token %}
+          </form>
+        {% endif %}
+      </div>
+
+      <div class="col-lg-6 d-flex flex-column">
+        <section class="card-custom review-column-card">
+          <div class="card-header-custom">
+            <div class="card-title-custom">
+              <i class="bi bi-person-check text-primary"></i>개인 평가
+              <span class="badge badge-ax badge-ax-expired fw-normal">
+                <i class="bi bi-calendar-week"></i>{{ participant.round.title }}
+              </span>
+            </div>
+            <span class="badge badge-ax {% if peer_completed_count == peer_targets|length %}badge-ax-completed{% else %}badge-ax-pending{% endif %} fs-6">
+              {{ peer_completed_count }}/{{ peer_targets|length }}
+            </span>
+          </div>
+          <div class="card-body-custom flex-grow-1">
+            <p class="text-muted small mb-3">같은 팀의 다른 구성원을 평가합니다.</p>
+            {% for target in peer_targets %}
+              <div class="review-item">
+                {% if target.locked %}
+                  <span class="badge badge-ax badge-ax-completed"><i class="bi bi-lock-fill me-1"></i>확정됨</span>
+                {% elif target.completed %}
+                  <span class="badge badge-ax badge-ax-completed"><i class="bi bi-check-lg me-1"></i>제출함</span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-danger">미제출</span>
+                {% endif %}
+                <div class="target-name">{{ target.label }}</div>
+                <div class="target-meta">{{ target.description }}</div>
+                <div class="review-item-actions">
+                  <a href="{% url target.url_name target.pk %}"
+                     class="btn btn-edit {% if target.completed %}btn-ax-secondary{% else %}btn-ax-primary{% endif %}"
+                     data-title="{{ target.label }} 평가"
+                     data-side="left">
+                    {% if peer_final_state.finalized or target.locked %}응답 보기{% elif target.completed %}수정하기{% else %}평가하기{% endif %}
+                  </a>
+                  {% if not peer_final_state.finalized and not target.locked %}
+                    <form method="post" id="peerLockForm-{{ target.pk }}" action="{% url 'reviews:peer-lock' target.pk %}" class="d-none">
+                      {% csrf_token %}
+                    </form>
+                    <button type="button"
+                            class="btn btn-ax-primary final-confirm-trigger"
+                            data-form-id="peerLockForm-{{ target.pk }}"
+                            data-final-title="{{ target.label }} 평가 확정"
+                            data-final-msg="{{ target.label }} 평가를 확정하면 더 이상 고칠 수 없습니다. 진행할까요?"
+                            {% if not target.completed %}disabled{% endif %}>
+                      평가 확정
+                    </button>
+                  {% endif %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-center text-muted py-4">
+                <i class="bi bi-check2-circle fs-2 text-success"></i>
+                <p class="mb-0 mt-2">평가 대상 없음 — 정상 완료</p>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+
+      </div>
+
+      <div class="slide-panel-backdrop" id="editBackdrop"></div>
+      <div class="slide-panel" id="editPanel">
+        <div class="slide-panel-header">
+          <h5 class="mb-0" id="editPanelTitle" style="font-weight:700;">평가 고쳐쓰기</h5>
+          <button type="button" class="btn-close" id="editPanelClose" aria-label="닫기"></button>
+        </div>
+        <div class="slide-panel-body" id="editPanelBody"></div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block modals %}
+  <div class="modal fade" id="finalConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content rounded-4 border-0 shadow text-center p-3">
+        <div class="modal-body pt-3 pb-2">
+          <i class="bi bi-exclamation-circle-fill text-primary" style="font-size:2.5rem;"></i>
+          <h6 class="fw-bold mb-2 mt-3" id="finalConfirmTitle">평가 확정</h6>
+          <p class="small text-muted mb-0" id="finalConfirmMsg">최종 제출하면 더 이상 고칠 수 없습니다. 진행할까요?</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-2 p-0 pt-3">
+          <button type="button" class="btn btn-ax-secondary px-4" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-ax-primary px-4" id="finalConfirmSubmitBtn">확정</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const panel = document.getElementById('editPanel');
+  const backdrop = document.getElementById('editBackdrop');
+  const panelTitle = document.getElementById('editPanelTitle');
+  const panelBody = document.getElementById('editPanelBody');
+  const panelClose = document.getElementById('editPanelClose');
+  if (!panel) return; // 참가 중인 회차가 없을 때는 패널 자체가 렌더링되지 않는다.
+
+  let currentActionUrl = null;
+
+  function openPanel(url, title, side) {
+    currentActionUrl = url;
+    panel.classList.remove('show');
+    panelTitle.textContent = title;
+    panel.classList.remove('panel-left', 'panel-right');
+    panel.classList.add(side === 'left' ? 'panel-left' : 'panel-right');
+    panelBody.innerHTML = '<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>불러오는 중...</div>';
+    void panel.offsetWidth; // 방향이 바뀔 때 접힌 상태부터 다시 애니메이션되도록 강제 리플로우
+    requestAnimationFrame(() => {
+      panel.classList.add('show');
+      backdrop.classList.add('show');
+    });
+    fetch(url + (url.includes('?') ? '&' : '?') + 'panel=1', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then((res) => res.text())
+      .then((html) => { panelBody.innerHTML = html; })
+      .catch(() => {
+        panelBody.innerHTML = '<div class="alert alert-danger">불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</div>';
+      });
+  }
+
+  function closePanel() {
+    panel.classList.remove('show');
+    backdrop.classList.remove('show');
+    currentActionUrl = null;
+  }
+
+  document.querySelectorAll('.btn-edit').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      openPanel(link.getAttribute('href'), link.getAttribute('data-title'), link.getAttribute('data-side'));
+    });
+  });
+
+  panelBody.addEventListener('submit', (event) => {
+    const form = event.target.closest('form');
+    if (!form || !currentActionUrl) return;
+    event.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    fetch(currentActionUrl, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then((res) => {
+        if (res.status === 204) {
+          closePanel();
+          window.location.reload();
+          return null;
+        }
+        return res.text();
+      })
+      .then((html) => {
+        if (html !== null && html !== undefined) panelBody.innerHTML = html;
+      })
+      .catch(() => {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+  });
+
+  panelClose.addEventListener('click', closePanel);
+  backdrop.addEventListener('click', closePanel);
+})();
+
+(() => {
+  // "평가 확정" 버튼(카드별 + 하단 최종 제출) 공통 확인 팝업 - 실제 제출은 각 유형의
+  // 최종 제출 폼(teamFinalSubmitForm / peerFinalSubmitForm)을 그대로 쓴다. 새 백엔드 없음.
+  const modalEl = document.getElementById('finalConfirmModal');
+  if (!modalEl) return;
+  const titleEl = document.getElementById('finalConfirmTitle');
+  const msgEl = document.getElementById('finalConfirmMsg');
+  const submitBtn = document.getElementById('finalConfirmSubmitBtn');
+  let pendingFormId = null;
+
+  document.querySelectorAll('.final-confirm-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      pendingFormId = btn.getAttribute('data-form-id');
+      titleEl.textContent = btn.getAttribute('data-final-title');
+      msgEl.textContent = btn.getAttribute('data-final-msg');
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    });
+  });
+
+  submitBtn.addEventListener('click', () => {
+    const form = pendingFormId && document.getElementById(pendingFormId);
+    if (form) form.submit();
+  });
+})();
+</script>
+{% endblock %}
