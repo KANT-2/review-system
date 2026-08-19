@@ -171,11 +171,7 @@ def get_review_progress(round_obj):
 
 
 def participant_progress_rows(round_obj):
-    """회차 참가자별 팀·개인 평가 제출 현황을 반환한다.
-
-    미완료(미배정 포함)가 항상 위로 오도록 정렬한다 - 튜터가 스크롤 없이 누가 아직
-    안 했는지부터 보게 하려는 것이라, 그 안에서는 기존처럼 학번순을 유지한다.
-    """
+    """회차 참가자별 팀·개인 평가 제출 현황을 반환한다."""
     team_count = round_obj.teams.count()
     completed = (
         ReviewSubmission.objects.filter(round=round_obj)
@@ -186,28 +182,26 @@ def participant_progress_rows(round_obj):
     rows = []
     participants = round_obj.participants.select_related("team_membership__team", "user").all()
     for participant in participants:
-        is_unassigned = not hasattr(participant, "team_membership")
-        team_size = 0 if is_unassigned else participant.team_membership.team.memberships.count()
+        team_size = (
+            participant.team_membership.team.memberships.count()
+            if hasattr(participant, "team_membership")
+            else 0
+        )
         team_expected = max(team_count - 1, 0)
         peer_expected = max(team_size - 1, 0)
-        team_completed = completed_map.get((participant.pk, ReviewSubmission.ReviewType.TEAM), 0)
-        peer_completed = completed_map.get((participant.pk, ReviewSubmission.ReviewType.PEER), 0)
         rows.append(
             {
                 "participant": participant,
-                "is_unassigned": is_unassigned,
                 "team_expected": team_expected,
-                "team_completed": team_completed,
+                "team_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.TEAM), 0
+                ),
                 "peer_expected": peer_expected,
-                "peer_completed": peer_completed,
-                "is_complete": (
-                    not is_unassigned
-                    and team_completed == team_expected
-                    and peer_completed == peer_expected
+                "peer_completed": completed_map.get(
+                    (participant.pk, ReviewSubmission.ReviewType.PEER), 0
                 ),
             }
         )
-    rows.sort(key=lambda row: (row["is_complete"], row["participant"].student_number_snapshot))
     return rows
 
 

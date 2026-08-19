@@ -27,6 +27,8 @@
           {% if run %}재채점{% else %}채점 실행{% endif %}
         </button>
       </form>
+      <a href="{% url 'rounds:publish-settings' round_obj.pk %}"
+         class="btn btn-ax-secondary">공개 설정</a>
     </div>
   </div>
   {% if not run %}
@@ -206,54 +208,6 @@
       {% endif %}
       <div class="card-body-custom pt-0">
         <p class="text-muted font-size-115 mb-0">"평가 없음"은 0점이 아니라 미제출 상태이며, 순위 계산에서 빠집니다.</p>
-      </div>
-    </section>
-    <section class="card-custom" id="publish">
-      <div class="card-header-custom">
-        <div class="card-title-custom">
-          결과 공개
-          {% if has_partial %}<span class="badge badge-ax badge-ax-pending">일부 제출 포함</span>{% endif %}
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <span class="font-size-135 fw-semibold">이번 회차 결과 전체 공개</span>
-          <form method="post"
-                action="{% url 'rounds:publish-all-results' round_obj.pk %}">
-            {% csrf_token %}
-            <label class="ax-switch" title="4개 항목 전체 공개 전환">
-              <input type="checkbox"
-                     onchange="this.form.submit()"
-                     aria-label="4개 항목 전체 공개 전환"
-                     {% if all_published %}checked{% endif %}>
-              <span class="ax-slider"></span>
-            </label>
-          </form>
-        </div>
-      </div>
-      <div class="card-body-custom">
-        <p class="text-muted font-size-135">항목별로 따로 공개할 수 있습니다. 재채점하면 공개 상태는 초기화됩니다.</p>
-        {% if pending_confirm == "ALL" %}
-          <div class="ax-confirm-banner mb-3">
-            <p class="font-size-135 mb-2">
-              <i class="bi bi-exclamation-triangle-fill"></i>
-              일부만 제출된 팀·학생이 있습니다. 그래도 4개 항목을 전체 공개할까요?
-            </p>
-            <div class="d-flex gap-2">
-              <form method="post"
-                    action="{% url 'rounds:publish-all-results' round_obj.pk %}">
-                {% csrf_token %}
-                <input type="hidden" name="partial_confirmed" value="1">
-                <button type="submit" class="btn btn-sm btn-warning fw-semibold">예, 전체 공개합니다</button>
-              </form>
-              <a class="btn btn-sm btn-ax-secondary"
-                 href="{% url 'rounds:results' round_obj.pk %}#publish">취소</a>
-            </div>
-          </div>
-        {% endif %}
-        <div class="row g-3">
-          {% for item in publish_items %}
-            {% include "results/_publish_toggle.html" %}
-          {% endfor %}
-        </div>
       </div>
     </section>
   {% endif %}
