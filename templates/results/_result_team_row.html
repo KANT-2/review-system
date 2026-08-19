@@ -1,6 +1,6 @@
 {% load results_extras %}
 <tr data-status="{{ result.data_status }}">
-  <td class="text-end">{% include "results/_rank_cell.html" with rank=result.primary_rank tied=result.is_tied %}</td>
+  <td class="text-end">{% include "results/_rank_cell.html" with rank=result.primary_rank %}</td>
   <td class="fw-semibold">{{ result.team.name }}</td>
   <td class="text-muted">
     {% for membership in result.team.memberships.all %}
