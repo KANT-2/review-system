@@ -673,3 +673,61 @@ class RoundFormTests(TestCase):
 
         self.assertNotContains(response, "목표 팀 수")
         self.assertContains(response, "참가 수강생은")
+
+    def test_creating_a_round_without_weights_uses_the_default_ratio(self):
+        now = timezone.now()
+        response = self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "기본 비율 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        created = EvaluationRound.objects.get(title="기본 비율 회차")
+        self.assertRedirects(response, reverse("rounds:teams", kwargs={"round_id": created.pk}))
+        self.assertEqual(created.team_score_weight, 40)
+        self.assertEqual(created.personal_score_weight, 60)
+        self.assertEqual(created.tutor_score_weight, 0)
+
+    def test_tutor_can_set_a_custom_weight_ratio(self):
+        now = timezone.now()
+        response = self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "튜터 반영 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+                "team_score_weight": "30",
+                "personal_score_weight": "40",
+                "tutor_score_weight": "30",
+            },
+        )
+
+        created = EvaluationRound.objects.get(title="튜터 반영 회차")
+        self.assertRedirects(response, reverse("rounds:teams", kwargs={"round_id": created.pk}))
+        self.assertEqual(created.team_score_weight, 30)
+        self.assertEqual(created.personal_score_weight, 40)
+        self.assertEqual(created.tutor_score_weight, 30)
+
+    def test_weight_ratio_not_summing_to_100_is_rejected(self):
+        now = timezone.now()
+        response = self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "잘못된 비율 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+                "team_score_weight": "50",
+                "personal_score_weight": "50",
+                "tutor_score_weight": "10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(EvaluationRound.objects.filter(title="잘못된 비율 회차").exists())
+        self.assertContains(response, "100%")

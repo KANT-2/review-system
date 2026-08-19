@@ -33,6 +33,10 @@
           <dd class="col-sm-9">
             {{ round_obj.peer_template|default:"미지정" }}
           </dd>
+          <dt class="col-sm-3">점수 반영 비율</dt>
+          <dd class="col-sm-9">
+            팀 {{ round_obj.team_score_weight }}% + 개인 {{ round_obj.personal_score_weight }}%{% if round_obj.tutor_score_weight %} + 튜터 {{ round_obj.tutor_score_weight }}%{% endif %}
+          </dd>
         </dl>
       </div>
     </section>
@@ -60,6 +64,7 @@
                 {% else %}
                   {{ field }}
                 {% endif %}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
               </div>
             {% endif %}

@@ -45,6 +45,14 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-local-development-key")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
+# 메일 본문 링크처럼 요청 객체 없이 만들어야 하는 절대 URL의 기준이다(예약 발송·스케줄러는
+# request가 없어서 build_absolute_uri를 쓸 수 없다). Sites 프레임워크는 쓰지 않는다 -
+# 도메인이 DB에 있어서 배포 환경과 어긋나도 드러나지 않는다.
+# 지정하지 않으면 CSRF 신뢰 출처의 첫 항목을 쓰고, 그것도 없으면 로컬 주소로 떨어진다.
+SITE_URL = os.getenv("DJANGO_SITE_URL", "").strip().rstrip("/") or (
+    CSRF_TRUSTED_ORIGINS[0].rstrip("/") if CSRF_TRUSTED_ORIGINS else "http://127.0.0.1:8000"
+)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

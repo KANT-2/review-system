@@ -1,4 +1,5 @@
 from collections import defaultdict
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -19,7 +20,7 @@ from results.services import (
     determine_data_status,
     round_to_display,
 )
-from reviews.models import ReviewSubmission
+from reviews.models import ReviewSubmission, TutorReviewAnswer
 from rounds.models import EvaluationRound
 
 # toggle_publication이 "한 번 더 확인이 필요하다"고 알릴 때 쓰는 ValidationError code.
@@ -51,8 +52,33 @@ def _rank_rows(rows, score_key, rank_key):
         row[rank_key] = rank
 
 
+def _tutor_answer_sets(round_obj):
+    """참가자 ID -> 이 회차에 받은 튜터 평가 제출별 평점 목록 (peer_submissions와 같은 모양).
+
+    튜터 여러 명이 같은 학생에게 각각 TutorReview를 남길 수 있어(reviews_tutor_review_target_unique는
+    (round, evaluator, target_participant) 기준), 제출 단위로 묶어 calculate_peer_score와 같은
+    평균-의-평균 산식을 그대로 재사용한다.
+    """
+    rows = TutorReviewAnswer.objects.filter(
+        review__round=round_obj, rating_value__isnull=False
+    ).values_list("review__target_participant_id", "review_id", "rating_value")
+    per_submission = defaultdict(list)
+    for participant_id, review_id, rating_value in rows:
+        per_submission[(participant_id, review_id)].append(rating_value)
+    sets_by_participant = defaultdict(list)
+    for (participant_id, _review_id), values in per_submission.items():
+        sets_by_participant[participant_id].append(values)
+    return sets_by_participant
+
+
 def _build_result_rows(round_obj):
     submissions = list(ReviewSubmission.objects.filter(round=round_obj).prefetch_related("answers"))
+    tutor_sets_by_participant = (
+        _tutor_answer_sets(round_obj) if round_obj.tutor_score_weight > 0 else defaultdict(list)
+    )
+    team_weight = Decimal(round_obj.team_score_weight) / 100
+    personal_weight = Decimal(round_obj.personal_score_weight) / 100
+    tutor_weight = Decimal(round_obj.tutor_score_weight) / 100
     team_submissions = defaultdict(list)
     peer_submissions = defaultdict(list)
     for submission in submissions:
@@ -95,7 +121,15 @@ def _build_result_rows(round_obj):
             received = peer_submissions[participant.pk]
             valid_sets = [values for values in _rating_sets(received) if values]
             peer_score = calculate_peer_score(valid_sets)
-            final_score = calculate_final_score(team_score, peer_score)
+            tutor_score = calculate_peer_score(tutor_sets_by_participant[participant.pk])
+            final_score = calculate_final_score(
+                team_score,
+                peer_score,
+                tutor_score,
+                team_weight=team_weight,
+                peer_weight=personal_weight,
+                tutor_weight=tutor_weight,
+            )
             expected = max(team_size - 1, 0)
             individual_rows.append(
                 {
@@ -103,6 +137,7 @@ def _build_result_rows(round_obj):
                     "participant": participant,
                     "team_score_raw": team_score,
                     "peer_score_raw": peer_score,
+                    "tutor_score_raw": tutor_score,
                     "final_score_raw": final_score,
                     "display_score": (
                         round_to_display(final_score) if final_score is not None else None
