@@ -73,7 +73,8 @@ document.addEventListener("DOMContentLoaded", () => {
     refresh();
   }
 
-  // 튜터 전용 메모 모달 - 클릭한 학생의 이름/기존 메모/저장 주소를 폼에 채워 넣는다.
+  // 메모 남기기 모달 - 클릭한 학생의 이름/저장 주소를 폼에 채워 넣는다. 메모는 항상
+  // 새 기록으로 추가되므로 입력창은 매번 비워서 연다.
   const noteModal = document.getElementById("studentNoteModal");
   if (noteModal) {
     const form = noteModal.querySelector("#studentNoteForm");
@@ -84,9 +85,30 @@ document.addEventListener("DOMContentLoaded", () => {
       const button = event.relatedTarget;
       if (!button) return;
       nameLabel.textContent = button.dataset.studentName || "";
-      bodyField.value = button.dataset.studentNote || "";
+      bodyField.value = "";
       form.action = button.dataset.noteAction || "";
     });
     noteModal.addEventListener("shown.bs.modal", () => bodyField.focus());
+  }
+
+  // 메모 확인 모달 - 클릭한 학생 행에 서버가 미리 렌더링해 둔 <template>(삭제 폼
+  // 포함, 실제 CSRF 토큰 포함)을 그대로 복제해 넣는다. JSON을 거치지 않으니 삭제
+  // 버튼이 진짜 폼 제출로 동작한다.
+  const noteHistoryModal = document.getElementById("studentNoteHistoryModal");
+  if (noteHistoryModal) {
+    const nameLabel = noteHistoryModal.querySelector("#noteHistoryStudentName");
+    const list = noteHistoryModal.querySelector("#noteHistoryList");
+
+    noteHistoryModal.addEventListener("show.bs.modal", (event) => {
+      const button = event.relatedTarget;
+      if (!button) return;
+      nameLabel.textContent = button.dataset.studentName || "";
+      const templateId = button.dataset.historyTemplate;
+      const template = templateId ? document.getElementById(templateId) : null;
+      list.innerHTML = "";
+      if (template) {
+        list.appendChild(template.content.cloneNode(true));
+      }
+    });
   }
 });

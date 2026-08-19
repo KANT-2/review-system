@@ -1,6 +1,6 @@
 import random
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Protocol, Self
 
@@ -39,6 +39,7 @@ class AutoTeamBoardResult:
     initial_repeated_pair_count: int
     final_repeated_pair_count: int
     optimization_count: int
+    seed_scores: Mapping[int, Decimal | None] = field(default_factory=dict)
 
 
 class TeamSaveUnitOfWork(Protocol):
@@ -100,6 +101,7 @@ def create_auto_team_board(
         initial_repeated_pair_count=assignment.initial_repeated_pair_count,
         final_repeated_pair_count=assignment.final_repeated_pair_count,
         optimization_count=assignment.optimization_count,
+        seed_scores=seed_scores,
     )
 
 

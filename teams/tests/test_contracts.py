@@ -111,22 +111,26 @@ class TeamResponseContractTests(TestCase):
             ),
         )
 
-    def test_serializes_auto_board_with_decimal_as_string(self):
+    def test_serializes_auto_board_with_decimal_rounded_to_two_places(self):
         result = AutoTeamBoardResult(
             board=self.board,
-            initial_standard_deviation=Decimal("4.250"),
+            initial_standard_deviation=Decimal("4.2503"),
             final_standard_deviation=Decimal("2.125"),
             seeded_participant_count=4,
             initial_repeated_pair_count=2,
             final_repeated_pair_count=1,
             optimization_count=3,
+            seed_scores={101: Decimal("4.567"), 102: None},
         )
 
         response = auto_team_board_response(result)
 
-        self.assertEqual(response["quality"]["initial_standard_deviation"], "4.250")
-        self.assertEqual(response["quality"]["final_standard_deviation"], "2.125")
+        # 화면 표시용이라 소수점 셋째 자리 이하는 반올림해서 보낸다 (RES-016과 달리
+        # 편차/시드는 원본 정밀도를 보존해야 하는 값이 아니다).
+        self.assertEqual(response["quality"]["initial_standard_deviation"], "4.25")
+        self.assertEqual(response["quality"]["final_standard_deviation"], "2.13")
         self.assertEqual(response["teams"][0]["participant_ids"], [101, 102])
+        self.assertEqual(response["seed_scores"], {"101": "4.57", "102": None})
 
     def test_serializes_saved_board_with_new_lock_version(self):
         response = saved_team_board_response(self.board)
@@ -143,12 +147,21 @@ class TeamResponseContractTests(TestCase):
             is_read_only=False,
             teams=(self.first_team,),
             unassigned_members=(TeamMemberView(103, "A003", "박지훈"),),
+            seed_scores={101: Decimal("3.1"), 102: None},
         )
 
         response = management_team_response(view)
 
         self.assertEqual(response["teams"][0]["members"][0]["display_name"], "김민수")
         self.assertEqual(response["unassigned_members"][0]["participant_id"], 103)
+        self.assertEqual(response["seed_scores"], {"101": "3.10", "102": None})
+
+    def test_student_response_never_includes_seed_scores(self):
+        # 시드 점수는 튜터가 팀을 짤 때만 참고하는 값이다 - 다른 학생의 이전 점수를
+        # 유추할 수 있는 값이라 학생 화면 응답에는 애초에 필드 자체가 없어야 한다.
+        response = student_team_response(StudentTeamView(10, False, None))
+
+        self.assertNotIn("seed_scores", response)
 
     def test_serializes_student_team_not_configured(self):
         response = student_team_response(StudentTeamView(10, False, None))

@@ -45,7 +45,12 @@ from accounts.services import (
     transition_approval,
     whitelist_rows,
 )
-from results.application import save_tutor_note, tutor_notes_by_student
+from results.application import (
+    add_tutor_note,
+    delete_all_tutor_notes,
+    delete_tutor_note,
+    tutor_notes_by_student,
+)
 
 GENERIC_SIGNUP_MESSAGE = "가입 신청을 접수했습니다. 승인 뒤 로그인할 수 있습니다."
 GENERIC_RESET_FAILURE = "이메일과 연락처가 등록된 정보와 일치하지 않습니다."
@@ -414,15 +419,45 @@ def account_action(request, user_id, action):
 @login_required
 @require_POST
 def save_student_note(request, user_id):
-    """수강생별 튜터 전용 메모 저장. 학생 화면에는 어떤 경로로도 노출되지 않는다."""
+    """수강생별 튜터 전용 메모를 기록에 추가한다. 학생 화면에는 어떤 경로로도 노출되지 않는다."""
     if not _can_manage_approvals(request.user):
         raise PermissionDenied
     try:
-        save_tutor_note(student_id=user_id, body=request.POST.get("body", ""), actor=request.user)
+        add_tutor_note(student_id=user_id, body=request.POST.get("body", ""), actor=request.user)
     except ValidationError as error:
         messages.error(request, " ".join(error.messages))
     else:
-        messages.success(request, "메모를 저장했습니다.")
+        messages.success(request, "메모를 남겼습니다.")
+    return redirect("accounts:account_admin")
+
+
+@login_required
+@require_POST
+def delete_student_note(request, user_id, note_id):
+    """메모 기록 한 건 삭제."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        delete_tutor_note(student_id=user_id, note_id=note_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모를 지웠습니다.")
+    return redirect("accounts:account_admin")
+
+
+@login_required
+@require_POST
+def delete_all_student_notes(request, user_id):
+    """수강생 한 명의 메모 기록 전체 삭제."""
+    if not _can_manage_approvals(request.user):
+        raise PermissionDenied
+    try:
+        delete_all_tutor_notes(student_id=user_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "메모 기록을 모두 지웠습니다.")
     return redirect("accounts:account_admin")
 
 

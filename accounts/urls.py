@@ -21,6 +21,16 @@ urlpatterns = [
     # note 경로는 account_action의 <str:action>에 먹히지 않도록 먼저 선언한다.
     path("tutor/accounts/<int:user_id>/note/", views.save_student_note, name="save_student_note"),
     path(
+        "tutor/accounts/<int:user_id>/note/<int:note_id>/delete/",
+        views.delete_student_note,
+        name="delete_student_note",
+    ),
+    path(
+        "tutor/accounts/<int:user_id>/note/delete-all/",
+        views.delete_all_student_notes,
+        name="delete_all_student_notes",
+    ),
+    path(
         "tutor/accounts/<int:user_id>/<str:action>/",
         views.account_action,
         name="account_action",
