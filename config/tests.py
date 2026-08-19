@@ -1,5 +1,12 @@
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
+
+from deploy.render_production_env import render
 
 
 class HomePageTests(SimpleTestCase):
@@ -55,3 +62,70 @@ class ProductionCheckTests(SimpleTestCase):
         from accounts.checks import production_security_checks
 
         self.assertEqual(production_security_checks(None), [])
+
+
+class ProductionEnvironmentRenderTests(SimpleTestCase):
+    def test_renders_google_oauth_secrets_without_logging_them(self):
+        template = "\n".join(
+            (
+                "DJANGO_SECRET_KEY=placeholder",
+                "POSTGRES_PASSWORD=placeholder",
+                "DJANGO_EMAIL_HOST_PASSWORD=placeholder",
+                "GOOGLE_OAUTH_CLIENT_ID=",
+                "GOOGLE_OAUTH_CLIENT_SECRET=",
+                "KAKAO_OAUTH_CLIENT_ID=",
+                "KAKAO_OAUTH_CLIENT_SECRET=",
+            )
+        )
+        secrets = {
+            "DJANGO_SECRET_KEY": "d" * 64,
+            "POSTGRES_PASSWORD": "p" * 48,
+            "DJANGO_EMAIL_HOST_PASSWORD": "e" * 32,
+            "GOOGLE_OAUTH_CLIENT_ID": f"{'1' * 24}.apps.googleusercontent.com",
+            "GOOGLE_OAUTH_CLIENT_SECRET": "oauth-secret-with_symbols-123",
+            "KAKAO_OAUTH_CLIENT_ID": "a" * 32,
+            "KAKAO_OAUTH_CLIENT_SECRET": "kakao-login-secret-with-symbols",
+        }
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, secrets, clear=False),
+        ):
+            template_path = Path(directory) / "template.env"
+            output_path = Path(directory) / "production.env"
+            template_path.write_text(template, encoding="utf-8")
+
+            render(template_path, output_path)
+
+            rendered = output_path.read_text(encoding="utf-8")
+            self.assertIn(f"GOOGLE_OAUTH_CLIENT_ID={secrets['GOOGLE_OAUTH_CLIENT_ID']}", rendered)
+            self.assertIn(
+                f"GOOGLE_OAUTH_CLIENT_SECRET={secrets['GOOGLE_OAUTH_CLIENT_SECRET']}", rendered
+            )
+            self.assertIn(f"KAKAO_OAUTH_CLIENT_ID={secrets['KAKAO_OAUTH_CLIENT_ID']}", rendered)
+            self.assertIn(
+                f"KAKAO_OAUTH_CLIENT_SECRET={secrets['KAKAO_OAUTH_CLIENT_SECRET']}", rendered
+            )
+            self.assertEqual(output_path.stat().st_mode & 0o777, 0o600)
+
+    def test_rejects_oauth_secret_with_newline(self):
+        secrets = {
+            "DJANGO_SECRET_KEY": "d" * 64,
+            "POSTGRES_PASSWORD": "p" * 48,
+            "DJANGO_EMAIL_HOST_PASSWORD": "e" * 32,
+            "GOOGLE_OAUTH_CLIENT_ID": f"{'1' * 24}.apps.googleusercontent.com",
+            "GOOGLE_OAUTH_CLIENT_SECRET": "valid-prefix-with-newline\nINJECTED=True",
+            "KAKAO_OAUTH_CLIENT_ID": "a" * 32,
+            "KAKAO_OAUTH_CLIENT_SECRET": "kakao-login-secret-with-symbols",
+        }
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, secrets, clear=False),
+        ):
+            template_path = Path(directory) / "template.env"
+            output_path = Path(directory) / "production.env"
+            template_path.write_text("GOOGLE_OAUTH_CLIENT_SECRET=\n", encoding="utf-8")
+
+            with self.assertRaises(SystemExit):
+                render(template_path, output_path)
