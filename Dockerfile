@@ -17,6 +17,12 @@ COPY --chown=app:app . .
 RUN DJANGO_DEBUG=True DJANGO_SECRET_KEY=collectstatic-only \
     python manage.py collectstatic --noinput
 
+# 업로드된 프로필 사진이 저장될 자리.
+# /app 은 root 소유라 실행 사용자(app)가 런타임에 media/ 를 새로 만들 수 없다 -
+# 이미지에서 미리 만들어 소유자를 넘겨 둔다. 운영에서는 이 경로에 named volume 을
+# 붙여 배포 사이에 파일이 남게 한다(compose.production.yaml).
+RUN install -d -o app -g app /app/media
+
 USER app
 
 EXPOSE 8000

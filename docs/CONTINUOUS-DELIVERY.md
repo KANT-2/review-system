@@ -39,6 +39,9 @@ symbolic link to that shared mode-`0600` file, so Docker Compose can use its
 default environment-file path without creating another secret copy. After a
 successful health check, `DEPLOY_PATH/current` points to the active release.
 
-The database and named Docker volumes are retained between releases. The
+The database and named Docker volumes are retained between releases. Uploaded
+profile photos live on the `production_media_data` volume, which the application
+mounts at `/app/media` and Caddy mounts read-only to serve `/media/` without
+going through Django. The
 workflow does not automatically reverse database migrations; review backward
 compatibility and the rollback plan before merging a destructive migration.

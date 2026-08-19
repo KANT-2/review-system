@@ -32,9 +32,15 @@ services:
       DJANGO_EMAIL_BACKEND: ${DJANGO_EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
       DJANGO_EMAIL_HOST_PASSWORD: ${DJANGO_EMAIL_HOST_PASSWORD:-}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # 업로드 경로는 아래 볼륨 마운트 지점과 반드시 같아야 해서 여기서 못 박는다 -
+      # 환경 파일에서 다른 경로로 바뀌면 사진이 볼륨 밖(컨테이너 안)에 쌓여 배포 때 사라진다.
+      DJANGO_MEDIA_ROOT: /app/media
     depends_on:
       db:
         condition: service_healthy
+    # 업로드된 프로필 사진은 정적 파일과 달리 배포 때마다 새로 만들 수 없다.
+    volumes:
+      - production_media_data:/app/media
     expose:
       - "8000"
     healthcheck:
@@ -68,6 +74,7 @@ services:
     volumes:
       - production_caddy_data:/data
       - production_caddy_config:/config
+      - production_media_data:/srv/media:ro
       - production_mail_acme_challenge:/srv/acme:ro
     networks:
       - edge
@@ -153,6 +160,7 @@ services:
 
 volumes:
   production_postgres_data:
+  production_media_data:
   production_caddy_data:
   production_caddy_config:
   production_mail_data:

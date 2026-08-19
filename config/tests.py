@@ -61,7 +61,18 @@ class ProductionCheckTests(SimpleTestCase):
         """메일을 보내지 않는 구성이므로 SMTP 설정이 없어도 배포 검사를 막지 않는다."""
         from accounts.checks import production_security_checks
 
-        self.assertEqual(production_security_checks(None), [])
+        with tempfile.TemporaryDirectory() as media_root, self.settings(MEDIA_ROOT=media_root):
+            self.assertEqual(production_security_checks(None), [])
+
+    def test_unwritable_media_root_fails_closed(self):
+        """업로드 경로가 없으면 프로필 사진 저장이 500이 되므로 배포 전에 막는다."""
+        from accounts.checks import production_security_checks
+
+        with tempfile.TemporaryDirectory() as parent:
+            with self.settings(MEDIA_ROOT=str(Path(parent) / "missing-media")):
+                error_ids = {error.id for error in production_security_checks(None)}
+
+        self.assertIn("accounts.E009", error_ids)
 
 
 class ProductionEnvironmentRenderTests(SimpleTestCase):
