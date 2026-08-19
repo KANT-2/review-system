@@ -1,0 +1,105 @@
+{% load static %}
+{% if active_notices %}
+  <div class="notice-bar" id="noticeBar" data-interval="3000">
+    <span class="notice-bar-label text-nowrap fw-semibold text-primary">
+      <i class="bi bi-megaphone-fill me-1"></i>공지
+    </span>
+    <div class="notice-bar-track">
+      {% for notice in active_notices %}
+        <button type="button"
+                class="notice-bar-item {% if not forloop.first %}d-none{% endif %}"
+                data-bs-toggle="modal"
+                data-bs-target="#noticeDetailModal"
+                data-notice-template="notice-detail-{{ notice.pk }}">{{ notice.title }}</button>
+      {% endfor %}
+    </div>
+    <div class="notice-bar-controls">
+      {% if active_notices|length > 1 %}
+        <button type="button"
+                class="btn btn-sm btn-ax-secondary notice-bar-prev"
+                aria-label="이전 공지">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-ax-secondary notice-bar-next"
+                aria-label="다음 공지">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+        <span class="small text-muted text-nowrap">
+          <span class="notice-bar-current">1</span> / {{ active_notices|length }}
+        </span>
+      {% endif %}
+      <button type="button"
+              class="btn btn-sm btn-link text-decoration-none text-nowrap px-2"
+              data-bs-toggle="modal"
+              data-bs-target="#noticeListModal">더보기</button>
+    </div>
+  </div>
+  {% for notice in active_notices %}
+    <template id="notice-detail-{{ notice.pk }}">
+      <h6 class="fw-bold mb-2">{{ notice.title }}</h6>
+      <div class="small text-muted mb-3">{{ notice.created_at|date:"Y.m.d H:i" }}</div>
+      <div class="notice-detail-body">{{ notice.content|linebreaksbr }}</div>
+    </template>
+  {% endfor %}
+  <div class="modal fade"
+       id="noticeDetailModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom px-4 py-3">
+          <h6 class="modal-title fw-bold">
+            <i class="bi bi-megaphone-fill text-primary me-2"></i>공지 상세
+          </h6>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="닫기"></button>
+        </div>
+        <div class="modal-body p-4 custom-scroll" id="noticeDetailBody"></div>
+        <div class="modal-footer border-top-0 px-4 pb-3">
+          <button type="button"
+                  class="btn btn-ax-secondary px-4"
+                  data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade"
+       id="noticeListModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom px-4 py-3">
+          <h6 class="modal-title fw-bold">
+            <i class="bi bi-megaphone-fill text-primary me-2"></i>전체 공지 목록
+          </h6>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="닫기"></button>
+        </div>
+        <div class="modal-body p-0 custom-scroll">
+          <div class="list-group list-group-flush small">
+            {% for notice in active_notices %}
+              <button type="button"
+                      class="list-group-item list-group-item-action notice-interactive-item d-flex justify-content-between align-items-center py-3 px-4 notice-list-item"
+                      data-notice-template="notice-detail-{{ notice.pk }}">
+                <span class="text-truncate">{{ notice.title }}</span>
+                <span class="text-muted small flex-shrink-0 ms-2">{{ notice.created_at|date:"m.d" }}</span>
+              </button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 px-4 pb-3">
+          <button type="button"
+                  class="btn btn-ax-secondary px-4"
+                  data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="{% static 'js/notice-bar.js' %}"></script>
+{% endif %}

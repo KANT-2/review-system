@@ -11,6 +11,126 @@
   </div>
   <section class="card-custom mb-4">
     <div class="card-header-custom">
+      <div class="card-title-custom"><i class="bi bi-envelope-fill text-primary"></i>수강생 공지 메일</div>
+      <span class="text-muted font-size-115">즉시 또는 예약 발송</span>
+    </div>
+    <div class="card-body-custom">
+      <form action="{% url 'accounts:send_announcement' %}"
+            method="post"
+            id="announcement_form">
+        {% csrf_token %}
+        <div class="row g-3 mb-3">
+          <div class="col-md-3">
+            <label for="send_target_type" class="form-label small fw-bold">발송 대상</label>
+            <select id="send_target_type"
+                    name="send_target_type"
+                    class="form-select form-select-sm">
+              <option value="all">전체 수강생</option>
+              <option value="team">특정 조(팀)</option>
+              <option value="select">목록에서 선택한 수강생</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-none" id="team_select_wrapper">
+            <label for="target_team_id" class="form-label small fw-bold">대상 조(팀)</label>
+            <select id="target_team_id"
+                    name="target_team_id"
+                    class="form-select form-select-sm">
+              <option value="">조(팀)를 선택하세요</option>
+              {% for team in teams %}
+                <option value="{{ team.pk }}">{{ team.name }} (팀원 {{ team.memberships.count }}명)</option>
+              {% empty %}
+                <option value="">현재 회차에 배정된 조(팀)가 없습니다</option>
+              {% endfor %}
+            </select>
+            {% if current_round_title %}<div class="form-text">{{ current_round_title }} 기준</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label for="send_type" class="form-label small fw-bold">발송 시점</label>
+            <select id="send_type" name="send_type" class="form-select form-select-sm">
+              <option value="now">즉시 발송</option>
+              <option value="scheduled">예약 발송</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-none" id="schedule_time_wrapper">
+            <label for="scheduled_at" class="form-label small fw-bold">예약 일시</label>
+            <input type="datetime-local"
+                   id="scheduled_at"
+                   name="scheduled_at"
+                   class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label for="email_subject" class="form-label small fw-bold">메일 제목</label>
+            <input type="text"
+                   id="email_subject"
+                   name="subject"
+                   class="form-control form-control-sm"
+                   placeholder="예: [공지] 1차 미니프로젝트 발표 일정 안내"
+                   required>
+          </div>
+          <div class="col-12">
+            <label for="email_message" class="form-label small fw-bold">메일 내용</label>
+            <textarea id="email_message"
+                      name="message"
+                      class="form-control form-control-sm"
+                      rows="4"
+                      placeholder="수강생들에게 보낼 공지 내용을 입력하세요."
+                      required></textarea>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" id="submit_email_btn" class="btn btn-ax-primary">공지 메일 보내기</button>
+        </div>
+        <div id="selected_users_container"></div>
+      </form>
+    </div>
+  </section>
+  {% if scheduled_emails %}
+    <section class="card-custom mb-4">
+      <div class="card-header-custom">
+        <div class="card-title-custom"><i class="bi bi-calendar-event-fill text-primary"></i>예약된 공지 메일</div>
+        <span class="text-muted font-size-115">{{ scheduled_emails|length }}건</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="ps-3">예약 시각</th>
+              <th scope="col">발송 대상</th>
+              <th scope="col">메일 제목</th>
+              <th scope="col">메일 내용</th>
+              <th scope="col" class="text-end pe-3">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in scheduled_emails %}
+              <tr>
+                <td class="ps-3 fw-semibold">{{ item.scheduled_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                  <span class="badge badge-ax badge-ax-pending">{{ item.get_target_type_display }}</span>
+                  {% if item.target_team %}<span class="text-muted font-size-115 ms-1">{{ item.target_team.name }}</span>{% endif %}
+                </td>
+                <td class="fw-semibold">{{ item.subject }}</td>
+                <td class="text-truncate ax-email-message-cell">{{ item.message }}</td>
+                <td class="text-end pe-3">
+                  <form action="{% url 'accounts:cancel_scheduled_email' item.pk %}"
+                        method="post"
+                        class="d-inline"
+                        onsubmit="return confirm('이 공지 메일 예약을 취소하시겠습니까?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">예약 취소</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+  <section class="card-custom mb-4">
+    <div class="card-header-custom">
       <div class="card-title-custom"><i class="bi bi-person-check-fill text-primary"></i>승인 대기 목록</div>
       <span class="text-muted font-size-115">{{ pending_users|length }}명</span>
     </div>
@@ -126,7 +246,8 @@
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <colgroup>
-          <col class="ax-col-30">
+          <col class="ax-col-6">
+          <col class="ax-col-24">
           <col class="ax-col-9">
           <col class="ax-col-12">
           <col class="ax-col-9">
@@ -136,6 +257,12 @@
         </colgroup>
         <thead>
           <tr>
+            <th scope="col" class="text-center">
+              <input type="checkbox"
+                     class="form-check-input"
+                     id="emailRecipientSelectAll"
+                     aria-label="공지 대상 전체 선택">
+            </th>
             <th scope="col">계정</th>
             <th scope="col">역할</th>
             <th scope="col" class="text-center">승인 상태</th>
@@ -150,7 +277,7 @@
             {% include "accounts/_account_row.html" %}
           {% empty %}
             <tr>
-              <td colspan="7" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
+              <td colspan="8" class="text-center text-muted py-5">조건에 맞는 계정이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>

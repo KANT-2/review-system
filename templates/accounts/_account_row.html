@@ -1,5 +1,13 @@
 {% load results_extras %}
 <tr>
+  <td class="text-center">
+    {% if account.role == 'student' and account.is_active %}
+      <input type="checkbox"
+             class="form-check-input student-user-checkbox"
+             value="{{ account.pk }}"
+             aria-label="{{ account.email }} 공지 대상 선택">
+    {% endif %}
+  </td>
   <td class="ax-account-cell">
     <div class="fw-semibold">{{ account.first_name|default:"이름 미등록" }}</div>
     <div class="text-muted font-size-115">{{ account.email }}</div>

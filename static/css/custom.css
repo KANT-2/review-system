@@ -156,6 +156,35 @@ main { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
 .page-title { font-size: 21px; font-weight: 700; color: var(--ax-text); margin: 0 0 8px; letter-spacing: -0.02em; }
 .page-desc { font-size: 13.5px; color: var(--ax-text-muted); margin: 0; }
 
+/* 대시보드 상단 공지 바 - 카드 형태 대신 한 줄짜리 얇은 스트립으로 둔다 */
+.notice-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  margin-bottom: 20px;
+  background: var(--ax-primary-container);
+  border: 1px solid var(--ax-border);
+  border-radius: var(--radius-md);
+}
+.notice-bar-track { flex-grow: 1; min-width: 0; }
+.notice-bar-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ax-text);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notice-bar-item:hover { color: var(--ax-primary); text-decoration: underline; }
+.notice-bar-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
 .card-custom {
   background: var(--ax-surface);
   border: 1px solid var(--ax-border);
@@ -174,6 +203,7 @@ main { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
 }
 .card-title-custom { font-size: 15px; font-weight: 700; color: var(--ax-text); margin: 0; display: flex; align-items: center; gap: 8px; }
 .card-body-custom { padding: 24px; }
+.ax-email-message-cell { max-width: 280px; }
 
 /* 모던 버튼 */
 .btn-ax-primary {

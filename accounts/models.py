@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models, transaction
 from django.db.models.functions import Lower
@@ -185,3 +186,76 @@ class AuthThrottleBucket(models.Model):
 
     def __str__(self):
         return f"{self.event_kind}:{self.scope_kind}:{self.window_started_at.isoformat()}"
+
+
+class EmailVerificationCode(models.Model):
+    class Purpose(models.TextChoices):
+        SIGNUP = "SIGNUP", _("회원가입")
+        PASSWORD_RESET = "PASSWORD_RESET", _("비밀번호 재설정")
+
+    email = models.EmailField(_("이메일"))
+    code = models.CharField(_("인증코드 6자리"), max_length=6)
+    purpose = models.CharField(_("인증 목적"), max_length=20, choices=Purpose.choices)
+    is_verified = models.BooleanField(_("인증 완료 여부"), default=False)
+    created_at = models.DateTimeField(_("생성 일시"), auto_now_add=True)
+    expires_at = models.DateTimeField(_("만료 일시"), db_index=True)
+
+    class Meta:
+        verbose_name = _("이메일 인증코드")
+        verbose_name_plural = _("이메일 인증코드 목록")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.get_purpose_display()}] {self.email} - {self.code}"
+
+
+class ScheduledEmail(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("대기 중")
+        SENT = "SENT", _("발송 완료")
+        CANCELLED = "CANCELLED", _("취소됨")
+        FAILED = "FAILED", _("발송 실패")
+
+    class TargetType(models.TextChoices):
+        ALL = "ALL", _("전체 수강생")
+        TEAM = "TEAM", _("조(팀) 선택")
+        SELECT = "SELECT", _("개인 수강생 선택")
+        SINGLE = "SINGLE", _("개별 수강생 1인")
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="scheduled_emails",
+        verbose_name=_("발송자"),
+    )
+    subject = models.CharField(_("메일 제목"), max_length=200)
+    message = models.TextField(_("메일 내용"))
+    target_type = models.CharField(
+        _("발송 대상 유형"), max_length=20, choices=TargetType.choices, default=TargetType.ALL
+    )
+    target_team = models.ForeignKey(
+        "teams.Team",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("대상 조(팀)"),
+    )
+    selected_user_ids_json = models.TextField(
+        _("선택 유저 ID 목록 (JSON)"), blank=True, default="[]"
+    )
+    scheduled_at = models.DateTimeField(_("예약 발송 일시"), db_index=True)
+    status = models.CharField(
+        _("발송 상태"), max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+    sent_at = models.DateTimeField(_("실제 발송 일시"), null=True, blank=True)
+    sent_count = models.IntegerField(_("발송 건수"), default=0)
+    created_at = models.DateTimeField(_("생성 일시"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("예약 이메일 공지")
+        verbose_name_plural = _("예약 이메일 공지 목록")
+        ordering = ["-scheduled_at", "-created_at"]
+
+    def __str__(self):
+        return f"[{self.get_status_display()}] {self.subject} ({self.scheduled_at.strftime('%Y-%m-%d %H:%M')})"

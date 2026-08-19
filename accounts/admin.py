@@ -17,6 +17,24 @@ class AccountUserAdmin(UserAdmin):
     )
     search_fields = ("email", "first_name", "student_number")
     readonly_fields = ("auth_session_version", "email_needs_review")
+    actions = ["send_custom_email_action"]
+
+    @admin.action(description="선택한 수강생에게 공지 메일 발송")
+    def send_custom_email_action(self, request, queryset):
+        from django.contrib import messages
+
+        from accounts.email_services import send_tutor_announcement_email
+
+        recipient_emails = list(queryset.values_list("email", flat=True))
+        sent = send_tutor_announcement_email(
+            subject="AX 평가 시스템 튜터 개별 안내",
+            message="안녕하세요, 튜터 공지사항입니다. 평가 일정 및 안내사항을 확인해 주세요.",
+            recipient_emails=recipient_emails,
+        )
+        self.message_user(
+            request, f"수강생에게 공지 메일 {sent}건을 발송했습니다.", messages.SUCCESS
+        )
+
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (

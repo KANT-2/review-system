@@ -45,6 +45,11 @@ ACTION_LABELS = {
     "ACCOUNT_PASSWORD_RESET": "비밀번호 재설정",
     "ACCOUNT_PROFILE_UPDATED": "계정 정보 수정",
     "SOCIAL_ACCOUNT_LINKED": "소셜 계정 최초 연결",
+    "NOTICE_CREATED": "공지 등록",
+    "NOTICE_UPDATED": "공지 수정",
+    "NOTICE_DELETED": "공지 삭제",
+    "NOTICE_PUBLISHED": "공지 공개",
+    "NOTICE_UNPUBLISHED": "공지 비공개 전환",
 }
 
 

@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "reviews.apps.ReviewsConfig",
     "results.apps.ResultsConfig",
     "audit.apps.AuditConfig",
+    "notices.apps.NoticesConfig",
 ]
 
 MIDDLEWARE = [

@@ -9,6 +9,17 @@
       <p class="page-desc">시작 조건과 학생별 제출 상태를 확인하고 회차를 마감합니다.</p>
     </div>
     <div class="d-flex gap-2">
+      {% if round_obj.status == 'IN_PROGRESS' %}
+        <form action="{% url 'rounds:send_reminders' round_obj.pk %}"
+              method="post"
+              class="d-inline"
+              onsubmit="return confirm('미제출 수강생에게 제출 안내 메일을 보냅니다. 계속할까요?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ax-secondary">
+            <i class="bi bi-envelope me-1"></i>미제출자 제출 안내
+          </button>
+        </form>
+      {% endif %}
       {% if round_obj.status != 'DRAFT' %}
         <a href="{% url 'rounds:tutor-review-list' round_obj.pk %}"
            class="btn btn-ax-secondary">

@@ -28,6 +28,7 @@ urlpatterns = [
     path("results/", include("results.urls")),
     path("manage/", include("rounds.urls")),
     path("manage/audit/", include("audit.urls")),
+    path("manage/notices/", include("notices.urls")),
     path("", account_views.home_view, name="home"),
 ]
 
