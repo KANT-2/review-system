@@ -15,7 +15,6 @@ urlpatterns = [
     path("templates/<int:template_id>/delete/", views.template_delete, name="template-delete"),
     path("rounds/", views.round_list, name="list"),
     path("results/", views.results_entry, name="results-entry"),
-    path("publish/", views.publish_entry, name="publish-entry"),
     path("rounds/new/", views.round_edit, name="create"),
     path("rounds/<int:round_id>/", views.round_edit, name="edit"),
     path("rounds/<int:round_id>/start/", views.round_start, name="start"),
@@ -36,11 +35,6 @@ urlpatterns = [
     path("rounds/<int:round_id>/reopen/", views.round_reopen, name="reopen"),
     path("rounds/<int:round_id>/teams/", team_views.management_team_page, name="teams"),
     path("rounds/<int:round_id>/results/", result_views.manage_results, name="results"),
-    path(
-        "rounds/<int:round_id>/results/publish-settings/",
-        result_views.publish_settings,
-        name="publish-settings",
-    ),
     path(
         "rounds/<int:round_id>/results/calculate/",
         result_views.calculate,

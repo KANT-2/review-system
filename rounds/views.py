@@ -93,24 +93,6 @@ def results_entry(request):
     return redirect("rounds:results", round_id=latest_completed.pk)
 
 
-@login_required
-def publish_entry(request):
-    """사이드바 '공개 설정' - 가장 최근 완료 회차의 공개 설정 화면으로 바로 이동한다."""
-    _require_operations(request.user)
-    latest_completed = (
-        EvaluationRound.objects.filter(status=EvaluationRound.Status.COMPLETED)
-        .order_by("-completed_at")
-        .first()
-    )
-    if not latest_completed:
-        messages.info(
-            request,
-            "아직 완료된 회차가 없어 공개 설정을 할 수 없습니다. 회차를 마감한 뒤 다시 시도해 주세요.",
-        )
-        return redirect("rounds:list")
-    return redirect("rounds:publish-settings", round_id=latest_completed.pk)
-
-
 def _participant_count(form, round_obj):
     """회차 설정 화면에 보여줄 참가자 수 - 저장했을 때 실제로 들어갈 인원과 같아야 한다."""
     user_ids = set(form.fields["participants"].queryset.values_list("pk", flat=True))

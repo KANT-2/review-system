@@ -21,13 +21,10 @@
    class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i><span class="nav-text">운영 대시보드</span></a></li>
         <li class="sidebar-nav-item"><a href="{% url 'rounds:list' %}"
    title="평가 회차"
-   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name != 'dashboard' and request.resolver_match.url_name != 'results-entry' and request.resolver_match.url_name != 'results' and request.resolver_match.url_name != 'publish-entry' and request.resolver_match.url_name != 'publish-settings' and 'template' not in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-calendar-range"></i><span class="nav-text">평가 회차</span></a></li>
+   class="sidebar-nav-link {% if request.resolver_match.namespace == 'rounds' and request.resolver_match.url_name != 'dashboard' and request.resolver_match.url_name != 'results-entry' and request.resolver_match.url_name != 'results' and 'template' not in request.resolver_match.url_name|default_if_none:'' %}active{% endif %}"><i class="bi bi-calendar-range"></i><span class="nav-text">평가 회차</span></a></li>
         <li class="sidebar-nav-item"><a href="{% url 'rounds:results-entry' %}"
    title="결과 공개"
    class="sidebar-nav-link {% if request.resolver_match.url_name == 'results-entry' or request.resolver_match.url_name == 'results' %}active{% endif %}"><i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">결과 공개</span></a></li>
-        <li class="sidebar-nav-item"><a href="{% url 'rounds:publish-entry' %}"
-   title="공개 설정"
-   class="sidebar-nav-link {% if request.resolver_match.url_name == 'publish-entry' or request.resolver_match.url_name == 'publish-settings' %}active{% endif %}"><i class="bi bi-toggle2-on"></i><span class="nav-text">공개 설정</span></a></li>
       </ul>
       <div class="nav-section-title">설정</div>
       <ul class="sidebar-nav">

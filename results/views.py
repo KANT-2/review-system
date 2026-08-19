@@ -56,6 +56,8 @@ def manage_results(request, round_id):
     run = CalculationRun.objects.filter(round=round_obj, is_active=True).first()
     team_results = []
     individual_results = []
+    publish_items = []
+    pending_confirm = None
     if run:
         # 순위가 없는 행(N/A)은 어느 DB에서든 항상 맨 뒤로 - SQLite와 PostgreSQL은
         # NULL 정렬 기본값이 서로 반대다.
@@ -74,6 +76,17 @@ def manage_results(request, round_id):
             )
         )
         _attach_trend(individual_results, previous_final_scores(round_obj))
+        publish_items = [
+            {
+                **item,
+                "published": bool(getattr(run, PUBLICATION_FIELDS[item["key"]])),
+                "published_at": getattr(run, PUBLICATION_FIELDS[item["key"]]),
+            }
+            for item in PUBLISH_ITEMS
+        ]
+        pending_confirm = request.GET.get("confirm")
+        if pending_confirm not in PUBLISH_KEYS | {PUBLISH_ALL_KEY}:
+            pending_confirm = None
     return render(
         request,
         "results/round_manage.html",
@@ -90,48 +103,13 @@ def manage_results(request, round_id):
             "summary": _build_summary(round_obj, team_results, individual_results),
             "team_weight_percent": int(TEAM_WEIGHT * 100),
             "peer_weight_percent": int(PEER_WEIGHT * 100),
+            "publish_items": publish_items,
+            "all_published": bool(publish_items) and all(row["published"] for row in publish_items),
+            "pending_confirm": pending_confirm,
             "has_partial": any(
                 result.data_status == EvaluationResult.DataStatus.PARTIAL
                 for result in team_results + individual_results
             ),
-        },
-    )
-
-
-@login_required
-def publish_settings(request, round_id):
-    """'공개 설정' 화면 - 결과 순위표 없이 항목별 공개/비공개 토글만 관리한다."""
-    if not is_operations_user(request.user):
-        raise PermissionDenied
-    round_obj = EvaluationRound.objects.filter(pk=round_id).first()
-    if not round_obj:
-        raise PermissionDenied
-    run = CalculationRun.objects.filter(round=round_obj, is_active=True).first()
-    publication_rows = [
-        {
-            **item,
-            "published": bool(run and getattr(run, PUBLICATION_FIELDS[item["key"]])),
-            "published_at": getattr(run, PUBLICATION_FIELDS[item["key"]]) if run else None,
-        }
-        for item in PUBLISH_ITEMS
-    ]
-    pending_confirm = request.GET.get("confirm")
-    if pending_confirm not in PUBLISH_KEYS | {PUBLISH_ALL_KEY}:
-        pending_confirm = None
-    has_partial = run is not None and (
-        run.results.filter(data_status=EvaluationResult.DataStatus.PARTIAL).exists()
-    )
-    return render(
-        request,
-        "results/round_publish.html",
-        {
-            "round_obj": round_obj,
-            "round_options": EvaluationRound.objects.order_by("-created_at").only("id", "title"),
-            "run": run,
-            "all_published": bool(run) and all(row["published"] for row in publication_rows),
-            "publish_items": publication_rows,
-            "pending_confirm": pending_confirm,
-            "has_partial": has_partial,
         },
     )
 
@@ -196,7 +174,7 @@ def calculate(request, round_id):
 def publish(request, round_id, item_key):
     if not is_operations_user(request.user):
         raise PermissionDenied
-    publish_url = reverse("rounds:publish-settings", kwargs={"round_id": round_id})
+    results_url = reverse("rounds:results", kwargs={"round_id": round_id})
     try:
         run = toggle_publication(
             round_id=round_id,
@@ -207,7 +185,7 @@ def publish(request, round_id, item_key):
     except ValidationError as error:
         if getattr(error, "code", None) == PARTIAL_CONFIRMATION_REQUIRED:
             # 에러가 아니라 한 번 더 묻는 단계다 - 화면에 확인 배너를 띄운다.
-            return redirect(f"{publish_url}?confirm={item_key}")
+            return redirect(f"{results_url}?confirm={item_key}#publish")
         messages.error(request, " ".join(error.messages))
     else:
         is_published = getattr(run, PUBLICATION_FIELDS[item_key]) is not None
@@ -216,7 +194,7 @@ def publish(request, round_id, item_key):
             f"'{PUBLISH_LABELS[item_key]}' 항목을 {'공개' if is_published else '비공개'}로 "
             "전환했습니다.",
         )
-    return redirect(publish_url)
+    return redirect(f"{results_url}#publish")
 
 
 @login_required
@@ -225,7 +203,7 @@ def publish_all(request, round_id):
     """마스터 스위치: 4개 공개 항목을 한 번에 켜고 끈다."""
     if not is_operations_user(request.user):
         raise PermissionDenied
-    publish_url = reverse("rounds:publish-settings", kwargs={"round_id": round_id})
+    results_url = reverse("rounds:results", kwargs={"round_id": round_id})
     try:
         run = toggle_all_publications(
             round_id=round_id,
@@ -234,14 +212,14 @@ def publish_all(request, round_id):
         )
     except ValidationError as error:
         if getattr(error, "code", None) == PARTIAL_CONFIRMATION_REQUIRED:
-            return redirect(f"{publish_url}?confirm={PUBLISH_ALL_KEY}")
+            return redirect(f"{results_url}?confirm={PUBLISH_ALL_KEY}#publish")
         messages.error(request, " ".join(error.messages))
     else:
         is_published = getattr(run, PUBLICATION_FIELDS["team_winner"]) is not None
         messages.success(
             request, f"전체 결과를 {'공개' if is_published else '비공개'}로 전환했습니다."
         )
-    return redirect(publish_url)
+    return redirect(f"{results_url}#publish")
 
 
 @login_required
