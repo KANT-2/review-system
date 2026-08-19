@@ -46,6 +46,7 @@ from accounts.services import (
     transition_approval,
     whitelist_rows,
 )
+from notices.services import active_notices
 from results.application import (
     add_tutor_note,
     delete_all_tutor_notes,
@@ -239,7 +240,10 @@ def dashboard_view(request):
     return render(
         request,
         "accounts/dashboard.html",
-        {"portal": build_student_portal(request.user)},
+        {
+            "portal": build_student_portal(request.user),
+            "active_notices": active_notices(),
+        },
     )
 
 

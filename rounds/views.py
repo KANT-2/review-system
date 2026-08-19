@@ -6,6 +6,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
 from accounts.permissions import is_operations_user
+from notices.services import active_notices
 from reviews.forms import ReviewForm
 from reviews.models import TutorReview
 from reviews.services import (
@@ -62,6 +63,7 @@ def operations_dashboard(request):
             "completed_rounds": completed,
             "progress": progress,
             "pending_approvals": pending_approvals,
+            "active_notices": active_notices(),
         },
     )
 
