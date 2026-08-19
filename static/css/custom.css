@@ -86,6 +86,11 @@ body {
   justify-content: space-between;
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1040;
+  /* 본문이 길어져도 사이드바는 화면에 그대로 고정되게 한다(topbar와 같은 sticky 방식). */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 #sidebar.collapsed { width: var(--sidebar-collapsed-width); }
 #sidebar.collapsed .nav-text,
