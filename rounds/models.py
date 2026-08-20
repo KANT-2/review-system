@@ -20,6 +20,19 @@ class QuestionTemplate(models.Model):
         on_delete=models.PROTECT,
         related_name="question_templates",
     )
+    # 시작된 회차가 쓰고 있어 삭제할 수 없는(is_locked) 템플릿을 목록·새 회차 선택지에서
+    # 치우는 용도 - 문항이 이미 제출된 평가 답변에 PROTECT로 물려 있어 실제 삭제는 못 하지만,
+    # "안 쓸 템플릿"으로 표시는 해 둘 수 있어야 한다. archived_by는 기록용이라 계정이
+    # 지워져도 보관 이력 자체는 남도록 SET_NULL로 둔다.
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="archived_question_templates",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -59,6 +72,15 @@ class QuestionTemplate(models.Model):
         return (
             self.team_rounds.exclude(status=EvaluationRound.Status.DRAFT).exists()
             or self.peer_rounds.exclude(status=EvaluationRound.Status.DRAFT).exists()
+        )
+
+    def rounds_in_use(self):
+        """이 템플릿을 쓰는 회차 제목 목록 - 보관 화면에서 왜 못 지우는지 보여줄 때 쓴다."""
+        return list(
+            EvaluationRound.objects.filter(Q(team_template=self) | Q(peer_template=self))
+            .exclude(status=EvaluationRound.Status.DRAFT)
+            .order_by("-completed_at", "-started_at")
+            .values_list("title", flat=True)
         )
 
 

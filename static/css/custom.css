@@ -530,6 +530,55 @@ a.ax-dashboard-eval-trigger:hover {
 .ax-badge-no-data,
 .ax-badge-not-applicable { background: #F1F3F6; color: var(--ax-text-muted); }
 .ax-badge-unpublished { background: #F1F3F6; color: var(--ax-text-muted); }
+.ax-badge-archived { background: #F1F3F6; color: #7A8699; }
+
+/* 문항 템플릿 목록 - 전체/보관됨 탭 전환 */
+.ax-view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--ax-border);
+  border-radius: 999px;
+  background: var(--ax-surface);
+}
+.ax-view-toggle-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ax-text-muted);
+  text-decoration: none;
+}
+.ax-view-toggle-btn:hover { color: var(--ax-text); text-decoration: none; }
+.ax-view-toggle-btn.active { background: var(--ax-primary); color: #fff; }
+.ax-view-toggle-count { opacity: 0.75; font-weight: 500; margin-left: 2px; }
+
+/* 보관된 템플릿 - 흐리게 하는 대신 맨 아래 구획으로 분리 */
+.ax-section-divider-row td {
+  padding: 10px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ax-text-muted);
+  background: var(--ax-bg);
+  text-transform: uppercase;
+}
+.ax-archived-row { background: var(--ax-surface-subtle); }
+.ax-round-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+.ax-round-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ax-text-muted);
+  background: #EEF1F5;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
 
 /* 점수 + 5점 만점 막대 (눈금은 4.0 / 4.5점) */
 .ax-score-cell {
@@ -883,6 +932,8 @@ tbody.collapse.show { display: table-row-group; }
 [data-bs-theme="dark"] .ax-badge-no-data,
 [data-bs-theme="dark"] .ax-badge-not-applicable,
 [data-bs-theme="dark"] .ax-badge-unpublished,
+[data-bs-theme="dark"] .ax-badge-archived,
+[data-bs-theme="dark"] .ax-round-chip,
 [data-bs-theme="dark"] .ax-trend-flat {
   background-color: var(--ax-surface-subtle);
   color: var(--ax-text-muted);

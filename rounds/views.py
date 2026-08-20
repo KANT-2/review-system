@@ -26,6 +26,7 @@ from reviews.services import (
 from rounds.forms import EvaluationRoundForm, QuestionTemplateForm, TemplateQuestionFormSet
 from rounds.models import EvaluationRound, QuestionTemplate
 from rounds.services import (
+    archive_question_template,
     complete_round,
     copy_question_template,
     delete_question_template,
@@ -35,6 +36,7 @@ from rounds.services import (
     pending_participant_rows,
     question_template_rows,
     reopen_round,
+    restore_question_template,
     revert_round_to_draft,
     round_start_checks,
     rounds_dashboard_rows,
@@ -403,9 +405,27 @@ def round_complete(request, round_id):
 
 @login_required
 def template_list(request):
-    """문항 템플릿 목록 - 운영자가 admin 없이 평가 문항을 관리하는 화면."""
+    """문항 템플릿 목록 - 운영자가 admin 없이 평가 문항을 관리하는 화면.
+
+    "전체" 탭은 보관된 템플릿도 맨 아래에 같이 보여주고(존재는 알 수 있어야 하니까),
+    "보관됨" 탭은 보관된 것만 추린다.
+    """
     _require_operations(request.user)
-    return render(request, "rounds/template_list.html", {"templates": question_template_rows()})
+    archived_only = request.GET.get("view") == "archived"
+    all_rows = question_template_rows()
+    archived_count = sum(1 for row in all_rows if row.is_archived)
+    return render(
+        request,
+        "rounds/template_list.html",
+        {
+            "templates": [row for row in all_rows if row.is_archived]
+            if archived_only
+            else all_rows,
+            "archived_only": archived_only,
+            "total_count": len(all_rows),
+            "archived_count": archived_count,
+        },
+    )
 
 
 @login_required
@@ -454,6 +474,28 @@ def template_delete(request, template_id):
         messages.error(request, " ".join(error.messages))
     else:
         messages.success(request, "템플릿을 삭제했습니다.")
+    return redirect("rounds:template-list")
+
+
+@login_required
+@require_POST
+def template_archive(request, template_id):
+    _require_operations(request.user)
+    try:
+        archive_question_template(template_id=template_id, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "템플릿을 보관했습니다. 목록·새 회차 선택지에서 빠집니다.")
+    return redirect("rounds:template-list")
+
+
+@login_required
+@require_POST
+def template_restore(request, template_id):
+    _require_operations(request.user)
+    restore_question_template(template_id=template_id, actor=request.user)
+    messages.success(request, "템플릿을 복원했습니다.")
     return redirect("rounds:template-list")
 
 

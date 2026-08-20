@@ -9,6 +9,12 @@
     </div>
     <a href="{% url 'rounds:template-create' %}" class="btn btn-ax-primary">새 템플릿</a>
   </div>
+  <div class="ax-view-toggle mb-3">
+    <a href="{% url 'rounds:template-list' %}"
+       class="ax-view-toggle-btn {% if not archived_only %}active{% endif %}">전체 <span class="ax-view-toggle-count">{{ total_count }}</span></a>
+    <a href="{% url 'rounds:template-list' %}?view=archived"
+       class="ax-view-toggle-btn {% if archived_only %}active{% endif %}">보관됨 <span class="ax-view-toggle-count">{{ archived_count }}</span></a>
+  </div>
   <section class="card-custom">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
@@ -23,52 +29,101 @@
           </tr>
         </thead>
         <tbody>
-          {% for template in templates %}
-            <tr>
-              <td>
-                <span class="badge badge-ax {% if template.category == 'TEAM' %}badge-ax-pending{% else %}badge-ax-completed{% endif %}">
-                  {{ template.get_category_display }}
-                </span>
-              </td>
-              <td class="fw-semibold">
-                {{ template.name }}
-                {% if template.description %}<div class="text-muted font-size-115">{{ template.description }}</div>{% endif %}
-                {% if template.copied_from %}<div class="text-muted font-size-115">{{ template.copied_from.name }} 복제</div>{% endif %}
-              </td>
-              <td class="text-end">{{ template.question_count }}개</td>
-              <td class="text-muted">{{ template.created_by.first_name|default:template.created_by.email }}</td>
-              <td class="text-center">
-                {% if template.locked %}
-                  <span class="badge ax-badge-partial">사용 중 · 잠김</span>
-                {% else %}
-                  <span class="badge ax-badge-no-data">편집 가능</span>
-                {% endif %}
-              </td>
-              <td class="text-end">
-                <div class="d-inline-flex gap-2">
-                  <a href="{% url 'rounds:template-edit' template.pk %}"
-                     class="btn btn-sm btn-ax-secondary">{% if template.locked %}보기{% else %}편집{% endif %}</a>
-                  <form method="post" action="{% url 'rounds:template-copy' template.pk %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-ax-secondary">복제</button>
-                  </form>
-                  <form method="post" action="{% url 'rounds:template-delete' template.pk %}">
-                    {% csrf_token %}
-                    <button type="submit"
-                            class="btn btn-sm btn-outline-danger"
-                            {% if template.locked %}disabled title="사용 중인 템플릿은 삭제할 수 없습니다."{% elif template.has_copies %}disabled title="이 템플릿을 복제한 템플릿이 있어 삭제할 수 없습니다. 복제본을 먼저 삭제해 주세요."{% endif %}>삭제</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
+          {% regroup templates by is_archived as archive_groups %}
+          {% for group in archive_groups %}
+            {% if group.grouper and not archived_only %}
+              <tr class="ax-section-divider-row">
+                <td colspan="6">보관됨 · 아직 이 템플릿을 쓴 회차 기록이 남아있어 목록 맨 아래에 둡니다</td>
+              </tr>
+            {% endif %}
+            {% for template in group.list %}
+              <tr class="{% if template.is_archived %}ax-archived-row{% endif %}">
+                <td>
+                  <span class="badge badge-ax {% if template.category == 'TEAM' %}badge-ax-pending{% else %}badge-ax-completed{% endif %}">
+                    {{ template.get_category_display }}
+                  </span>
+                </td>
+                <td class="fw-semibold">
+                  {{ template.name }}
+                  {% if template.description %}<div class="text-muted font-size-115">{{ template.description }}</div>{% endif %}
+                  {% if template.copied_from %}<div class="text-muted font-size-115">{{ template.copied_from.name }} 복제</div>{% endif %}
+                  {% if template.is_archived %}
+                    <div class="text-muted font-size-115">
+                      {{ template.archived_at|date:"Y-m-d" }} 보관 · {{ template.archived_by.first_name|default:template.archived_by.email|default:"알 수 없음" }}
+                    </div>
+                    {% if template.round_titles %}
+                      <div class="ax-round-chips">
+                        {% for title in template.round_titles|slice:":3" %}
+                          <span class="ax-round-chip">{{ title }}</span>
+                        {% endfor %}
+                        {% if template.round_titles|length > 3 %}
+                          <span class="ax-round-chip">+ {{ template.round_titles|length|add:"-3" }}개 더</span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endif %}
+                </td>
+                <td class="text-end">{{ template.question_count }}개</td>
+                <td class="text-muted">{{ template.created_by.first_name|default:template.created_by.email }}</td>
+                <td class="text-center">
+                  {% if template.is_archived %}
+                    <span class="badge ax-badge-archived">보관됨</span>
+                  {% elif template.locked %}
+                    <span class="badge ax-badge-partial">사용 중 · 잠김</span>
+                  {% else %}
+                    <span class="badge ax-badge-no-data">편집 가능</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="d-inline-flex gap-2">
+                    <a href="{% url 'rounds:template-edit' template.pk %}"
+                       class="btn btn-sm btn-ax-secondary">{% if template.locked %}보기{% else %}편집{% endif %}</a>
+                    {% if not template.is_archived %}
+                      <form method="post" action="{% url 'rounds:template-copy' template.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-ax-secondary">복제</button>
+                      </form>
+                    {% endif %}
+                    {% if template.is_archived %}
+                      <form method="post"
+                            action="{% url 'rounds:template-restore' template.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-ax-secondary">복원</button>
+                      </form>
+                    {% elif template.locked %}
+                      <form method="post"
+                            action="{% url 'rounds:template-archive' template.pk %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="btn btn-sm btn-outline-secondary"
+                                title="사용 중인 템플릿은 삭제 대신 보관할 수 있습니다.">보관</button>
+                      </form>
+                    {% else %}
+                      <form method="post" action="{% url 'rounds:template-delete' template.pk %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="btn btn-sm btn-outline-danger"
+                                {% if template.has_copies %}disabled title="이 템플릿을 복제한 템플릿이 있어 삭제할 수 없습니다. 복제본을 먼저 삭제해 주세요."{% endif %}>삭제</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
           {% empty %}
             <tr>
               <td colspan="6">
                 <div class="ax-empty-state">
                   <i class="bi bi-card-checklist"></i>
-                  <p class="fw-semibold mb-2">아직 데이터가 없습니다</p>
-                  <p class="text-muted mb-3">등록된 템플릿이 없습니다. 회차를 시작하려면 팀 평가·개인 평가 템플릿이 각각 하나씩 필요합니다.</p>
-                  <a href="{% url 'rounds:template-create' %}" class="btn btn-ax-primary">새 템플릿 만들기</a>
+                  <p class="fw-semibold mb-2">{% if archived_only %}보관된 템플릿이 없습니다{% else %}아직 데이터가 없습니다{% endif %}</p>
+                  <p class="text-muted mb-3">
+                    {% if archived_only %}
+                      사용 중인 템플릿을 보관하면 여기에 모입니다.
+                    {% else %}
+                      등록된 템플릿이 없습니다. 회차를 시작하려면 팀 평가·개인 평가 템플릿이 각각 하나씩 필요합니다.
+                    {% endif %}
+                  </p>
+                  {% if not archived_only %}<a href="{% url 'rounds:template-create' %}" class="btn btn-ax-primary">새 템플릿 만들기</a>{% endif %}
                 </div>
               </td>
             </tr>
