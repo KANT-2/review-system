@@ -779,6 +779,103 @@ class TutorTeamReviewTests(TestCase):
         self.assertFalse(ReviewSubmission.objects.exists())
 
 
+class TutorEvaluationCombinedPageTests(TestCase):
+    """튜터평가 통합 화면 - 사이드바 '튜터평가' 하나로 팀·개인 평가를 한 화면에서 본다."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="te-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="te-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            student_number="T300",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.team_template = QuestionTemplate.objects.create(
+            name="팀 평가", category="TEAM", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.team_template,
+            response_type="RATING_5",
+            prompt="팀이 협업을 잘했나요?",
+            display_order=1,
+        )
+        self.peer_template = QuestionTemplate.objects.create(
+            name="개인 평가", category="PEER", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.peer_template,
+            response_type="RATING_5",
+            prompt="맡은 일을 끝까지 해냈나요?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="튜터평가 통합 회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            evaluation_end_at=now + timedelta(days=1),
+            team_template=self.team_template,
+            peer_template=self.peer_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(hours=1),
+        )
+        self.team = Team.objects.create(round=self.round, team_number=1, name="1팀")
+        participant = RoundParticipant.objects.create(
+            round=self.round,
+            user=self.student,
+            student_number_snapshot=self.student.student_number,
+            display_name_snapshot=self.student.first_name,
+        )
+        TeamMembership.objects.create(team=self.team, participant=participant)
+
+    def test_sidebar_entry_redirects_to_the_in_progress_round(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:tutor-evaluation-entry"))
+
+        self.assertRedirects(
+            response, reverse("rounds:tutor-evaluation", kwargs={"round_id": self.round.pk})
+        )
+
+    def test_entry_redirects_to_round_list_when_nothing_is_in_progress(self):
+        self.round.status = EvaluationRound.Status.COMPLETED
+        self.round.completed_at = timezone.now()
+        self.round.save(update_fields=["status", "completed_at"])
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:tutor-evaluation-entry"))
+
+        self.assertRedirects(response, reverse("rounds:list"))
+
+    def test_combined_page_shows_both_team_and_peer_targets(self):
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(
+            reverse("rounds:tutor-evaluation", kwargs={"round_id": self.round.pk})
+        )
+
+        self.assertContains(response, "1팀")
+        self.assertContains(response, "학생")
+        self.assertContains(response, "0/1 작성")
+
+    def test_students_cannot_open_the_combined_page(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(
+            reverse("rounds:tutor-evaluation", kwargs={"round_id": self.round.pk})
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
 class RoundFormTests(TestCase):
     """회차 설정 - 목표 팀 수 없이 저장되고 참가자는 승인된 수강생 전원이 된다."""
 
