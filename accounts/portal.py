@@ -1,4 +1,6 @@
+import calendar as calendar_module
 from dataclasses import dataclass
+from datetime import date
 from math import ceil
 
 from django.db.models import Avg, Q
@@ -397,6 +399,51 @@ def build_student_result_portal(user, *, selected_round_id=None):
     }
 
 
+def _month_calendar(round_obj, *, today=None):
+    """평가 일정 달력 - 팀 프로젝트 기간(연속 구간)과 오늘 표시를 주 단위 그리드로 계산한다.
+
+    개인 과제 마감일 표시는 이번 구현 범위에서 뺐다 - 지금 데이터 모델에서는 팀·개인 평가가
+    round의 같은 evaluation_start_at/end_at을 공유해서 따로 보여줄 마감일이 없다.
+
+    range_start/range_end는 실제 기간의 시작·끝일 뿐 아니라, 그 주(週) 줄의 첫/마지막 칸인
+    경우에도 True다 - 화면에서 여러 주에 걸친 기간을 이어진 띠로 그리려면 줄이 바뀌는 지점마다
+    양 끝을 "이어붙임" 처리해야 하기 때문이다(템플릿/CSS 쪽에서 시각적으로 연결한다).
+    """
+    today = today or timezone.localdate()
+    start = timezone.localtime(round_obj.evaluation_start_at).date()
+    end = timezone.localtime(round_obj.evaluation_end_at).date()
+    year, month = today.year, today.month
+    weeks = []
+    for week in calendar_module.Calendar(firstweekday=6).monthdayscalendar(year, month):
+        nonzero_positions = [position for position, day in enumerate(week) if day != 0]
+        first_position, last_position = nonzero_positions[0], nonzero_positions[-1]
+        row = []
+        for position, day in enumerate(week):
+            if day == 0:
+                row.append(None)
+                continue
+            current = date(year, month, day)
+            in_range = start <= current <= end
+            row.append(
+                {
+                    "day": day,
+                    "in_range": in_range,
+                    "range_start": in_range and (current == start or position == first_position),
+                    "range_end": in_range and (current == end or position == last_position),
+                    "is_today": current == today,
+                }
+            )
+        weeks.append(row)
+    return {
+        "year": year,
+        "month": month,
+        "label": f"{year}년 {month}월",
+        "weeks": weeks,
+        "range_start": start,
+        "range_end": end,
+    }
+
+
 def build_student_portal(user):
     participant = current_participation(user)
     if not participant:
@@ -465,6 +512,7 @@ def build_student_portal(user):
             # 남은 평가가 있는데 마감이 하루 안쪽이면 화면에서 눈에 띄게 표시한다.
             "is_urgent": bool(pending) and d_day <= 1,
         },
+        "calendar": _month_calendar(round_obj),
         "team": {
             "team_number": team.team_number if team else None,
             "name": team.name if team else "팀 편성 전",
