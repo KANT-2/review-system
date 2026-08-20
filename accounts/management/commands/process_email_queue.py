@@ -13,8 +13,9 @@ class Command(BaseCommand):
         scheduled_count = process_scheduled_emails()
         auto_reminder_count = process_auto_submission_reminders()
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"스케줄러 실행 완료: 예약 메일 처리 {scheduled_count}건, 마감 10분 전 제출 안내 처리 회차 {auto_reminder_count}건"
+        if scheduled_count or auto_reminder_count or options["verbosity"] > 0:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"스케줄러 실행 완료: 예약 메일 처리 {scheduled_count}건, 마감 10분 전 제출 안내 처리 회차 {auto_reminder_count}건"
+                )
             )
-        )

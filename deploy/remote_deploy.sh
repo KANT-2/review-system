@@ -35,7 +35,7 @@ compose=(sudo -n docker compose --env-file .env.production -f compose.production
 "${compose[@]}" up -d db
 "${compose[@]}" run --rm app python manage.py migrate --noinput
 "${compose[@]}" run --rm app python manage.py check --deploy --fail-level WARNING
-"${compose[@]}" up -d app caddy
+"${compose[@]}" up -d --wait --wait-timeout 120 app scheduler caddy
 
 healthy=false
 for _ in {1..18}; do

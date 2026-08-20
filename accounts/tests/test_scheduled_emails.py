@@ -1,6 +1,8 @@
 from datetime import timedelta
+from io import StringIO
 
 from django.core import mail
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
@@ -48,6 +50,13 @@ class ScheduledEmailsTestCase(TestCase):
         self.assertEqual(scheduled_item.status, ScheduledEmail.Status.SENT)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("예약된 공지 메일", mail.outbox[0].subject)
+
+    def test_queue_command_is_quiet_at_zero_verbosity_when_nothing_is_due(self):
+        output = StringIO()
+
+        call_command("process_email_queue", verbosity=0, stdout=output)
+
+        self.assertEqual(output.getvalue(), "")
 
     def test_process_auto_submission_reminders_10_min_before_end(self):
         # 마감 시각이 5분 뒤로 남은 진행 중인 평가 회차 생성
