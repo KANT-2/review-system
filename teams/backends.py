@@ -90,16 +90,25 @@ class ServiceTeamsBackend:
                 "team configuration changed; reload the latest configuration"
             )
 
-        participant_ids = current_round.participant_ids
-        seed_scores = self.data_source.get_seed_scores(round_id, participant_ids)
+        # 화면에서 이미 '미배정'으로 빼놓은 참가자는 자동배치 대상에서 제외한다 -
+        # 그러지 않으면 자동배치를 누를 때마다 수동으로 뺀 사람이 다시 섞여 들어와
+        # 평균 계산이 매번 달라진다.
+        excluded_ids = set(request_data.excluded_participant_ids)
+        assignable_participant_ids = tuple(
+            participant_id
+            for participant_id in current_round.participant_ids
+            if participant_id not in excluded_ids
+        )
+        # 시드 점수는 화면에 계속 표시해야 하므로 제외된 참가자를 포함해 전원 조회한다.
+        seed_scores = self.data_source.get_seed_scores(round_id, current_round.participant_ids)
         previous_pairs = self.data_source.get_previous_teammate_pairs(
             round_id,
-            participant_ids,
+            assignable_participant_ids,
         )
         return create_auto_team_board(
             round_id=round_id,
             lock_version=current_round.lock_version,
-            participant_ids=participant_ids,
+            participant_ids=assignable_participant_ids,
             seed_scores=seed_scores,
             team_count=request_data.team_count,
             previous_teammate_pairs=previous_pairs,

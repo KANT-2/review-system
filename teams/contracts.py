@@ -16,12 +16,15 @@ class TeamContractError(ValueError):
 class AutoAssignmentRequest:
     team_count: int
     lock_version: int
+    # 화면에서 이미 '미배정'으로 빼놓은 참가자 - 자동배치 대상에서 계속 제외한다.
+    excluded_participant_ids: tuple[int, ...] = ()
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, object]) -> "AutoAssignmentRequest":
         return cls(
             team_count=_required_integer(payload, "team_count"),
             lock_version=_required_integer(payload, "lock_version"),
+            excluded_participant_ids=_optional_integer_list(payload, "excluded_participant_ids"),
         )
 
 
@@ -152,6 +155,23 @@ def _required_integer(
     if type(value) is not int:
         raise TeamContractError(f"{prefix}{field_name} must be an integer")
     return value
+
+
+def _optional_integer_list(
+    payload: Mapping[str, object],
+    field_name: str,
+) -> tuple[int, ...]:
+    value = payload.get(field_name, [])
+    if value is None:
+        value = []
+    if not isinstance(value, list):
+        raise TeamContractError(f"{field_name} must be a list")
+    result = []
+    for index, item in enumerate(value):
+        if type(item) is not int:
+            raise TeamContractError(f"{field_name}[{index}] must be an integer")
+        result.append(item)
+    return tuple(result)
 
 
 def _decimal_response(value: Decimal | None) -> str | None:
