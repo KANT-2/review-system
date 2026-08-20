@@ -208,7 +208,7 @@ def logout_view(request):
 
 
 def _needs_onboarding(user):
-    """수강생은 필수 프로필(이름·기수·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
+    """수강생은 필수 프로필(이름·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
 
     가입 신청 때는 계정 정보만 받으므로(SignUpForm), 승인 뒤 본인이 직접 채운다. 소셜 가입도
     같은 경로를 지난다. 화면에서 가리는 것만으로는 막을 수 없어 서버에서 되돌려 보낸다.
@@ -225,7 +225,7 @@ def onboarding_view(request):
     if request.method == "POST" and form.is_valid():
         user = form.save(commit=False)
         user.is_onboarded = True
-        user.save(update_fields=["first_name", "session_info", "phone_number", "is_onboarded"])
+        user.save(update_fields=["first_name", "phone_number", "is_onboarded"])
         messages.success(request, "프로필 등록이 완료되었습니다. 이제 평가에 참여할 수 있습니다.")
         return redirect("accounts:dashboard")
     return render(request, "accounts/onboarding.html", {"form": form})
@@ -304,16 +304,15 @@ def whitelist_add(request):
     if not form.is_valid():
         messages.error(request, next(iter(form.errors.values()))[0])
         return redirect("accounts:account_admin")
-    added, updated = add_whitelist_emails(
+    added, existing = add_whitelist_emails(
         emails=form.cleaned_data["emails"],
-        session_info=form.cleaned_data["session_info"],
         actor=request.user,
     )
     parts = []
     if added:
         parts.append(f"{len(added)}건 등록")
-    if updated:
-        parts.append(f"{len(updated)}건 기수 갱신")
+    if existing:
+        parts.append(f"{len(existing)}건은 이미 등록되어 있어 건너뜀")
     messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
     return redirect("accounts:account_admin")
 
@@ -572,14 +571,10 @@ def api_onboarding(request):
     data = _safe_json(request)
     if data is None:
         return JsonResponse({"success": False, "message": "잘못된 JSON 요청입니다."}, status=400)
-    fields = {
-        key: str(data.get(key, "")).strip()
-        for key in ("first_name", "session_info", "phone_number")
-    }
+    fields = {key: str(data.get(key, "")).strip() for key in ("first_name", "phone_number")}
     if (
         not all(fields.values())
         or len(fields["first_name"]) > 150
-        or len(fields["session_info"]) > 50
         or len(fields["phone_number"]) > 20
     ):
         return JsonResponse({"success": False, "message": "입력값을 확인해 주세요."}, status=400)
@@ -611,7 +606,7 @@ def update_profile_api(request):
             )
     else:
         data = request.POST.dict()
-    allowed = {"first_name": 150, "phone_number": 20, "session_info": 50}
+    allowed = {"first_name": 150, "phone_number": 20}
     for field, max_length in allowed.items():
         if field in data:
             value = str(data[field]).strip()

@@ -41,11 +41,6 @@
           {{ form.first_name }}
           {% for error in form.first_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
-        <div class="mb-3">
-          <label class="form-label small fw-bold">소속 기수 / 세션 *</label>
-          {{ form.session_info }}
-          {% for error in form.session_info.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-        </div>
         <div class="mb-4">
           <label class="form-label small fw-bold">연락처 *</label>
           {{ form.phone_number }}

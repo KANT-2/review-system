@@ -82,8 +82,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                             if whitelist
                             else User.ApprovalStatus.PENDING
                         ),
-                        session_info=whitelist.session_info if whitelist else "",
-                        # 소셜 가입자도 승인 뒤 온보딩에서 이름·기수·연락처를 직접 채운다.
+                        # 소셜 가입자도 승인 뒤 온보딩에서 이름·연락처를 직접 채운다.
                         is_onboarded=False,
                     )
                 sociallogin.connect(request, user)

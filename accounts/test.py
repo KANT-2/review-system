@@ -53,10 +53,7 @@ class AccountsTests(TestCase):
             role=User.Role.TUTOR,
             approval_status=User.ApprovalStatus.APPROVED,
         )
-        self.whitelist_entry = WhitelistEmail.objects.create(
-            email="whitelist@ax.com",
-            session_info="2기",
-        )
+        self.whitelist_entry = WhitelistEmail.objects.create(email="whitelist@ax.com")
 
     def _signup(self, email, password=STRONG_PASSWORD):
         return self.client.post(
@@ -72,7 +69,6 @@ class AccountsTests(TestCase):
         self.assertEqual(response.status_code, 202)
         user = User.objects.get(email="whitelist@ax.com")
         self.assertEqual(user.approval_status, User.ApprovalStatus.APPROVED)
-        self.assertEqual(user.session_info, "2기")
         self.assertTrue(user.check_password(STRONG_PASSWORD))
         self.assertTrue(EmailAddress.objects.get(user=user).verified)
 
@@ -194,7 +190,6 @@ class AccountsTests(TestCase):
             reverse("accounts:onboarding"),
             {
                 "first_name": " 김민준 ",
-                "session_info": "5기 풀스택",
                 "phone_number": "010-1111-2222",
             },
         )
@@ -202,7 +197,6 @@ class AccountsTests(TestCase):
         self.assertRedirects(response, reverse("accounts:dashboard"))
         rookie.refresh_from_db()
         self.assertEqual(rookie.first_name, "김민준")
-        self.assertEqual(rookie.session_info, "5기 풀스택")
         self.assertEqual(rookie.phone_number, "010-1111-2222")
         self.assertTrue(rookie.is_onboarded)
         self.assertEqual(self.client.get(reverse("accounts:dashboard")).status_code, 200)
@@ -219,7 +213,7 @@ class AccountsTests(TestCase):
 
         response = self.client.post(
             reverse("accounts:onboarding"),
-            {"first_name": "김민준", "session_info": "", "phone_number": ""},
+            {"first_name": "김민준", "phone_number": ""},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -269,28 +263,23 @@ class AccountsTests(TestCase):
             reverse("accounts:whitelist_add"),
             {
                 "emails": "First@AX.com\nsecond@ax.com, third@ax.com\n\n",
-                "session_info": "5기 풀스택",
             },
         )
 
         self.assertRedirects(response, reverse("accounts:account_admin"))
         registered = set(WhitelistEmail.objects.values_list("email", flat=True))
         self.assertTrue({"first@ax.com", "second@ax.com", "third@ax.com"} <= registered)
-        self.assertEqual(
-            WhitelistEmail.objects.get(email="first@ax.com").session_info, "5기 풀스택"
-        )
 
     def test_registering_an_existing_email_updates_the_session_only(self):
         self.client.force_login(self.tutor_user)
 
         self.client.post(
             reverse("accounts:whitelist_add"),
-            {"emails": self.whitelist_entry.email, "session_info": "3기"},
+            {"emails": self.whitelist_entry.email},
         )
 
         self.assertEqual(WhitelistEmail.objects.filter(email=self.whitelist_entry.email).count(), 1)
         self.whitelist_entry.refresh_from_db()
-        self.assertEqual(self.whitelist_entry.session_info, "3기")
 
     def test_invalid_email_is_rejected_without_saving_anything(self):
         self.client.force_login(self.tutor_user)
@@ -298,14 +287,14 @@ class AccountsTests(TestCase):
 
         response = self.client.post(
             reverse("accounts:whitelist_add"),
-            {"emails": "ok@ax.com\n엉망진창", "session_info": ""},
+            {"emails": "ok@ax.com\n엉망진창"},
         )
 
         self.assertRedirects(response, reverse("accounts:account_admin"))
         self.assertEqual(WhitelistEmail.objects.count(), before)
 
     def test_whitelist_screen_shows_whether_each_email_signed_up(self):
-        WhitelistEmail.objects.create(email=self.approved_student.email, session_info="1기")
+        WhitelistEmail.objects.create(email=self.approved_student.email)
         self.client.force_login(self.tutor_user)
 
         response = self.client.get(reverse("accounts:account_admin"))
@@ -820,7 +809,7 @@ class SocialClaimTests(TestCase):
     def test_first_social_link_is_audited_without_oauth_secrets(self):
         """AUD-001: 최초 연결을 남기되 AUD-002에 따라 token·nonce는 넣지 않는다."""
         nonce = "one-time-nonce"
-        WhitelistEmail.objects.create(email="social@ax.com", session_info="5기")
+        WhitelistEmail.objects.create(email="social@ax.com")
         connected = []
         request = SimpleNamespace(
             session={"google_oidc_nonces": {nonce: time.time()}},

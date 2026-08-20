@@ -83,7 +83,6 @@ class User(AbstractUser):
     )
     is_onboarded = models.BooleanField(_("온보딩 완료 여부"), default=False)
     is_social_account = models.BooleanField(_("소셜 계정 여부"), default=False)
-    session_info = models.CharField(_("기수 정보"), max_length=50, blank=True, default="")
     student_number = models.CharField(
         _("수강생 식별번호"), max_length=32, null=True, blank=True, unique=True
     )
@@ -149,7 +148,6 @@ class User(AbstractUser):
 
 class WhitelistEmail(models.Model):
     email = models.EmailField(_("사전 등록 이메일"), unique=True)
-    session_info = models.CharField(_("배정 기수"), max_length=50, blank=True, default="")
     created_at = models.DateTimeField(_("등록 일시"), auto_now_add=True)
 
     class Meta:

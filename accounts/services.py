@@ -98,7 +98,7 @@ def request_signup(*, request, email, password):
     않는다. 대신 명단(WhitelistEmail)에 있는 주소만 자동 승인하고, 나머지는 튜터가 승인 화면
     에서 직접 확인한다.
 
-    이름·기수·연락처는 승인 뒤 온보딩에서 본인이 채운다.
+    이름·연락처는 승인 뒤 온보딩에서 본인이 채운다.
     """
     canonical = canonicalize_email(email)
     consume_rate_limit(
@@ -122,7 +122,6 @@ def request_signup(*, request, email, password):
             approval_status=(
                 User.ApprovalStatus.APPROVED if whitelist else User.ApprovalStatus.PENDING
             ),
-            session_info=whitelist.session_info if whitelist else "",
         )
 
 
@@ -319,21 +318,22 @@ def whitelist_rows():
 
 
 @transaction.atomic
-def add_whitelist_emails(*, emails, session_info, actor):
-    """명단에 이메일을 등록한다. 이미 있으면 기수만 갱신한다."""
-    added, updated = [], []
+def add_whitelist_emails(*, emails, actor):
+    """명단에 이메일을 등록한다. 이미 있는 이메일은 그대로 두고 따로 세어 돌려준다."""
+    added, existing = [], []
     for email in emails:
-        entry, created = WhitelistEmail.objects.update_or_create(
-            email=email, defaults={"session_info": session_info}
-        )
-        (added if created else updated).append(entry)
+        entry, created = WhitelistEmail.objects.get_or_create(email=email)
+        if not created:
+            existing.append(entry)
+            continue
+        added.append(entry)
         record_event(
-            action="WHITELIST_ADDED" if created else "WHITELIST_UPDATED",
+            action="WHITELIST_ADDED",
             target=entry,
             actor=actor,
-            summary={"session_info": session_info},
+            summary={"email": entry.email},
         )
-    return added, updated
+    return added, existing
 
 
 @transaction.atomic
@@ -345,7 +345,7 @@ def remove_whitelist_email(*, entry_id, actor):
         action="WHITELIST_REMOVED",
         target=entry,
         actor=actor,
-        summary={"session_info": entry.session_info},
+        summary={"email": entry.email},
     )
     entry.delete()
     return entry

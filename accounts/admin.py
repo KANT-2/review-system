@@ -39,7 +39,7 @@ class AccountUserAdmin(UserAdmin):
         (None, {"fields": ("email", "password")}),
         (
             "프로필",
-            {"fields": ("first_name", "student_number", "phone_number", "session_info")},
+            {"fields": ("first_name", "student_number", "phone_number")},
         ),
         (
             "권한과 상태",
@@ -75,7 +75,7 @@ class AccountUserAdmin(UserAdmin):
 
 @admin.register(WhitelistEmail)
 class WhitelistEmailAdmin(admin.ModelAdmin):
-    list_display = ("email", "session_info", "created_at")
+    list_display = ("email", "created_at")
     search_fields = ("email",)
     ordering = ("-created_at",)
 
