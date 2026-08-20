@@ -20,7 +20,7 @@ from results.services import (
     determine_data_status,
     round_to_display,
 )
-from reviews.models import ReviewSubmission, TutorReviewAnswer
+from reviews.models import ReviewSubmission, TutorReviewAnswer, TutorTeamReviewAnswer
 from rounds.models import EvaluationRound
 
 # toggle_publication이 "한 번 더 확인이 필요하다"고 알릴 때 쓰는 ValidationError code.
@@ -71,10 +71,35 @@ def _tutor_answer_sets(round_obj):
     return sets_by_participant
 
 
+def _tutor_team_answer_sets(round_obj):
+    """팀 ID -> 이 회차에 받은 튜터 팀평가 제출별 평점 목록 (_tutor_answer_sets의 팀 버전).
+
+    team_score는 이미 '받은 모든 평가를 동일 가중치로 평균'하는 구조라(calculate_team_score),
+    튜터의 팀평가도 학생 팀평가와 같은 리스트에 한 건 더 추가하는 방식으로 섞는다.
+    """
+    rows = TutorTeamReviewAnswer.objects.filter(
+        review__round=round_obj, rating_value__isnull=False
+    ).values_list("review__target_team_id", "review_id", "rating_value")
+    per_submission = defaultdict(list)
+    for team_id, review_id, rating_value in rows:
+        per_submission[(team_id, review_id)].append(rating_value)
+    sets_by_team = defaultdict(list)
+    for (team_id, _review_id), values in per_submission.items():
+        sets_by_team[team_id].append(values)
+    return sets_by_team
+
+
 def _build_result_rows(round_obj):
     submissions = list(ReviewSubmission.objects.filter(round=round_obj).prefetch_related("answers"))
     tutor_sets_by_participant = (
         _tutor_answer_sets(round_obj) if round_obj.tutor_score_weight > 0 else defaultdict(list)
+    )
+    # tutor_score_weight가 0이면 이 회차는 튜터 평가를 아예 반영하지 않기로 한 것이므로,
+    # 팀평가 쪽도 개인평가와 같은 기준으로 같이 끈다.
+    tutor_team_sets_by_team = (
+        _tutor_team_answer_sets(round_obj)
+        if round_obj.tutor_score_weight > 0
+        else defaultdict(list)
     )
     team_weight = Decimal(round_obj.team_score_weight) / 100
     personal_weight = Decimal(round_obj.personal_score_weight) / 100
@@ -95,7 +120,10 @@ def _build_result_rows(round_obj):
         expected = participant_count - team.memberships.count()
         received = team_submissions[team.pk]
         valid_sets = [values for values in _rating_sets(received) if values]
-        score = calculate_team_score(valid_sets)
+        # 튜터 팀평가는 점수 계산에는 섞이지만(팀 결과 심사 대상이 아니므로) 학생 제출
+        # 현황(valid_count/expected_count/coverage)에는 포함하지 않는다 - 안 그러면
+        # valid_count가 expected_count를 넘어 DB 체크 제약(valid_not_above_expected)에 걸린다.
+        score = calculate_team_score(valid_sets + tutor_team_sets_by_team[team.pk])
         team_score_by_id[team.pk] = score
         team_rows.append(
             {

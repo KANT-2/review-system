@@ -99,7 +99,7 @@
     {% endif %}
   </td>
   <td class="text-end">
-    {% if can_change_role %}
+    {% if user.is_application_admin or account.role == 'student' %}
       <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
         {% if account.is_active %}
           <form method="post"

@@ -96,8 +96,11 @@ Update `.env` with your local PostgreSQL connection information and other requir
 Do not commit `.env` or real credentials.
 
 Uploaded files (profile photos) are stored under `MEDIA_ROOT`, which defaults to `media/` in the
-project directory and is served by the development server only. Set `DJANGO_MEDIA_ROOT` to a
-persistent volume path in production and let the web server in front of Django serve `MEDIA_URL`.
+project directory and is served by the development server only. In production the
+`production_media_data` volume is mounted at that same path so uploads survive releases, and Caddy
+serves them at `/media/` directly from the volume. Set `DJANGO_MEDIA_ROOT` only when the files
+belong somewhere else; the deployment check refuses to start a release whose `MEDIA_ROOT` is
+missing or read-only.
 
 ### 5. Prepare PostgreSQL
 

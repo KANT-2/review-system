@@ -26,6 +26,8 @@
     {% block extra_head %}{% endblock %}
   </head>
   <body>
+    {% comment %}CSRF_COOKIE_HTTPONLY라 쿠키를 못 읽는 JS(알림 폴링 등)가 이 값을 쓴다.{% endcomment %}
+    {% csrf_token %}
     {% if user.is_authenticated or preview_mode %}
       <div id="app-shell">
         {% include "includes/sidebar.html" %}
@@ -268,6 +270,9 @@
       }, 100);
     });
     </script>
+    {% if user.is_authenticated %}
+      <script src="{% static 'js/notifications.js' %}"></script>
+    {% endif %}
     {% block extra_js %}{% endblock %}
   </body>
 </html>

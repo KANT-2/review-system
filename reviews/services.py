@@ -4,14 +4,20 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from accounts.models import User
+from notifications.models import Notification
+from notifications.services import notify_users
 from reviews.models import (
     ReviewAnswer,
     ReviewFinalSubmission,
     ReviewSubmission,
     TutorReview,
     TutorReviewAnswer,
+    TutorTeamReview,
+    TutorTeamReviewAnswer,
 )
 from rounds.models import EvaluationRound, RoundParticipant, TemplateQuestion
+from rounds.services import is_participant_complete
 from teams.models import Team
 
 
@@ -26,6 +32,9 @@ class ReviewTargetRow:
     description: str
     completed: bool
     url_name: str
+    # 건별 확정 여부 - 지금은 개인 평가에서만 쓴다. 다른 호출부(팀 평가, 튜터 평가)는
+    # 기본값 False로 그대로 두면 되므로 이 필드를 몰라도 된다.
+    locked: bool = False
 
 
 def current_participation(user):
@@ -101,13 +110,17 @@ def peer_targets(participant):
     target_participants = RoundParticipant.objects.filter(
         team_membership__team=participant.team_membership.team
     ).exclude(pk=participant.pk)
-    submitted_ids = set(
-        ReviewSubmission.objects.filter(
-            round=participant.round,
-            evaluator=participant,
-            review_type=ReviewSubmission.ReviewType.PEER,
-        ).values_list("target_participant_id", flat=True)
-    )
+    peer_submissions = ReviewSubmission.objects.filter(
+        round=participant.round,
+        evaluator=participant,
+        review_type=ReviewSubmission.ReviewType.PEER,
+    ).values_list("target_participant_id", "locked_at")
+    submitted_ids = set()
+    locked_ids = set()
+    for target_id, locked_at in peer_submissions:
+        submitted_ids.add(target_id)
+        if locked_at is not None:
+            locked_ids.add(target_id)
     return [
         ReviewTargetRow(
             pk=target.pk,
@@ -115,6 +128,7 @@ def peer_targets(participant):
             description=target.student_number_snapshot,
             completed=target.pk in submitted_ids,
             url_name="reviews:peer-form",
+            locked=target.pk in locked_ids,
         )
         for target in target_participants
     ]
@@ -281,9 +295,13 @@ def submit_review(*, participant, review_type, target_id, answers):
         raise ValidationError("평가 제출 기간이 아닙니다.")
     if is_final_submitted(participant, review_type):
         raise ValidationError("최종 제출한 평가는 수정할 수 없습니다.")
+    existing = get_submission(participant, review_type, target_id)
+    if existing is not None and existing.locked_at is not None:
+        raise ValidationError("확정된 평가는 수정할 수 없습니다.")
     target = _validate_target(participant, review_type, target_id)
     questions = list(questions_for(participant.round, review_type))
     answer_rows = validated_answer_rows(questions, answers)
+    was_complete = is_participant_complete(participant)
     with transaction.atomic():
         # 최종 제출 전이면 다시 저장할 수 있다 - 기존 답변을 지우고 새로 쓴다.
         submission = _get_or_create_submission(participant, review_type, target)
@@ -299,7 +317,42 @@ def submit_review(*, participant, review_type, target_id, answers):
                 for question, rating, text in answer_rows
             ]
         )
-        return submission
+    if not was_complete and is_participant_complete(participant):
+        _notify_tutors_of_completion(participant)
+    return submission
+
+
+def _notify_tutors_of_completion(participant):
+    notify_users(
+        User.objects.filter(role__in=[User.Role.TUTOR, User.Role.ADMIN], is_active=True),
+        category=Notification.Category.PARTICIPANT_COMPLETED,
+        title="학생이 평가를 모두 제출했습니다",
+        message=(
+            f"{participant.display_name_snapshot}님이 "
+            f"'{participant.round.title}' 팀·개인 평가를 모두 제출했습니다."
+        ),
+    )
+
+
+def lock_submission(*, participant, review_type, target_id):
+    """대상 한 건만 확정해서 더 이상 못 고치게 한다(TR-010에 준하는 건별 확정).
+
+    유형 전체를 잠그는 final_submit()과는 별개다 - 지금은 개인 평가 카드에서만 쓴다.
+    """
+    if participant.round.status != EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError("진행 중인 회차가 아닙니다.")
+    if review_window_state(participant.round) != "OPEN":
+        raise ValidationError("평가 제출 기간이 아닙니다.")
+    if is_final_submitted(participant, review_type):
+        raise ValidationError("이미 유형 전체가 최종 제출되어 있습니다.")
+    existing = get_submission(participant, review_type, target_id)
+    if existing is None:
+        raise ValidationError("먼저 평가를 제출해야 확정할 수 있습니다.")
+    if existing.locked_at is not None:
+        raise ValidationError("이미 확정된 평가입니다.")
+    existing.locked_at = timezone.now()
+    existing.save(update_fields=["locked_at"])
+    return existing
 
 
 # --- 튜터 개인평가 -------------------------------------------------------------
@@ -376,3 +429,79 @@ def submit_tutor_review(*, round_obj, tutor, participant_id, answers):
             ]
         )
         return review
+
+
+# --- 튜터 팀평가 ---------------------------------------------------------------
+# 튜터 개인평가와 짝을 이루는 팀 단위 버전. 대상이 참가자가 아니라 팀이라는 점만 다르고
+# 나머지 규칙(회차 시작 후에만, 다시 쓰면 덮어씀)은 동일하다.
+
+
+def tutor_team_review_targets(round_obj, tutor):
+    """회차의 팀 전체 - 튜터가 이미 쓴 팀은 completed로 표시한다."""
+    written_ids = set(
+        TutorTeamReview.objects.filter(round=round_obj, evaluator=tutor).values_list(
+            "target_team_id", flat=True
+        )
+    )
+    return [
+        ReviewTargetRow(
+            pk=team.pk,
+            label=team.name,
+            description=f"{team.memberships.count()}명 구성",
+            completed=team.pk in written_ids,
+            url_name="rounds:tutor-team-review-form",
+        )
+        for team in round_obj.teams.prefetch_related("memberships")
+    ]
+
+
+def get_tutor_team_review(round_obj, tutor, team_id):
+    return (
+        TutorTeamReview.objects.prefetch_related("answers__question")
+        .filter(round=round_obj, evaluator=tutor, target_team_id=team_id)
+        .first()
+    )
+
+
+def tutor_team_review_questions(round_obj):
+    """튜터 팀평가도 그 회차의 팀 평가 질문지를 그대로 쓴다."""
+    return questions_for(round_obj, ReviewSubmission.ReviewType.TEAM)
+
+
+def submit_tutor_team_review(*, round_obj, tutor, team_id, answers):
+    if not tutor_reviewable(round_obj):
+        raise ValidationError("회차를 시작한 뒤에 평가할 수 있습니다.")
+    team = Team.objects.filter(pk=team_id, round=round_obj).first()
+    if not team:
+        raise PermissionDenied("이 회차의 팀이 아닙니다.")
+    questions = list(tutor_team_review_questions(round_obj))
+    if not questions:
+        raise ValidationError("이 회차에 팀 평가 질문지가 없습니다.")
+    answer_rows = validated_answer_rows(questions, answers)
+    with transaction.atomic():
+        review, _ = TutorTeamReview.objects.get_or_create(
+            round=round_obj, evaluator=tutor, target_team=team
+        )
+        review.answers.all().delete()
+        TutorTeamReviewAnswer.objects.bulk_create(
+            [
+                TutorTeamReviewAnswer(
+                    review=review,
+                    question=question,
+                    rating_value=rating,
+                    text_value=text or "",
+                )
+                for question, rating, text in answer_rows
+            ]
+        )
+        return review
+
+
+def tutor_review_progress(round_obj, tutor):
+    """대시보드용 - 이 튜터가 이번 회차에서 실제로 작성한 팀/개인 평가 진행률."""
+    return {
+        "team_completed": TutorTeamReview.objects.filter(round=round_obj, evaluator=tutor).count(),
+        "team_expected": round_obj.teams.count(),
+        "peer_completed": TutorReview.objects.filter(round=round_obj, evaluator=tutor).count(),
+        "peer_expected": round_obj.participants.count(),
+    }

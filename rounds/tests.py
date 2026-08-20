@@ -7,10 +7,11 @@ from django.utils import timezone
 
 from accounts.models import User
 from audit.models import AuditEvent
+from notifications.services import unread_count
 from results.models import CalculationRun
-from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview
+from reviews.models import ReviewAnswer, ReviewSubmission, TutorReview, TutorTeamReview
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
-from rounds.services import start_round
+from rounds.services import complete_round, start_round
 from teams.models import Team, TeamMembership
 
 
@@ -114,6 +115,63 @@ class RoundLifecycleTests(TestCase):
             TeamMembership.objects.create(team=other_teams[index % 2], participant=participant)
         with self.assertRaises(ValidationError):
             start_round(round_id=other.pk, actor=self.tutor)
+
+
+class RoundCompletionNotificationTests(TestCase):
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="complete-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.students = [
+            User.objects.create_user(
+                email=f"complete-student-{index}@example.com",
+                password="strong-test-password",
+                first_name=f"학생{index}",
+                student_number=f"C{index:03d}",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            )
+            for index in range(1, 3)
+        ]
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="마감 알림 테스트",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now,
+            evaluation_end_at=now + timedelta(days=1),
+            target_team_count=2,
+            created_by=self.tutor,
+            started_at=now,
+        )
+        for user in self.students:
+            RoundParticipant.objects.create(
+                round=self.round,
+                user=user,
+                student_number_snapshot=user.student_number,
+                display_name_snapshot=user.first_name,
+            )
+        # pending_participant_rows는 팀 기대치가 0이면 아무도 미제출로 안 잡으니,
+        # 미제출자 알림 테스트를 위해 팀을 최소한으로 만들어 둔다.
+        Team.objects.create(round=self.round, team_number=1, name="1팀")
+        Team.objects.create(round=self.round, team_number=2, name="2팀")
+
+    def test_completing_a_round_notifies_its_participants(self):
+        complete_round(round_id=self.round.pk, actor=self.tutor, force_confirmed=True)
+
+        self.assertEqual(unread_count(self.students[0]), 1)
+        self.assertEqual(unread_count(self.students[1]), 1)
+
+    def test_manual_reminder_button_notifies_pending_students(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(reverse("rounds:send_reminders", kwargs={"round_id": self.round.pk}))
+
+        self.assertEqual(unread_count(self.students[0]), 1)
+        self.assertEqual(unread_count(self.students[1]), 1)
 
 
 class QuestionTemplateScreenTests(TestCase):
@@ -355,6 +413,37 @@ class RoundLifecycleReversalTests(TestCase):
         round_obj.refresh_from_db()
         self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
 
+    def test_round_with_tutor_reviews_is_not_reverted(self):
+        # 학생 제출은 없어도 튜터 개인/팀평가가 남아 있으면 되돌리지 않는다 - 안 그러면
+        # 그 튜터 평가가 DRAFT 회차에 고아로 남아 나중에 삭제할 때 ProtectedError로 터진다.
+        round_obj = self._round(status=EvaluationRound.Status.IN_PROGRESS)
+        TutorReview.objects.create(
+            round=round_obj, evaluator=self.tutor, target_participant=round_obj.participants.first()
+        )
+
+        self.client.post(reverse("rounds:revert", args=[round_obj.pk]))
+
+        round_obj.refresh_from_db()
+        self.assertEqual(round_obj.status, EvaluationRound.Status.IN_PROGRESS)
+
+    def test_draft_round_with_leftover_tutor_reviews_can_still_be_deleted(self):
+        # 예전에 진행 중 -> 되돌림을 거쳐 이미 튜터 평가가 남아있는 DRAFT 회차도(과거 데이터)
+        # 삭제는 크래시 없이 돼야 한다.
+        round_obj = self._round(status=EvaluationRound.Status.DRAFT)
+        participant = round_obj.participants.first()
+        team = round_obj.teams.first()
+        TutorReview.objects.create(
+            round=round_obj, evaluator=self.tutor, target_participant=participant
+        )
+        TutorTeamReview.objects.create(round=round_obj, evaluator=self.tutor, target_team=team)
+
+        response = self.client.post(reverse("rounds:delete", args=[round_obj.pk]))
+
+        self.assertRedirects(response, reverse("rounds:list"))
+        self.assertFalse(EvaluationRound.objects.filter(pk=round_obj.pk).exists())
+        self.assertFalse(TutorReview.objects.filter(round_id=round_obj.pk).exists())
+        self.assertFalse(TutorTeamReview.objects.filter(round_id=round_obj.pk).exists())
+
     def test_completed_round_reopens_when_not_scored(self):
         round_obj = self._round(status=EvaluationRound.Status.COMPLETED)
 
@@ -586,6 +675,99 @@ class TutorPeerReviewTests(TestCase):
         self.assertFalse(ReviewSubmission.objects.exists())
 
 
+class TutorTeamReviewTests(TestCase):
+    """튜터 팀평가 - TutorPeerReviewTests의 팀 단위 버전."""
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="ttr-tutor@example.com",
+            password="strong-test-password",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="ttr-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            student_number="T200",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+            is_onboarded=True,
+        )
+        self.team_template = QuestionTemplate.objects.create(
+            name="팀 평가", category="TEAM", created_by=self.tutor
+        )
+        self.question = TemplateQuestion.objects.create(
+            template=self.team_template,
+            response_type="RATING_5",
+            prompt="팀이 협업을 잘했나요?",
+            display_order=1,
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="튜터 팀평가 회차",
+            status=EvaluationRound.Status.IN_PROGRESS,
+            evaluation_start_at=now - timedelta(hours=1),
+            evaluation_end_at=now + timedelta(days=1),
+            team_template=self.team_template,
+            created_by=self.tutor,
+            started_at=now - timedelta(hours=1),
+        )
+        self.team = Team.objects.create(round=self.round, team_number=1, name="1팀")
+        participant = RoundParticipant.objects.create(
+            round=self.round,
+            user=self.student,
+            student_number_snapshot=self.student.student_number,
+            display_name_snapshot=self.student.first_name,
+        )
+        TeamMembership.objects.create(team=self.team, participant=participant)
+
+    def _form_url(self):
+        return reverse(
+            "rounds:tutor-team-review-form",
+            kwargs={"round_id": self.round.pk, "team_id": self.team.pk},
+        )
+
+    def test_tutor_can_write_and_rewrite_a_team_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        review = TutorTeamReview.objects.get(round=self.round, target_team=self.team)
+        self.assertEqual(review.evaluator, self.tutor)
+        self.assertEqual(review.answers.get().rating_value, 4)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "5"})
+
+        self.assertEqual(TutorTeamReview.objects.count(), 1)
+        self.assertEqual(review.answers.get().rating_value, 5)
+
+    def test_students_cannot_open_tutor_team_review(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(self._form_url())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorTeamReview.objects.exists())
+
+    def test_draft_round_cannot_be_reviewed_yet(self):
+        self.round.status = EvaluationRound.Status.DRAFT
+        self.round.save(update_fields=["status"])
+        self.client.force_login(self.tutor)
+
+        response = self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(TutorTeamReview.objects.exists())
+
+    def test_tutor_review_is_not_counted_as_a_student_team_review(self):
+        self.client.force_login(self.tutor)
+
+        self.client.post(self._form_url(), {f"question_{self.question.pk}": "4"})
+
+        self.assertFalse(ReviewSubmission.objects.exists())
+
+
 class RoundFormTests(TestCase):
     """회차 설정 - 목표 팀 수 없이 저장되고 참가자는 승인된 수강생 전원이 된다."""
 
@@ -633,6 +815,21 @@ class RoundFormTests(TestCase):
         self.assertRedirects(response, reverse("rounds:teams", kwargs={"round_id": created.pk}))
         self.assertEqual(created.participants.count(), len(self.approved))
         self.assertFalse(created.participants.filter(user=self.pending).exists())
+
+    def test_creating_a_round_notifies_its_participants(self):
+        now = timezone.now()
+        self.client.post(
+            reverse("rounds:create"),
+            {
+                "title": "알림 확인용 회차",
+                "description": "",
+                "evaluation_start_at": (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                "evaluation_end_at": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+
+        self.assertEqual(unread_count(self.approved[0]), 1)
+        self.assertEqual(unread_count(self.pending), 0)
 
     def test_existing_participant_is_kept_even_if_no_longer_eligible(self):
         """비활성이 된 참가자를 자동으로 빼면 팀 배정 때문에 저장이 막힌다(회귀 방지)."""

@@ -1,3 +1,7 @@
 FROM caddy:2.11.4-alpine
 
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
+
+# 설정 오타는 컨테이너가 뜰 때가 아니라 이미지를 만들 때 드러나야 한다 -
+# 배포 중에 caddy가 못 뜨면 사이트 전체가 내려간다. CI의 이미지 빌드 단계에서 걸린다.
+RUN caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null

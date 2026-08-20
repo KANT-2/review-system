@@ -6,6 +6,9 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
+from notifications.models import Notification
+from notifications.services import notify_users
+from rounds.models import RoundParticipant
 from teams.application import (
     AutoTeamBoardResult,
     RoundNotEditableError,
@@ -265,6 +268,7 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
             request.user.id,
             request_data,
         )
+        _notify_team_assignments(board)
         return JsonResponse(saved_team_board_response(board))
     except ImbalanceConfirmationRequired as error:
         return _error_response("imbalance_confirmation_required", str(error), 409)
@@ -278,6 +282,20 @@ def save_team_view(request: HttpRequest, round_id: int) -> JsonResponse:
         return _error_response("invalid_request", str(error), 400)
     except LookupError as error:
         return _error_response("not_found", str(error), 404)
+
+
+def _notify_team_assignments(board: TeamBoard) -> None:
+    """팀 편성이 저장될 때마다 그 팀 소속 학생에게 배정 알림을 보낸다."""
+    for team in board.teams:
+        members = RoundParticipant.objects.filter(pk__in=team.participant_ids).select_related(
+            "user"
+        )
+        notify_users(
+            (member.user for member in members),
+            category=Notification.Category.TEAM_CREATED,
+            title="팀이 배정되었습니다",
+            message=f"'{team.name}'에 배정되었습니다.",
+        )
 
 
 def _json_payload(request: HttpRequest) -> dict[str, object]:

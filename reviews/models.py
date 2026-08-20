@@ -32,6 +32,14 @@ class ReviewSubmission(models.Model):
         related_name="received_peer_reviews",
     )
     submitted_at = models.DateTimeField(auto_now_add=True)
+    locked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "건별 확정 시각. 유형 전체를 잠그는 ReviewFinalSubmission과 달리, "
+            "이 건 하나만 더 이상 고칠 수 없게 한다(현재는 개인 평가에서만 쓴다)."
+        ),
+    )
 
     class Meta:
         ordering = ("submitted_at",)
@@ -203,6 +211,73 @@ class TutorReviewAnswer(models.Model):
                 condition=Q(rating_value__isnull=True)
                 | Q(rating_value__gte=1, rating_value__lte=5),
                 name="reviews_tutor_answer_rating_range",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.review_id}:{self.question_id}"
+
+
+class TutorTeamReview(models.Model):
+    """튜터가 팀 하나에 남기는 팀 평가.
+
+    학생끼리 하는 팀 평가(ReviewSubmission)와 저장을 분리한다 - 평가자가 회차 참가자가
+    아니라 튜터 계정이기 때문이다. TutorReview(개인평가)와 짝을 이루는 팀 단위 버전이다.
+    """
+
+    round = models.ForeignKey(
+        "rounds.EvaluationRound", on_delete=models.PROTECT, related_name="tutor_team_reviews"
+    )
+    evaluator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="tutor_team_reviews"
+    )
+    target_team = models.ForeignKey(
+        "teams.Team",
+        on_delete=models.PROTECT,
+        related_name="received_tutor_reviews",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("target_team__team_number", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("round", "evaluator", "target_team"),
+                name="reviews_tutor_team_review_target_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.evaluator} → {self.target_team} (튜터 팀평가)"
+
+
+class TutorTeamReviewAnswer(models.Model):
+    review = models.ForeignKey(TutorTeamReview, on_delete=models.CASCADE, related_name="answers")
+    question = models.ForeignKey(
+        "rounds.TemplateQuestion", on_delete=models.PROTECT, related_name="tutor_team_answers"
+    )
+    rating_value = models.PositiveSmallIntegerField(null=True, blank=True)
+    text_value = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("question__display_order",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("review", "question"), name="reviews_tutor_team_answer_question_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(rating_value__isnull=False, text_value="")
+                    | (Q(rating_value__isnull=True) & ~Q(text_value=""))
+                ),
+                name="reviews_tutor_team_answer_exactly_one_value",
+            ),
+            models.CheckConstraint(
+                condition=Q(rating_value__isnull=True)
+                | Q(rating_value__gte=1, rating_value__lte=5),
+                name="reviews_tutor_team_answer_rating_range",
             ),
         ]
 

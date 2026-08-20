@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% comment %}
+  500 화면은 context processor 없이(요청 객체 없이) 그려진다 - user·messages 같은
+  값에 기대지 않아야 한다. base.html은 그 경우 로그인 셸 쪽을 그리므로 auth_content가 쓰인다.
+{% endcomment %}
+{% block title %}서버에 문제가 생겼습니다 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}서버 오류{% endblock %}
+{% block content %}
+  {% include "errors/_error_card.html" with code="500" tone="error" icon="bi-exclamation-octagon" title="서버에 문제가 생겼습니다" message="잠시 뒤 다시 시도해 주세요. 같은 문제가 이어지면 운영 담당자에게 알려 주시면 도움이 됩니다." %}
+{% endblock %}
+{% block auth_content %}
+  {% include "errors/_error_card.html" with code="500" tone="error" icon="bi-exclamation-octagon" title="서버에 문제가 생겼습니다" message="잠시 뒤 다시 시도해 주세요. 같은 문제가 이어지면 운영 담당자에게 알려 주시면 도움이 됩니다." %}
+{% endblock %}

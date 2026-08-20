@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}잘못된 요청입니다 | AX Evaluation Console{% endblock %}
+{% block breadcrumb %}잘못된 요청{% endblock %}
+{% block content %}
+  {% include "errors/_error_card.html" with code="400" tone="warning" icon="bi-exclamation-diamond" title="잘못된 요청입니다" message="요청 형식이 올바르지 않아 처리하지 못했습니다. 이전 화면으로 돌아가 다시 시도해 주세요." %}
+{% endblock %}
+{% block auth_content %}
+  {% include "errors/_error_card.html" with code="400" tone="warning" icon="bi-exclamation-diamond" title="잘못된 요청입니다" message="요청 형식이 올바르지 않아 처리하지 못했습니다. 이전 화면으로 돌아가 다시 시도해 주세요." %}
+{% endblock %}

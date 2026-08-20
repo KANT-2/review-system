@@ -263,7 +263,12 @@ def mypage_view(request):
     return render(
         request,
         "accounts/mypage.html",
-        {"portal": portal, "is_student": is_student},
+        {
+            "portal": portal,
+            "is_student": is_student,
+            # base.html의 전역 "통합 피드백 센터" 모달(#feedbackModal)이 읽는 컨텍스트.
+            "feedbacks": portal["feedback"] if portal else None,
+        },
     )
 
 
@@ -372,6 +377,8 @@ def account_admin(request):
         ).order_by("-date_joined")
     )
     accounts = list(account_rows(role=role, status=status, query=query))
+    active_accounts = [account for account in accounts if account.is_active]
+    inactive_accounts = [account for account in accounts if not account.is_active]
     return render(
         request,
         "accounts/account_admin.html",
@@ -385,15 +392,15 @@ def account_admin(request):
             "pending_rest": pending_users[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
             "whitelist_form": WhitelistEntryForm(),
             "whitelist_entries": whitelist_rows(),
-            "accounts": accounts,
-            "accounts_head": accounts[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
-            "accounts_rest": accounts[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
+            "accounts": active_accounts,
+            "accounts_head": active_accounts[:ACCOUNT_ADMIN_VISIBLE_ROW_COUNT],
+            "accounts_rest": active_accounts[ACCOUNT_ADMIN_VISIBLE_ROW_COUNT:],
+            "inactive_accounts": inactive_accounts,
             "selected_role": role,
             "selected_status": status,
             "query": query,
             "role_choices": User.Role.choices,
             "status_choices": User.ApprovalStatus.choices,
-            "can_change_role": request.user.is_application_admin,
         },
     )
 
