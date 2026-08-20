@@ -174,7 +174,8 @@
                 {{ portal.selected.final_score|as_five_point|default:"N/A" }}<span class="ax-hero-unit">/ 5</span>
               </div>
               {% if portal.deltas.final_score %}
-                <div class="ax-hero-delta ax-hero-delta--{{ portal.deltas.final_score.direction }}">
+                <div class="ax-hero-delta ax-hero-delta--{{ portal.deltas.final_score.direction }}"
+                     title="{% if portal.deltas.final_score.direction == 'up' %}전 회차 대비 상승{% elif portal.deltas.final_score.direction == 'down' %}전 회차 대비 하락{% else %}전 회차와 동일{% endif %}">
                   {% if portal.deltas.final_score.direction == "up" %}
                     <i class="bi bi-caret-up-fill"></i>
                   {% elif portal.deltas.final_score.direction == "down" %}
@@ -218,7 +219,8 @@
               </div>
               <div class="ax-metric-right">
                 {% if portal.deltas.team_score %}
-                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.team_score.direction }}">
+                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.team_score.direction }}"
+                        title="{% if portal.deltas.team_score.direction == 'up' %}전 회차 대비 상승{% elif portal.deltas.team_score.direction == 'down' %}전 회차 대비 하락{% else %}전 회차와 동일{% endif %}">
                     {% if portal.deltas.team_score.direction == "up" %}
                       <i class="bi bi-caret-up-fill"></i>
                     {% elif portal.deltas.team_score.direction == "down" %}
@@ -239,7 +241,8 @@
               </div>
               <div class="ax-metric-right">
                 {% if portal.deltas.peer_score %}
-                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.peer_score.direction }}">
+                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.peer_score.direction }}"
+                        title="{% if portal.deltas.peer_score.direction == 'up' %}전 회차 대비 상승{% elif portal.deltas.peer_score.direction == 'down' %}전 회차 대비 하락{% else %}전 회차와 동일{% endif %}">
                     {% if portal.deltas.peer_score.direction == "up" %}
                       <i class="bi bi-caret-up-fill"></i>
                     {% elif portal.deltas.peer_score.direction == "down" %}

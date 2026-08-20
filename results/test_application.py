@@ -154,7 +154,7 @@ class ResultWorkflowTests(TestCase):
 
         mypage = self.client.get(reverse("accounts:mypage"))
         self.assertContains(mypage, "팀 40% · 개인 60%로 계산")
-        self.assertContains(mypage, '4.00<small class="fs-6">/5</small>', html=True)
+        self.assertContains(mypage, '4.00<span class="ax-hero-unit">/ 5</span>', html=True)
         self.assertNotContains(mypage, "다음 회차 편성 기준 점수")
 
     def test_tutor_team_review_blends_into_team_score_when_weight_enabled(self):
