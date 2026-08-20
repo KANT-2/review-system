@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest import TestCase
 
 from teams.application import create_auto_team_board
+from teams.services import AssignmentValidationError
 
 
 class CreateAutoTeamBoardTests(TestCase):
@@ -81,7 +82,8 @@ class CreateAutoTeamBoardTests(TestCase):
         self.assertLessEqual(result.optimization_count, 100)
 
     def test_rejects_team_count_below_two_without_creating_board(self):
-        with self.assertRaisesRegex(ValueError, "team_count must be at least 2"):
+        # AssignmentValidationError는 ValueError의 하위형이다 - 뷰가 500 대신 400으로 돌려준다.
+        with self.assertRaisesRegex(AssignmentValidationError, "팀은 2개 이상"):
             create_auto_team_board(
                 round_id=10,
                 lock_version=4,
@@ -91,7 +93,7 @@ class CreateAutoTeamBoardTests(TestCase):
             )
 
     def test_rejects_team_count_above_participant_count(self):
-        with self.assertRaisesRegex(ValueError, "cannot exceed the participant count"):
+        with self.assertRaisesRegex(AssignmentValidationError, "7명뿐이라 8개 팀으로"):
             create_auto_team_board(
                 round_id=10,
                 lock_version=4,
