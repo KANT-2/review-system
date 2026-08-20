@@ -167,6 +167,26 @@ class ServiceTeamsBackendTests(TestCase):
             [(10, (101, 102, 103))],
         )
 
+    def test_auto_assignment_ignores_exclusions_when_nobody_is_assigned_yet(self):
+        """새로 만든 회차는 전원이 '미배정'이라 화면이 전원을 제외로 넘긴다.
+
+        그대로 받아들이면 배치할 사람이 0명이 되어 자동 배치가 실패했다. 이때의 '미배정'은
+        일부러 뺀 사람이 아니라 아직 안 넣은 전원이므로 제외를 무시한다.
+        """
+        result = self.backend.create_auto_assignment(
+            10,
+            AutoAssignmentRequest(
+                team_count=2,
+                lock_version=4,
+                excluded_participant_ids=(101, 102, 103, 104),
+            ),
+        )
+
+        assigned_participants = {
+            participant_id for team in result.board.teams for participant_id in team.participant_ids
+        }
+        self.assertEqual(assigned_participants, {101, 102, 103, 104})
+
     def test_rejects_auto_assignment_for_stale_version_before_seed_queries(self):
         with self.assertRaises(TeamVersionConflictError):
             self.backend.create_auto_assignment(

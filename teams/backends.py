@@ -99,6 +99,11 @@ class ServiceTeamsBackend:
             for participant_id in current_round.participant_ids
             if participant_id not in excluded_ids
         )
+        # 전원이 제외로 넘어왔다면 그건 "다 빼 달라"가 아니라 아직 아무도 배정되지 않은
+        # 보드라는 뜻이다(새 회차가 그렇다). 그대로 두면 배치할 사람이 0명이라 실패하므로
+        # 제외를 무시하고 전원을 대상으로 삼는다.
+        if not assignable_participant_ids:
+            assignable_participant_ids = tuple(current_round.participant_ids)
         # 시드 점수는 화면에 계속 표시해야 하므로 제외된 참가자를 포함해 전원 조회한다.
         seed_scores = self.data_source.get_seed_scores(round_id, current_round.participant_ids)
         previous_pairs = self.data_source.get_previous_teammate_pairs(
