@@ -87,6 +87,21 @@ class AuditLogScreenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page"].paginator.count, 2)
 
+    def test_log_renders_event_after_actor_was_removed(self):
+        record_event(
+            action="CALCULATION_FAILED",
+            target=self.round,
+            actor=None,
+            round_obj=None,
+            summary={"reason": "removed actor"},
+        )
+
+        response = self.client.get(reverse("audit:log"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "채점 실패")
+        self.assertContains(response, "reason=removed actor")
+
     def test_students_cannot_read_the_audit_log(self):
         self.client.force_login(self.student)
 
