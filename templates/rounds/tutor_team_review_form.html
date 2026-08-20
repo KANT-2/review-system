@@ -5,7 +5,9 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ target.label }} 평가</h1>
-      <p class="page-desc">{{ target.description }} · 언제든 다시 저장하면 이전 내용을 덮어씁니다. 이 평가는 팀 점수 계산에 반영됩니다.</p>
+      <p class="page-desc">
+        {{ target.description }} · 언제든 다시 저장하면 이전 내용을 덮어씁니다. 서술형 답변은 학생 마이페이지의 "받은 피드백"에 튜터 실명으로 표시됩니다.
+      </p>
     </div>
     <a href="{% url 'rounds:tutor-team-review-list' round_obj.pk %}"
        class="btn btn-ax-secondary"><i class="bi bi-arrow-left me-1"></i>목록</a>
@@ -47,7 +49,13 @@
         {% endfor %}
       </div>
       <div class="card-body-custom border-top d-flex justify-content-between align-items-center gap-2">
-        <span class="text-muted small">이 평가는 팀 점수 계산에 반영됩니다.</span>
+        <span class="text-muted small">
+          {% if round_obj.tutor_score_weight %}
+            이 평가의 척도형 문항은 팀 점수 계산에 반영됩니다.
+          {% else %}
+            이 평가는 기록으로만 남고 팀 점수 계산에는 반영되지 않습니다.
+          {% endif %}
+        </span>
         <button class="btn btn-ax-primary flex-shrink-0" type="submit">{% if existing %}수정 저장{% else %}저장하기{% endif %}</button>
       </div>
     </section>
