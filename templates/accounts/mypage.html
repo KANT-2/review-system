@@ -26,7 +26,7 @@
     </div>
   </div>
   <div class="row g-4 mb-4">
-    <div class="{% if is_student %}col-12 col-lg-5{% else %}col-12{% endif %}">
+    <div class="{% if is_student %}col-12 col-lg-6{% else %}col-12{% endif %}">
       <section class="card-custom h-100 mb-0"
                aria-labelledby="account-profile-title">
         <div class="card-body-custom">
@@ -46,16 +46,46 @@
               </div>
             </div>
           </div>
+          {% if is_student %}
+            <hr class="my-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold font-size-135">
+                <i class="bi bi-chat-square-text-fill text-primary me-1"></i>받은 피드백
+              </span>
+              {% if portal.feedback.recent %}
+                <button type="button"
+                        class="btn btn-sm btn-ax-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#feedbackModal">더보기</button>
+              {% endif %}
+            </div>
+            {% if portal.feedback.recent %}
+              <ul class="list-unstyled mb-0">
+                {% for item in portal.feedback.recent %}
+                  <li class="{% if not forloop.last %}mb-2 pb-2 border-bottom{% endif %}">
+                    <div class="d-flex justify-content-between text-muted font-size-115">
+                      <span>{{ item.label }} · {{ item.week }}</span>
+                      <span>{{ item.date }}</span>
+                    </div>
+                    <div class="font-size-135 ax-feedback-clamp">{{ item.content }}</div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted text-center py-3 mb-0">아직 받은 피드백이 없습니다.</p>
+            {% endif %}
+          {% endif %}
         </div>
       </section>
     </div>
     {% if is_student %}
-      <div class="col-12 col-lg-7">
+      <div class="col-12 col-lg-6">
         <section class="card-custom h-100 mb-0"
                  aria-labelledby="competency-radar-title">
           <div class="card-header-custom">
             <div class="card-title-custom" id="competency-radar-title">
               <i class="bi bi-diagram-3-fill text-primary"></i>5대 역량 분석
+              <span class="text-muted fw-normal font-size-115 ms-1">· 전체 회차 누적</span>
             </div>
             {% if portal.competency.strengths %}
               <span class="text-muted font-size-115">
@@ -138,8 +168,11 @@
         <div class="card-body-custom">
           <div class="row g-3">
             <div class="col-6 col-lg-3">
-              <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100">
-                <div class="text-muted font-size-135">최종 점수</div>
+              <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100"
+                   title="팀 {{ portal.selected.team_score_weight }}% · 개인 {{ portal.selected.personal_score_weight }}%{% if portal.selected.tutor_score_weight %} · 튜터 {{ portal.selected.tutor_score_weight }}%{% endif %}로 계산 (선택한 회차 기준)">
+                <div class="text-muted font-size-135">
+                  최종 점수 <i class="bi bi-info-circle text-muted font-size-115"></i>
+                </div>
                 <div class="fs-3 fw-bold text-primary mt-1">
                   {{ portal.selected.final_score|as_five_point|default:"N/A" }}<small class="fs-6">/5</small>
                 </div>
@@ -182,7 +215,6 @@
           <hr class="my-4">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold font-size-135">회차별 점수</span>
-            <span class="text-muted font-size-115">팀 40% + 개인 60%로 최종 점수를 계산합니다</span>
           </div>
           <div class="ax-trend-compact">
             <canvas id="scoreTrendChart"></canvas>
@@ -203,6 +235,8 @@
   {% endif %}
 {% endblock %}
 {% block modals %}
+  {# "받은 피드백" 더보기 버튼은 base.html의 전역 #feedbackModal("통합 피드백 센터")을 연다 -
+     여기서 새로 만들면 같은 id가 두 번 나와 그쪽이 먼저 열려버린다. #}
   <div class="modal fade"
        id="profileModal"
        tabindex="-1"

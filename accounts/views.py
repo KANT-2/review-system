@@ -263,7 +263,12 @@ def mypage_view(request):
     return render(
         request,
         "accounts/mypage.html",
-        {"portal": portal, "is_student": is_student},
+        {
+            "portal": portal,
+            "is_student": is_student,
+            # base.html의 전역 "통합 피드백 센터" 모달(#feedbackModal)이 읽는 컨텍스트.
+            "feedbacks": portal["feedback"] if portal else None,
+        },
     )
 
 
