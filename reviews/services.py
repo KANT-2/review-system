@@ -108,9 +108,11 @@ def team_targets(participant):
 def peer_targets(participant):
     if not participant or not hasattr(participant, "team_membership"):
         return []
-    target_participants = RoundParticipant.objects.filter(
-        team_membership__team=participant.team_membership.team
-    ).exclude(pk=participant.pk)
+    target_participants = (
+        RoundParticipant.objects.select_related("user")
+        .filter(team_membership__team=participant.team_membership.team)
+        .exclude(pk=participant.pk)
+    )
     peer_submissions = ReviewSubmission.objects.filter(
         round=participant.round,
         evaluator=participant,
@@ -126,7 +128,10 @@ def peer_targets(participant):
         ReviewTargetRow(
             pk=target.pk,
             label=target.display_name_snapshot,
-            description=target.student_number_snapshot,
+            # 이름이 비어 있으면 label이 이미 이메일이다 - 같은 값을 두 번 보이지 않는다.
+            description=(
+                "" if target.display_name_snapshot == target.user.email else target.user.email
+            ),
             completed=target.pk in submitted_ids,
             url_name="reviews:peer-form",
             locked=target.pk in locked_ids,
@@ -367,6 +372,13 @@ def tutor_reviewable(round_obj):
     return round_obj.status != EvaluationRound.Status.DRAFT
 
 
+def _participant_email(participant):
+    """대상 줄에 덧붙일 이메일. 이름이 비어 label이 이미 이메일이면 생략한다."""
+    if participant.display_name_snapshot == participant.user.email:
+        return ""
+    return f"{participant.user.email} · "
+
+
 def tutor_review_targets(round_obj, tutor):
     """회차 참가자 전원 - 튜터가 이미 쓴 대상은 completed로 표시한다."""
     written_ids = set(
@@ -379,14 +391,16 @@ def tutor_review_targets(round_obj, tutor):
             pk=participant.pk,
             label=participant.display_name_snapshot,
             description=(
-                f"{participant.student_number_snapshot} · {participant.team_membership.team.name}"
+                f"{_participant_email(participant)}{participant.team_membership.team.name}"
                 if hasattr(participant, "team_membership")
-                else f"{participant.student_number_snapshot} · 팀 미배정"
+                else f"{_participant_email(participant)}팀 미배정"
             ),
             completed=participant.pk in written_ids,
             url_name="rounds:tutor-review-form",
         )
-        for participant in round_obj.participants.select_related("team_membership__team").all()
+        for participant in round_obj.participants.select_related(
+            "team_membership__team", "user"
+        ).all()
     ]
 
 

@@ -87,6 +87,17 @@ class RoundLifecycleTests(TestCase):
             self.team_template.name = "변경 금지"
             self.team_template.save()
 
+    def test_progress_screen_identifies_students_by_email(self):
+        """학번(R001)은 아무 데도 입력받지 않는 값이라 화면에서는 이메일로 사람을 가린다."""
+        start_round(round_id=self.round.pk, actor=self.tutor)
+        self.client.force_login(self.tutor)
+
+        response = self.client.get(reverse("rounds:reviews", args=(self.round.pk,)))
+
+        body = response.content.decode()
+        self.assertIn(self.students[0].email, body)
+        self.assertNotIn(self.students[0].student_number, body)
+
     def test_second_in_progress_round_is_rejected(self):
         start_round(round_id=self.round.pk, actor=self.tutor)
         other = EvaluationRound.objects.create(
