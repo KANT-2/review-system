@@ -6,7 +6,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ round_obj.title }} 튜터 개인평가</h1>
-      <p class="page-desc">수강생 한 명씩 직접 평가합니다. 이 평가는 기록으로만 남고 학생 최종 점수 계산에는 반영되지 않습니다.</p>
+      <p class="page-desc">수강생 한 명씩 직접 평가합니다. {% include "rounds/_tutor_review_weight_note.html" %}</p>
     </div>
     <div class="d-flex align-items-center gap-2">
       {% if targets %}

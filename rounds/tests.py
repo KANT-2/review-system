@@ -983,3 +983,75 @@ class RoundFormTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(EvaluationRound.objects.filter(title="잘못된 비율 회차").exists())
         self.assertContains(response, "100%")
+
+
+class TutorReviewWeightNoteTests(TestCase):
+    """튜터 평가 반영 여부 안내가 실제 채점 규칙과 같은 값에서 나와야 한다.
+
+    개인평가와 팀평가는 회차의 tutor_score_weight 하나로 함께 켜지고 꺼지는데, 화면에서는
+    개인평가가 "반영 안 됨", 팀평가가 "반영됨"으로 서로 반대로 적혀 있었다.
+    """
+
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="note-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.team_template = QuestionTemplate.objects.create(
+            name="팀 평가", category="TEAM", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.team_template, prompt="협업", response_type="RATING_5", display_order=1
+        )
+        self.peer_template = QuestionTemplate.objects.create(
+            name="개인 평가", category="PEER", created_by=self.tutor
+        )
+        TemplateQuestion.objects.create(
+            template=self.peer_template, prompt="기여", response_type="RATING_5", display_order=1
+        )
+        now = timezone.now()
+        self.round = EvaluationRound.objects.create(
+            title="문구 확인 회차",
+            evaluation_start_at=now,
+            evaluation_end_at=now + timedelta(days=1),
+            target_team_count=2,
+            team_template=self.team_template,
+            peer_template=self.peer_template,
+            created_by=self.tutor,
+            team_score_weight=30,
+            personal_score_weight=50,
+            tutor_score_weight=20,
+        )
+        self.client.force_login(self.tutor)
+
+    def _pages(self):
+        return [
+            reverse("rounds:tutor-review-list", args=(self.round.pk,)),
+            reverse("rounds:tutor-team-review-list", args=(self.round.pk,)),
+        ]
+
+    def test_weight_is_stated_from_the_round_setting(self):
+        for url in self._pages():
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                if "team" in url:
+                    self.assertContains(response, "팀 점수에 반영됩니다")
+                else:
+                    self.assertContains(response, "최종 점수에 20% 반영됩니다")
+
+    def test_zero_weight_says_the_round_does_not_score_tutor_reviews(self):
+        self.round.team_score_weight = 40
+        self.round.personal_score_weight = 60
+        self.round.tutor_score_weight = 0
+        self.round.save(
+            update_fields=["team_score_weight", "personal_score_weight", "tutor_score_weight"]
+        )
+
+        for url in self._pages():
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertContains(response, "점수에 넣지 않습니다")
+                self.assertNotContains(response, "반영됩니다")
