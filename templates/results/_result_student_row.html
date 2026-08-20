@@ -3,10 +3,12 @@
   <td class="text-end">{% include "results/_rank_cell.html" with rank=result.primary_rank %}</td>
   <td class="fw-semibold">
     {{ result.participant.display_name_snapshot }}
-    <div class="text-muted font-size-115">{{ result.participant.student_number_snapshot }}</div>
+    {% if result.participant.user.email != result.participant.display_name_snapshot %}
+      <div class="text-muted font-size-115">{{ result.participant.user.email }}</div>
+    {% endif %}
   </td>
-  <td>{{ result.participant.team_membership.team.name|default:"미배정" }}</td>
-  <td class="text-end">
+  <td class="ax-col-optional">{{ result.participant.team_membership.team.name|default:"미배정" }}</td>
+  <td class="text-end ax-col-optional">
     <div class="ax-math-cell">
       {% with team=result.team_score_raw|as_five_point peer=result.peer_score_raw|as_five_point tutor=result.tutor_score_raw|as_five_point %}
         <span class="ax-score-part">

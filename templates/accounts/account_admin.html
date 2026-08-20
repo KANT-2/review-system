@@ -407,7 +407,6 @@
             <thead>
               <tr>
                 <th scope="col">이메일</th>
-                <th scope="col">배정 기수</th>
                 <th scope="col" class="text-center">가입 상태</th>
                 <th scope="col">등록일</th>
                 <th scope="col" class="text-end">관리</th>
@@ -417,7 +416,6 @@
               {% for entry in whitelist_entries %}
                 <tr>
                   <td class="fw-semibold">{{ entry.email }}</td>
-                  <td class="text-muted">{{ entry.session_info|default:"-" }}</td>
                   <td class="text-center">
                     {% if entry.account %}
                       <span class="badge badge-ax badge-ax-completed">{{ entry.account.get_approval_status_display }}</span>

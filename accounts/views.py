@@ -34,7 +34,6 @@ from accounts.services import (
     account_rows,
     add_whitelist_emails,
     change_password,
-    change_user_role,
     finalize_password_login,
     finish_password_reset,
     remove_whitelist_email,
@@ -47,6 +46,7 @@ from accounts.services import (
     whitelist_rows,
 )
 from notices.services import active_notices
+from notifications.services import EMAIL_CAPABLE_CATEGORIES
 from results.application import (
     add_tutor_note,
     delete_all_tutor_notes,
@@ -208,7 +208,7 @@ def logout_view(request):
 
 
 def _needs_onboarding(user):
-    """수강생은 필수 프로필(이름·기수·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
+    """수강생은 필수 프로필(이름·연락처)을 채우기 전에는 평가 화면을 쓸 수 없다.
 
     가입 신청 때는 계정 정보만 받으므로(SignUpForm), 승인 뒤 본인이 직접 채운다. 소셜 가입도
     같은 경로를 지난다. 화면에서 가리는 것만으로는 막을 수 없어 서버에서 되돌려 보낸다.
@@ -225,7 +225,7 @@ def onboarding_view(request):
     if request.method == "POST" and form.is_valid():
         user = form.save(commit=False)
         user.is_onboarded = True
-        user.save(update_fields=["first_name", "session_info", "phone_number", "is_onboarded"])
+        user.save(update_fields=["first_name", "phone_number", "is_onboarded"])
         messages.success(request, "프로필 등록이 완료되었습니다. 이제 평가에 참여할 수 있습니다.")
         return redirect("accounts:dashboard")
     return render(request, "accounts/onboarding.html", {"form": form})
@@ -260,16 +260,45 @@ def mypage_view(request):
         if is_student
         else None
     )
+    email_preferences = [
+        {
+            "value": category.value,
+            "label": category.label,
+            "enabled": request.user.wants_email(category.value),
+        }
+        for category in EMAIL_CAPABLE_CATEGORIES
+    ]
     return render(
         request,
         "accounts/mypage.html",
         {
             "portal": portal,
             "is_student": is_student,
+            "email_preferences": email_preferences,
             # base.html의 전역 "통합 피드백 센터" 모달(#feedbackModal)이 읽는 컨텍스트.
             "feedbacks": portal["feedback"] if portal else None,
         },
     )
+
+
+@login_required
+@require_POST
+def update_email_preferences(request):
+    """마이페이지의 메일 수신 설정 - 종 알림은 그대로 두고 메일만 켜고 끈다.
+
+    본인 확인·비밀번호 재설정 메일은 계정을 지키는 수단이라 이 설정을 타지 않는다.
+    """
+    wanted = set(request.POST.getlist("email_categories"))
+    muted = [
+        category.value for category in EMAIL_CAPABLE_CATEGORIES if category.value not in wanted
+    ]
+    request.user.muted_email_categories = muted
+    request.user.save(update_fields=["muted_email_categories"])
+    messages.success(
+        request,
+        "메일 수신 설정을 저장했습니다." if muted else "모든 알림을 메일로도 받도록 설정했습니다.",
+    )
+    return redirect("accounts:mypage")
 
 
 @login_required
@@ -304,16 +333,15 @@ def whitelist_add(request):
     if not form.is_valid():
         messages.error(request, next(iter(form.errors.values()))[0])
         return redirect("accounts:account_admin")
-    added, updated = add_whitelist_emails(
+    added, existing = add_whitelist_emails(
         emails=form.cleaned_data["emails"],
-        session_info=form.cleaned_data["session_info"],
         actor=request.user,
     )
     parts = []
     if added:
         parts.append(f"{len(added)}건 등록")
-    if updated:
-        parts.append(f"{len(updated)}건 기수 갱신")
+    if existing:
+        parts.append(f"{len(existing)}건은 이미 등록되어 있어 건너뜀")
     messages.success(request, f"명단을 {', '.join(parts)}했습니다.")
     return redirect("accounts:account_admin")
 
@@ -424,20 +452,12 @@ def account_action(request, user_id, action):
         "require-password-reset": lambda: require_password_rotation(
             actor=request.user, target_id=user_id
         ),
-        "make-tutor": lambda: change_user_role(
-            actor=request.user, target_id=user_id, role=User.Role.TUTOR
-        ),
-        "make-student": lambda: change_user_role(
-            actor=request.user, target_id=user_id, role=User.Role.STUDENT
-        ),
     }
     messages_by_action = {
         "revert-approval": "승인 대기로 되돌렸습니다.",
         "activate": "계정을 다시 활성화했습니다.",
         "deactivate": "계정을 비활성화했습니다. 기존 로그인 세션도 끊겼습니다.",
         "require-password-reset": "다음 로그인에서 비밀번호를 새로 정하도록 했습니다.",
-        "make-tutor": "튜터로 역할을 바꿨습니다.",
-        "make-student": "수강생으로 역할을 바꿨습니다.",
     }
     handler = handlers.get(action)
     if handler is None:
@@ -572,14 +592,10 @@ def api_onboarding(request):
     data = _safe_json(request)
     if data is None:
         return JsonResponse({"success": False, "message": "잘못된 JSON 요청입니다."}, status=400)
-    fields = {
-        key: str(data.get(key, "")).strip()
-        for key in ("first_name", "session_info", "phone_number")
-    }
+    fields = {key: str(data.get(key, "")).strip() for key in ("first_name", "phone_number")}
     if (
         not all(fields.values())
         or len(fields["first_name"]) > 150
-        or len(fields["session_info"]) > 50
         or len(fields["phone_number"]) > 20
     ):
         return JsonResponse({"success": False, "message": "입력값을 확인해 주세요."}, status=400)
@@ -611,7 +627,7 @@ def update_profile_api(request):
             )
     else:
         data = request.POST.dict()
-    allowed = {"first_name": 150, "phone_number": 20, "session_info": 50}
+    allowed = {"first_name": 150, "phone_number": 20}
     for field, max_length in allowed.items():
         if field in data:
             value = str(data[field]).strip()

@@ -67,7 +67,7 @@
                 {{ event.target_type|cut:"accounts."|cut:"rounds."|cut:"results."|cut:"teams." }}
                 #{{ event.target_id }}
               </td>
-              <td class="text-muted font-size-115">
+              <td class="text-muted font-size-115 ax-cell-wrap">
                 {% for key, value in event.summary.items %}
                   {{ key }}={{ value }}{% if not forloop.last %} · {% endif %}
                 {% empty %}

@@ -470,7 +470,7 @@ def build_student_portal(user):
         members = [
             {
                 "participant_id": member.participant_id,
-                "student_number_snapshot": member.participant.student_number_snapshot,
+                "email": member.participant.user.email,
                 "display_name_snapshot": member.participant.display_name_snapshot,
                 "is_self": member.participant_id == participant.pk,
                 "evaluation_completed": (
@@ -478,7 +478,7 @@ def build_student_portal(user):
                     or member.participant_id in peer_completed_ids
                 ),
             }
-            for member in team.memberships.select_related("participant")
+            for member in team.memberships.select_related("participant__user")
         ]
 
     def _evaluation_rows(rows, *, category, label, completed):

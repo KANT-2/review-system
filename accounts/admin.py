@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
+from accounts.admin_permissions import AdminOnlyMixin
 from accounts.models import AuthThrottleBucket, User, WhitelistEmail
 
 
 @admin.register(User)
-class AccountUserAdmin(UserAdmin):
+class AccountUserAdmin(AdminOnlyMixin, UserAdmin):
     ordering = ("email",)
     list_display = (
         "email",
@@ -16,7 +17,21 @@ class AccountUserAdmin(UserAdmin):
         "is_active",
     )
     search_fields = ("email", "first_name", "student_number")
-    readonly_fields = ("auth_session_version", "email_needs_review")
+    # is_staff는 역할이 정한다(User.save) - 손으로 고치면 DB 제약과 어긋난다.
+    readonly_fields = ("auth_session_version", "email_needs_review", "is_staff")
+
+    def get_readonly_fields(self, request, obj=None):
+        """역할은 만들 때만 고른다.
+
+        앱 화면에서 역할 변경을 걷어냈는데(권한 상승 경로를 남기지 않기 위해서다) 관리자
+        화면에 남겨 두면 같은 경로가 그대로 있는 셈이다. 역할을 바꿔야 하면 계정을 다시
+        만든다 - 튜터는 한 명이라 실제로 일어날 일이 아니다.
+        """
+        fields = super().get_readonly_fields(request, obj)
+        if obj is not None:
+            return (*fields, "role")
+        return fields
+
     actions = ["send_custom_email_action"]
 
     @admin.action(description="선택한 수강생에게 공지 메일 발송")
@@ -39,7 +54,7 @@ class AccountUserAdmin(UserAdmin):
         (None, {"fields": ("email", "password")}),
         (
             "프로필",
-            {"fields": ("first_name", "student_number", "phone_number", "session_info")},
+            {"fields": ("first_name", "student_number", "phone_number")},
         ),
         (
             "권한과 상태",
@@ -75,7 +90,7 @@ class AccountUserAdmin(UserAdmin):
 
 @admin.register(WhitelistEmail)
 class WhitelistEmailAdmin(admin.ModelAdmin):
-    list_display = ("email", "session_info", "created_at")
+    list_display = ("email", "created_at")
     search_fields = ("email",)
     ordering = ("-created_at",)
 

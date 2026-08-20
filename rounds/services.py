@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from audit.services import record_event
 from notifications.models import Notification
-from notifications.services import notify_users
+from notifications.services import announce, notify_users
 from results.models import EvaluationResult
 from reviews.models import ReviewSubmission
 from rounds.models import (
@@ -43,7 +43,6 @@ def participant_snapshot_values(user):
 @transaction.atomic
 def save_round(*, form, actor):
     round_obj = form.save(commit=False)
-    is_create = round_obj.pk is None
     if round_obj.pk:
         current = EvaluationRound.objects.select_for_update().get(pk=round_obj.pk)
         if current.status != EvaluationRound.Status.DRAFT:
@@ -66,14 +65,8 @@ def save_round(*, form, actor):
             participant.save(update_fields=(*values.keys(),))
         else:
             RoundParticipant.objects.create(round=round_obj, user=user, **values)
-    if is_create and selected_users:
-        notify_users(
-            selected_users,
-            category=Notification.Category.ROUND_CREATED,
-            title="새 평가 회차가 생성되었습니다",
-            message=f"'{round_obj.title}' 회차가 생성되었습니다.",
-            link=reverse("reviews:home"),
-        )
+    # 회차를 만든 시점에는 팀 편성도 질문지도 확정되지 않아 학생이 할 수 있는 일이 없다.
+    # 알림은 제출이 실제로 열리는 start_round에서 보낸다.
     return round_obj
 
 
@@ -162,6 +155,22 @@ def start_round(*, round_id, actor, force_confirmed=False):
         actor=actor,
         round_obj=round_obj,
         summary={"participant_count": round_obj.participants.count()},
+    )
+    # 종 알림과 시작 안내 메일은 같은 사건이다 - 한 곳에서 함께 내보낸다.
+    from accounts.email_services import send_round_started_email
+
+    announce(
+        [participant.user for participant in round_obj.participants.select_related("user")],
+        category=Notification.Category.ROUND_STARTED,
+        title="평가가 시작되었습니다",
+        message=(
+            f"'{round_obj.title}' 평가를 제출할 수 있습니다. "
+            f"마감 {timezone.localtime(round_obj.evaluation_end_at):%m월 %d일 %H:%M}"
+        ),
+        link=reverse("reviews:home"),
+        email_sender=lambda users: send_round_started_email(
+            round_obj, [user.email for user in users]
+        ),
     )
     return round_obj
 

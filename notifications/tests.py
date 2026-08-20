@@ -4,6 +4,8 @@ from django.urls import reverse
 from accounts.models import User
 from notifications.models import Notification
 from notifications.services import (
+    EMAIL_CAPABLE_CATEGORIES,
+    announce,
     delete_all_notifications,
     delete_notification,
     mark_all_read,
@@ -183,3 +185,63 @@ class NotificationApiTests(TestCase):
 
         self.assertEqual(response.json()["unread_count"], 0)
         self.assertEqual(Notification.objects.filter(recipient=self.student).count(), 0)
+
+
+class AnnounceTests(TestCase):
+    """알림과 메일은 한 사건에서 함께 나가야 한다 - 따로 챙기다 결과 공개가 어긋났었다."""
+
+    def setUp(self):
+        self.students = [
+            User.objects.create_user(
+                email=f"announce-{index}@example.com",
+                password="strong-test-password",
+                role=User.Role.STUDENT,
+                approval_status=User.ApprovalStatus.APPROVED,
+            )
+            for index in range(3)
+        ]
+
+    def test_bell_notification_always_lands_even_when_mail_is_muted(self):
+        muted = self.students[0]
+        muted.muted_email_categories = [Notification.Category.RESULTS_PUBLISHED.value]
+        muted.save(update_fields=["muted_email_categories"])
+        mailed = []
+
+        announce(
+            self.students,
+            category=Notification.Category.RESULTS_PUBLISHED,
+            title="평가 결과가 공개되었습니다",
+            email_sender=lambda users: mailed.extend(user.email for user in users),
+        )
+
+        self.assertEqual(
+            Notification.objects.filter(category=Notification.Category.RESULTS_PUBLISHED).count(),
+            3,
+        )
+        self.assertNotIn(muted.email, mailed)
+        self.assertIn(self.students[1].email, mailed)
+
+    def test_categories_without_a_mail_template_only_ring_the_bell(self):
+        announce(
+            self.students,
+            category=Notification.Category.TEAM_CREATED,
+            title="팀이 배정되었습니다",
+        )
+
+        self.assertEqual(
+            Notification.objects.filter(category=Notification.Category.TEAM_CREATED).count(), 3
+        )
+        self.assertNotIn(Notification.Category.TEAM_CREATED, EMAIL_CAPABLE_CATEGORIES)
+
+    def test_mypage_switches_mail_off_without_touching_the_bell(self):
+        student = self.students[0]
+        self.client.force_login(student)
+
+        self.client.post(
+            reverse("accounts:email_preferences"),
+            {"email_categories": [Notification.Category.NOTICE.value]},
+        )
+
+        student.refresh_from_db()
+        self.assertFalse(student.wants_email(Notification.Category.SUBMISSION_REMINDER))
+        self.assertTrue(student.wants_email(Notification.Category.NOTICE))

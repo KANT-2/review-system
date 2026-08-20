@@ -41,9 +41,7 @@
             <div class="min-width-0">
               <h2 class="h5 fw-bold mb-1" id="account-profile-title">{{ user.first_name|default:"이름 미등록" }}</h2>
               <div class="text-muted font-size-135">{{ user.email }}</div>
-              <div class="text-muted font-size-135">
-                {{ user.session_info|default:"기수 미등록" }} · {{ user.phone_number|default:"연락처 미등록" }}
-              </div>
+              <div class="text-muted font-size-135">{{ user.phone_number|default:"연락처 미등록" }}</div>
             </div>
           </div>
           {% if is_student %}
@@ -135,6 +133,41 @@
       </div>
     {% endif %}
   </div>
+  <section class="card-custom mb-4" aria-labelledby="email-preferences-title">
+    <div class="card-header-custom">
+      <div class="card-title-custom" id="email-preferences-title">
+        <i class="bi bi-envelope-check text-primary"></i>메일 수신 설정
+      </div>
+      <span class="text-muted font-size-115">종 알림은 계속 받습니다</span>
+    </div>
+    <form method="post" action="{% url 'accounts:email_preferences' %}">
+      {% csrf_token %}
+      <div class="card-body-custom">
+        <p class="text-muted font-size-135">
+          알림이 생기면 화면 오른쪽 위 종에는 항상 표시됩니다. 여기서는 <strong>메일로도 받을지</strong>만 고릅니다.
+          본인 확인·비밀번호 재설정 메일은 계정을 지키는 수단이라 이 설정과 상관없이 항상 발송됩니다.
+        </p>
+        <div class="row g-2">
+          {% for preference in email_preferences %}
+            <div class="col-12 col-md-6">
+              <div class="form-check p-3 border rounded-3">
+                <input class="form-check-input"
+                       type="checkbox"
+                       name="email_categories"
+                       value="{{ preference.value }}"
+                       id="emailPref{{ preference.value }}"
+                       {% if preference.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="emailPref{{ preference.value }}">{{ preference.label }}</label>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-body-custom border-top d-flex justify-content-end">
+        <button type="submit" class="btn btn-ax-primary">수신 설정 저장</button>
+      </div>
+    </form>
+  </section>
   {% if is_student %}
     {% if portal %}
       <section class="ax-result-panel mb-4" aria-labelledby="my-result-title">
@@ -346,15 +379,6 @@
                      name="first_name"
                      maxlength="150"
                      value="{{ user.first_name }}">
-            </div>
-            <div class="mb-3">
-              <label class="form-label small fw-bold" for="profileSession">기수 정보</label>
-              <input type="text"
-                     class="form-control"
-                     id="profileSession"
-                     name="session_info"
-                     maxlength="50"
-                     value="{{ user.session_info }}">
             </div>
             <div class="mb-0">
               <label class="form-label small fw-bold" for="profilePhone">연락처</label>

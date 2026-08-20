@@ -1,16 +1,27 @@
-<aside id="sidebar">
+<aside id="sidebar"
+       class="offcanvas-lg offcanvas-start"
+       tabindex="-1"
+       aria-label="주 메뉴">
   <div>
     <div class="sidebar-header">
       <a href="{% url 'home' %}" class="sidebar-brand">
         <i class="bi bi-mortarboard-fill"></i>
         <span class="brand-text">AX Console</span>
       </a>
+      {% comment %}좁은 화면에서는 사이드바가 오프캔버스라 '접기'가 의미 없다 - 닫기 버튼으로 바꾼다.{% endcomment %}
       <button type="button"
-              class="btn btn-sm text-white p-0"
+              class="btn btn-sm text-white p-0 d-none d-lg-inline-flex"
               id="sidebar-toggle"
               title="사이드바 토글"
               aria-label="사이드바 접기 또는 펼치기">
         <i class="bi bi-list fs-5"></i>
+      </button>
+      <button type="button"
+              class="btn btn-sm text-white p-0 d-lg-none"
+              data-bs-dismiss="offcanvas"
+              data-bs-target="#sidebar"
+              aria-label="메뉴 닫기">
+        <i class="bi bi-x-lg fs-5"></i>
       </button>
     </div>
     {% if user.role == 'tutor' or user.role == 'admin' %}
@@ -46,9 +57,11 @@
         <li class="sidebar-nav-item"><a href="{% url 'audit:log' %}"
    title="감사 로그"
    class="sidebar-nav-link {% if request.resolver_match.namespace == 'audit' %}active{% endif %}"><i class="bi bi-clock-history"></i><span class="nav-text">감사 로그</span></a></li>
+        {% comment %}Django 관리자 화면은 운영 담당자(튜터·관리자)가 원본 데이터를 직접 볼 때 쓴다.
+        계정 관리는 관리자에게만 열린다(accounts.admin_permissions) - 예전 문구는 사실과 달랐다.{% endcomment %}
         {% if user.is_staff %}<li class="sidebar-nav-item"><a href="{% url 'admin:index' %}"
-   title="템플릿·계정 관리"
-   class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">템플릿·계정 관리</span></a></li>{% endif %}
+   title="원본 데이터 관리"
+   class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">원본 데이터 관리</span></a></li>{% endif %}
       </ul>
     {% else %}
       <div class="nav-section-title">홈</div>

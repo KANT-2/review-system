@@ -39,7 +39,7 @@ class SignUpForm(forms.Form):
     확인 메일을 보낼 수 없는 환경이라(발신 도메인 PTR 미설정) 이메일 소유 확인 단계 없이
     바로 계정을 만든다. 명단(WhitelistEmail)에 없는 계정은 튜터 승인을 기다린다.
 
-    이름·소속 기수·연락처는 승인 뒤 온보딩(OnboardingForm)에서 본인이 직접 입력한다 -
+    이름·연락처는 승인 뒤 온보딩(OnboardingForm)에서 본인이 직접 입력한다 -
     승인 전에 개인정보를 미리 받아두지 않는다.
     """
 
@@ -88,23 +88,19 @@ class PasswordChangeForm(forms.Form):
 class OnboardingForm(forms.ModelForm):
     """승인된 수강생이 평가에 참여하기 전에 한 번 채우는 필수 프로필.
 
-    가입 신청에서는 이메일만 받으므로(SignUpForm) 이름·기수·연락처는 여기서 본인이 입력한다.
+    가입 신청에서는 이메일만 받으므로(SignUpForm) 이름·연락처는 여기서 본인이 입력한다.
     """
 
     class Meta:
         model = User
-        fields = ["first_name", "session_info", "phone_number"]
+        fields = ["first_name", "phone_number"]
         labels = {
             "first_name": "이름",
-            "session_info": "소속 기수 / 세션",
             "phone_number": "연락처",
         }
         widgets = {
             "first_name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "실명을 입력해 주세요"}
-            ),
-            "session_info": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "예: 5기 풀스택"}
             ),
             "phone_number": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "010-0000-0000"}
@@ -145,12 +141,6 @@ class WhitelistEntryForm(forms.Form):
             }
         ),
         help_text="한 줄에 하나씩 붙여넣으면 한 번에 등록됩니다.",
-    )
-    session_info = forms.CharField(
-        label="배정 기수",
-        max_length=50,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "예: 5기 풀스택"}),
     )
 
     def clean_emails(self):

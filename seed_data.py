@@ -30,7 +30,6 @@ def ensure_user(
     name,
     role,
     approval_status,
-    session_info,
     phone_number="",
     student_number="",
 ):
@@ -43,7 +42,6 @@ def ensure_user(
             first_name=name,
             role=role,
             approval_status=approval_status,
-            session_info=session_info,
             phone_number=phone_number,
             student_number=student_number or None,
             is_onboarded=approval_status == User.ApprovalStatus.APPROVED,
@@ -52,7 +50,6 @@ def ensure_user(
         user.first_name = name
         user.role = role
         user.approval_status = approval_status
-        user.session_info = session_info
         user.phone_number = phone_number
         if student_number:
             user.student_number = student_number
@@ -202,22 +199,14 @@ def ensure_review_data(
 
 def seed():
     print("Creating student whitelist entries...")
-    for email, session_info in (
-        ("student1@ax.com", "4기 풀스택 트랙"),
-        ("student2@ax.com", "4기 프론트엔드 트랙"),
-        ("student3@ax.com", "4기 백엔드 트랙"),
-    ):
-        WhitelistEmail.objects.update_or_create(
-            email=email,
-            defaults={"session_info": session_info},
-        )
+    for email in ("student1@ax.com", "student2@ax.com", "student3@ax.com"):
+        WhitelistEmail.objects.get_or_create(email=email)
 
     tutor = ensure_user(
         email="tutor@ax.com",
         name="박교수",
         role=User.Role.TUTOR,
         approval_status=User.ApprovalStatus.APPROVED,
-        session_info="메인 튜터",
     )
     students = [
         ensure_user(
@@ -225,7 +214,6 @@ def seed():
             name="김민준",
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
-            session_info="4기 풀스택 트랙",
             phone_number="010-1234-5678",
             student_number="AX202601",
         )
@@ -246,7 +234,6 @@ def seed():
                 name=name,
                 role=User.Role.STUDENT,
                 approval_status=User.ApprovalStatus.APPROVED,
-                session_info="4기 풀스택 트랙",
                 student_number=f"AX2026{index:02d}",
             )
         )
@@ -256,7 +243,6 @@ def seed():
             name="테스트학생",
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.APPROVED,
-            session_info="4기 풀스택 트랙",
             student_number="AX202607",
         )
     )
@@ -269,7 +255,6 @@ def seed():
             name=name,
             role=User.Role.STUDENT,
             approval_status=User.ApprovalStatus.PENDING,
-            session_info="4기 신청자",
         )
 
     team_template = ensure_template(

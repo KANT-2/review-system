@@ -83,11 +83,12 @@ class User(AbstractUser):
     )
     is_onboarded = models.BooleanField(_("온보딩 완료 여부"), default=False)
     is_social_account = models.BooleanField(_("소셜 계정 여부"), default=False)
-    session_info = models.CharField(_("기수 정보"), max_length=50, blank=True, default="")
     student_number = models.CharField(
         _("수강생 식별번호"), max_length=32, null=True, blank=True, unique=True
     )
     phone_number = models.CharField(_("연락처"), max_length=20, blank=True, default="")
+    # 마이페이지에서 종류별로 끄고 켠다. 비어 있으면 전부 받는다(기본값).
+    muted_email_categories = models.JSONField(_("메일로 받지 않을 알림"), default=list, blank=True)
     # 마이페이지에서 본인이 올린다. 비어 있으면 이름 첫 글자 아바타를 그대로 쓴다.
     profile_image = models.ImageField(
         _("프로필 사진"), upload_to="profiles/", blank=True, null=True
@@ -106,9 +107,10 @@ class User(AbstractUser):
         verbose_name_plural = _("사용자 목록")
         constraints = [
             models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique"),
+            # 튜터도 운영 담당자라 관리자 화면을 쓴다. 수강생은 여전히 들어갈 수 없다.
             models.CheckConstraint(
-                condition=(models.Q(is_staff=True, role="admin"))
-                | (models.Q(is_staff=False) & ~models.Q(role="admin")),
+                condition=models.Q(is_staff=True, role__in=("admin", "tutor"))
+                | models.Q(is_staff=False, role="student"),
                 name="accounts_staff_role_consistent",
             ),
             models.CheckConstraint(
@@ -118,8 +120,19 @@ class User(AbstractUser):
             ),
         ]
 
+    #: 관리자 화면을 쓰는 역할. 제약(accounts_staff_role_consistent)과 같은 목록이어야 한다.
+    STAFF_ROLES = ("admin", "tutor")
+
     def save(self, *args, **kwargs):
         self.email = canonicalize_email(self.email)
+        # 역할이 접근 권한을 정한다 - 역할만 바꾸면 관리자 화면 접근이 따라온다.
+        # queryset.update()처럼 save()를 건너뛰는 경로는 위 DB 제약이 막는다.
+        expected_staff = self.role in self.STAFF_ROLES
+        if self.is_staff != expected_staff:
+            self.is_staff = expected_staff
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = {*update_fields, "is_staff"}
         if self.pk:
             previous_email = (
                 type(self).objects.filter(pk=self.pk).values_list("email", flat=True).first()
@@ -137,6 +150,13 @@ class User(AbstractUser):
         social_account = self.socialaccount_set.order_by("provider").first()
         return social_account.provider if social_account else "email"
 
+    def wants_email(self, category):
+        """이 종류를 메일로도 받을지. 종 알림은 이 설정과 무관하게 항상 남는다.
+
+        본인 확인·비밀번호 재설정 메일은 계정을 지키는 수단이라 이 경로를 타지 않는다.
+        """
+        return str(category) not in (self.muted_email_categories or [])
+
     @property
     def is_application_admin(self):
         return (
@@ -149,7 +169,6 @@ class User(AbstractUser):
 
 class WhitelistEmail(models.Model):
     email = models.EmailField(_("사전 등록 이메일"), unique=True)
-    session_info = models.CharField(_("배정 기수"), max_length=50, blank=True, default="")
     created_at = models.DateTimeField(_("등록 일시"), auto_now_add=True)
 
     class Meta:

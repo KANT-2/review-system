@@ -67,7 +67,7 @@ def manage_results(request, round_id):
         )
         individual_results = list(
             run.results.filter(result_type=EvaluationResult.ResultType.INDIVIDUAL)
-            .select_related("participant", "participant__team_membership__team")
+            .select_related("participant__user", "participant__team_membership__team")
             .order_by(
                 F("primary_rank").asc(nulls_last=True),
                 "participant__display_name_snapshot",

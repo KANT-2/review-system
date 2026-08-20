@@ -1,10 +1,11 @@
 from django.contrib import admin
 
+from accounts.admin_permissions import OperationsReadOnlyAdminMixin
 from audit.models import AuditEvent
 
 
 @admin.register(AuditEvent)
-class AuditEventAdmin(admin.ModelAdmin):
+class AuditEventAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("created_at", "action", "target_type", "target_id", "actor", "result")
     list_filter = ("action", "result")
     search_fields = ("target_id", "actor__email")

@@ -1,9 +1,10 @@
 from django.contrib import admin
 
+from accounts.admin_permissions import OperationsReadOnlyAdminMixin
 from reviews.models import ReviewAnswer, ReviewSubmission
 
 
-class ReviewAnswerInline(admin.TabularInline):
+class ReviewAnswerInline(OperationsReadOnlyAdminMixin, admin.TabularInline):
     model = ReviewAnswer
     extra = 0
     readonly_fields = ("question", "rating_value", "text_value", "created_at")
@@ -16,7 +17,7 @@ class ReviewAnswerInline(admin.TabularInline):
 
 
 @admin.register(ReviewSubmission)
-class ReviewSubmissionAdmin(admin.ModelAdmin):
+class ReviewSubmissionAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = (
         "round",
         "review_type",
@@ -47,7 +48,7 @@ class ReviewSubmissionAdmin(admin.ModelAdmin):
 
 
 @admin.register(ReviewAnswer)
-class ReviewAnswerAdmin(admin.ModelAdmin):
+class ReviewAnswerAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     readonly_fields = ("submission", "question", "rating_value", "text_value", "created_at")
 
     def has_add_permission(self, request):

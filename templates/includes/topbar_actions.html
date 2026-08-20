@@ -29,7 +29,7 @@
               aria-expanded="false"
               aria-label="사용자 프로필 메뉴 열기">
         <div class="member-avatar avatar-xs">{{ display_name|slice:":1" }}</div>
-        <span class="fw-semibold small">{{ display_name }} ({{ user.session_info|default:"기수미지정" }})</span>
+        <span class="fw-semibold small">{{ display_name }}</span>
         <i class="font-size-11 bi bi-chevron-down text-muted" aria-hidden="true"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end shadow-sm"
