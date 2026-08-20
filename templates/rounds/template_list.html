@@ -9,14 +9,12 @@
     </div>
     <a href="{% url 'rounds:template-create' %}" class="btn btn-ax-primary">새 템플릿</a>
   </div>
-
   <div class="ax-view-toggle mb-3">
     <a href="{% url 'rounds:template-list' %}"
        class="ax-view-toggle-btn {% if not archived_only %}active{% endif %}">전체 <span class="ax-view-toggle-count">{{ total_count }}</span></a>
     <a href="{% url 'rounds:template-list' %}?view=archived"
        class="ax-view-toggle-btn {% if archived_only %}active{% endif %}">보관됨 <span class="ax-view-toggle-count">{{ archived_count }}</span></a>
   </div>
-
   <section class="card-custom">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
@@ -87,12 +85,14 @@
                       </form>
                     {% endif %}
                     {% if template.is_archived %}
-                      <form method="post" action="{% url 'rounds:template-restore' template.pk %}">
+                      <form method="post"
+                            action="{% url 'rounds:template-restore' template.pk %}">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-ax-secondary">복원</button>
                       </form>
                     {% elif template.locked %}
-                      <form method="post" action="{% url 'rounds:template-archive' template.pk %}">
+                      <form method="post"
+                            action="{% url 'rounds:template-archive' template.pk %}">
                         {% csrf_token %}
                         <button type="submit"
                                 class="btn btn-sm btn-outline-secondary"
@@ -115,9 +115,7 @@
               <td colspan="6">
                 <div class="ax-empty-state">
                   <i class="bi bi-card-checklist"></i>
-                  <p class="fw-semibold mb-2">
-                    {% if archived_only %}보관된 템플릿이 없습니다{% else %}아직 데이터가 없습니다{% endif %}
-                  </p>
+                  <p class="fw-semibold mb-2">{% if archived_only %}보관된 템플릿이 없습니다{% else %}아직 데이터가 없습니다{% endif %}</p>
                   <p class="text-muted mb-3">
                     {% if archived_only %}
                       사용 중인 템플릿을 보관하면 여기에 모입니다.
