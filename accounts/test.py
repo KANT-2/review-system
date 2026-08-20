@@ -1206,6 +1206,47 @@ class StudentDashboardTests(TestCase):
             TeamMembership.objects.create(team=team_two, participant=participant)
         self.client.force_login(self.students[0])
 
+    def test_dashboard_says_submission_has_not_opened_yet(self):
+        """회차가 시작돼도 평가 기간 전이면 아직 낼 수 없다.
+
+        예전에는 "마감 D-N"에 제출 링크까지 내밀어서, 눌러 들어가야 "기간이 아닙니다"를
+        만났다. 상태·날짜·버튼 문구를 기간에 맞춰 적는다.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        self.round.evaluation_start_at = now + timedelta(days=2)
+        self.round.evaluation_end_at = now + timedelta(days=5)
+        self.round.save(update_fields=["evaluation_start_at", "evaluation_end_at"])
+
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        self.assertEqual(response.context["portal"]["round"]["window_state"], "BEFORE")
+        self.assertFalse(response.context["portal"]["round"]["is_open"])
+        # 제출할 수 없는 기간이므로 급할 일도 없다.
+        self.assertFalse(response.context["portal"]["round"]["is_urgent"])
+        self.assertContains(response, "제출 시작 전")
+        self.assertContains(response, "문항 미리 보기")
+        self.assertNotContains(response, "마감임박")
+
+    def test_dashboard_says_submission_is_closed(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        self.round.evaluation_start_at = now - timedelta(days=5)
+        self.round.evaluation_end_at = now - timedelta(days=1)
+        self.round.save(update_fields=["evaluation_start_at", "evaluation_end_at"])
+
+        response = self.client.get(reverse("accounts:dashboard"))
+
+        self.assertEqual(response.context["portal"]["round"]["window_state"], "CLOSED")
+        self.assertContains(response, "제출 마감됨")
+        self.assertFalse(response.context["portal"]["round"]["is_urgent"])
+
     def test_dashboard_marks_an_urgent_deadline_while_work_remains(self):
         response = self.client.get(reverse("accounts:dashboard"))
 
