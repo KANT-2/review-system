@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
@@ -568,6 +569,7 @@ def send_submission_reminders_view(request, round_id):
         category=Notification.Category.SUBMISSION_REMINDER,
         title="아직 제출하지 않은 평가가 있습니다",
         message=f"'{round_obj.title}' 회차의 팀·개인 평가를 확인해 주세요.",
+        link=reverse("reviews:home"),
     )
 
     messages.success(

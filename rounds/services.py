@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
+from django.urls import reverse
 from django.utils import timezone
 
 from audit.services import record_event
@@ -71,6 +72,7 @@ def save_round(*, form, actor):
             category=Notification.Category.ROUND_CREATED,
             title="새 평가 회차가 생성되었습니다",
             message=f"'{round_obj.title}' 회차가 생성되었습니다.",
+            link=reverse("reviews:home"),
         )
     return round_obj
 
@@ -269,6 +271,7 @@ def complete_round(*, round_id, actor, force_confirmed=False):
         category=Notification.Category.ROUND_COMPLETED,
         title="평가가 종료되었습니다",
         message=f"'{round_obj.title}' 회차 평가가 종료되었습니다.",
+        link=reverse("accounts:mypage"),
     )
     return round_obj
 

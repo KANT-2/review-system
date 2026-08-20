@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -19,6 +20,22 @@ def _require_operations(user):
 def portal(request):
     _require_operations(request.user)
     return render(request, "notices/portal.html", {"notices": notice_rows()})
+
+
+@login_required
+def notice_detail_json(request, notice_id):
+    """알림에서 공지 클릭 시 모달에 띄울 내용 - 대시보드 공지 바 밖에서도 열 수 있어야 한다.
+
+    비공개로 전환됐거나 삭제된 공지는 알림에 남아 있어도 더 이상 원문을 보여주지 않는다.
+    """
+    notice = get_object_or_404(Notice, pk=notice_id, is_published=True)
+    return JsonResponse(
+        {
+            "title": notice.title,
+            "content": notice.content,
+            "created_at": notice.created_at.isoformat(),
+        }
+    )
 
 
 @login_required

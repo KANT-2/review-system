@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.email_services import (
@@ -112,6 +113,7 @@ def process_auto_submission_reminders():
             category=Notification.Category.SUBMISSION_REMINDER,
             title="마감이 얼마 남지 않았습니다",
             message=f"'{round_obj.title}' 회차의 팀·개인 평가를 아직 제출하지 않았습니다.",
+            link=reverse("reviews:home"),
         )
 
         round_obj.auto_reminder_sent_at = now

@@ -25,7 +25,10 @@ def _notify_students_of_notice(notice):
         category=Notification.Category.NOTICE,
         title="새 공지가 등록되었습니다",
         message=notice.title,
-        link=reverse("accounts:dashboard"),
+        # NOTICE 알림은 페이지 이동이 아니라 모달로 바로 띄운다 - 프론트(notifications.js)가
+        # 이 주소를 fetch해서 내용을 채운다. 나중에 이 공지가 비공개·삭제되면 404가 나고,
+        # 그때는 알림을 눌러도 조용히 실패 토스트만 뜬다(_openItem 쪽 처리).
+        link=reverse("notices:notice-detail-json", kwargs={"notice_id": notice.pk}),
     )
 
 

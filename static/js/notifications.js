@@ -4,7 +4,9 @@
   const POLL_INTERVAL_MS = 20000;
   const SUMMARY_URL = "/notifications/summary/";
   const MARK_ALL_READ_URL = "/notifications/mark-all-read/";
+  const DELETE_ALL_URL = "/notifications/delete-all/";
   const markReadUrl = (id) => `/notifications/${id}/read/`;
+  const deleteUrl = (id) => `/notifications/${id}/delete/`;
 
   function csrfToken() {
     const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
@@ -59,6 +61,8 @@
 
       this.panel = this._buildPanel();
       document.body.appendChild(this.panel);
+      this.noticeModalEl = this._buildNoticeModal();
+      document.body.appendChild(this.noticeModalEl);
 
       this.bell.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -81,7 +85,11 @@
       panel.innerHTML = `
         <div class="ax-notification-panel-header">
           <span class="fw-semibold small">알림</span>
-          <button type="button" class="btn btn-sm btn-link p-0 small" id="axNotificationMarkAllRead">모두 읽음</button>
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-link p-0 small" id="axNotificationMarkAllRead">모두 읽음</button>
+            <span class="text-muted small">·</span>
+            <button type="button" class="btn btn-sm btn-link p-0 small text-danger" id="axNotificationDeleteAll">전체 삭제</button>
+          </div>
         </div>
         <div class="ax-notification-panel-body custom-scroll" id="axNotificationList">
           <p class="ax-notification-empty">알림이 없습니다.</p>
@@ -90,7 +98,35 @@
       panel
         .querySelector("#axNotificationMarkAllRead")
         .addEventListener("click", () => this.markAllRead());
+      panel
+        .querySelector("#axNotificationDeleteAll")
+        .addEventListener("click", () => this.deleteAll());
       return panel;
+    }
+
+    // 알림에서 공지를 누르면 대시보드로 이동하는 대신, 어느 페이지에서든 바로 내용을
+    // 볼 수 있게 모달을 하나 만들어 둔다(대시보드 공지 바의 모달은 대시보드에만 있다).
+    _buildNoticeModal() {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div class="modal fade" id="axNoticeDetailModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content rounded-4 border-0 shadow">
+              <div class="modal-header border-bottom px-4 py-3">
+                <h6 class="modal-title fw-bold" id="axNoticeDetailTitle">
+                  <i class="bi bi-megaphone-fill text-primary me-2"></i>공지 상세
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+              </div>
+              <div class="modal-body p-4 custom-scroll" id="axNoticeDetailBody"></div>
+              <div class="modal-footer border-top-0 px-4 pb-3">
+                <button type="button" class="btn btn-ax-secondary px-4" data-bs-dismiss="modal">닫기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      return wrapper.firstElementChild;
     }
 
     _position() {
@@ -144,19 +180,29 @@
       list.innerHTML = "";
       items.forEach((item) => {
         const { icon, variant } = categoryIcon(item.category);
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `ax-notification-item${item.is_read ? "" : " unread"}`;
-        button.innerHTML = `
-          <div class="ax-notification-item-icon ax-notification-icon--${variant}"><i class="bi ${icon}"></i></div>
-          <div class="ax-notification-item-body">
-            <div class="ax-notification-item-title">${escapeHtml(item.title)}</div>
-            ${item.message ? `<div class="ax-notification-item-message">${escapeHtml(item.message)}</div>` : ""}
-            <div class="ax-notification-item-time">${timeAgo(item.created_at)}</div>
-          </div>
+        // 바깥은 button이 아니라 div다 - 안에 "본문(클릭 시 이동/모달)"과 "삭제" 두 개의
+        // 별도 버튼이 들어가서, button 안에 button을 못 넣는 제약을 피한다.
+        const row = document.createElement("div");
+        row.className = `ax-notification-item${item.is_read ? "" : " unread"}`;
+        row.innerHTML = `
+          <button type="button" class="ax-notification-item-body-btn">
+            <div class="ax-notification-item-icon ax-notification-icon--${variant}"><i class="bi ${icon}"></i></div>
+            <div class="ax-notification-item-body">
+              <div class="ax-notification-item-title">${escapeHtml(item.title)}</div>
+              ${item.message ? `<div class="ax-notification-item-message">${escapeHtml(item.message)}</div>` : ""}
+              <div class="ax-notification-item-time">${timeAgo(item.created_at)}</div>
+            </div>
+          </button>
+          <button type="button" class="ax-notification-item-delete" aria-label="알림 삭제">
+            <i class="bi bi-x-lg"></i>
+          </button>
         `;
-        button.addEventListener("click", () => this._openItem(item));
-        list.appendChild(button);
+        row.querySelector(".ax-notification-item-body-btn").addEventListener("click", () => this._openItem(item));
+        row.querySelector(".ax-notification-item-delete").addEventListener("click", (event) => {
+          event.stopPropagation();
+          this.deleteItem(item.id);
+        });
+        list.appendChild(row);
       });
     }
 
@@ -167,6 +213,11 @@
           headers: { "X-CSRFToken": csrfToken() },
         });
       }
+      if (item.category === "NOTICE" && item.link) {
+        await this._openNoticeModal(item.link);
+        this.refresh();
+        return;
+      }
       if (item.link) {
         window.location.href = item.link;
         return;
@@ -174,8 +225,47 @@
       this.refresh();
     }
 
+    async _openNoticeModal(detailUrl) {
+      try {
+        const response = await fetch(detailUrl, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error("not found");
+        const notice = await response.json();
+        const body = this.noticeModalEl.querySelector("#axNoticeDetailBody");
+        const created = new Date(notice.created_at);
+        const dateLabel = Number.isNaN(created.getTime())
+          ? ""
+          : created.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+        body.innerHTML = `
+          <h6 class="fw-bold mb-2">${escapeHtml(notice.title)}</h6>
+          <div class="small text-muted mb-3">${escapeHtml(dateLabel)}</div>
+          <div>${escapeHtml(notice.content).replace(/\n/g, "<br>")}</div>
+        `;
+        bootstrap.Modal.getOrCreateInstance(this.noticeModalEl).show();
+      } catch (error) {
+        if (window.showToast) {
+          window.showToast("공지를 찾을 수 없습니다. 삭제되었거나 비공개로 전환됐을 수 있습니다.", "bi-exclamation-triangle-fill text-danger");
+        }
+      }
+    }
+
     async markAllRead() {
       await fetch(MARK_ALL_READ_URL, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken() },
+      });
+      this.refresh();
+    }
+
+    async deleteItem(id) {
+      await fetch(deleteUrl(id), {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken() },
+      });
+      this.refresh();
+    }
+
+    async deleteAll() {
+      await fetch(DELETE_ALL_URL, {
         method: "POST",
         headers: { "X-CSRFToken": csrfToken() },
       });

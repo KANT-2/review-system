@@ -2,7 +2,14 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from notifications.services import mark_all_read, mark_read, recent_notifications, unread_count
+from notifications.services import (
+    delete_all_notifications,
+    delete_notification,
+    mark_all_read,
+    mark_read,
+    recent_notifications,
+    unread_count,
+)
 
 
 def _serialize(notification):
@@ -40,4 +47,18 @@ def mark_read_view(request, notification_id):
 @require_POST
 def mark_all_read_view(request):
     mark_all_read(request.user)
+    return JsonResponse({"unread_count": 0})
+
+
+@login_required
+@require_POST
+def delete_view(request, notification_id):
+    delete_notification(user=request.user, notification_id=notification_id)
+    return JsonResponse({"unread_count": unread_count(request.user)})
+
+
+@login_required
+@require_POST
+def delete_all_view(request):
+    delete_all_notifications(request.user)
     return JsonResponse({"unread_count": 0})
