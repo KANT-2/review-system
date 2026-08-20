@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}평가 제출 | AX Evaluation Console{% endblock %}
 {% block breadcrumb %}평가 제출{% endblock %}
-
 {% block extra_head %}
-<style>
+  <style>
   /* 이 페이지 전용 - 팀 평가/개인 평가 두 컬럼과 "고쳐 쓰기" 슬라이드 패널. 색상·간격은
      custom.css의 --ax-* 토큰을 그대로 쓴다(다크모드 자동 대응). */
   .review-column-card { display: flex; flex-direction: column; height: 100%; }
@@ -59,9 +58,8 @@
     /* 좁은 화면에서는 컬럼이 세로로 쌓이므로 패널도 전체 폭으로 덮는다 */
     .slide-panel { width: 100%; }
   }
-</style>
+  </style>
 {% endblock %}
-
 {% block content %}
   <div class="page-header">
     <div>
@@ -69,7 +67,6 @@
       <p class="page-desc">팀 평가와 개인 평가를 한 화면에서 확인하고 제출합니다.</p>
     </div>
   </div>
-
   {% if not participant %}
     <section class="card-custom">
       <div class="card-body-custom text-center py-5">
@@ -86,7 +83,6 @@
     {% elif window_state == 'CLOSED' %}
       <div class="alert alert-warning">평가 기간이 종료되어 더 이상 제출·수정할 수 없습니다.</div>
     {% endif %}
-
     <div class="row g-3 align-items-stretch review-row">
       <div class="col-lg-6 d-flex flex-column">
         <section class="card-custom review-column-card">
@@ -125,9 +121,7 @@
                             data-form-id="teamFinalSubmitForm"
                             data-final-title="팀 평가 확정"
                             data-final-msg="팀 평가를 최종 제출하면 더 이상 고칠 수 없습니다. 진행할까요?"
-                            {% if not team_final_state.can_finalize %}disabled{% endif %}>
-                      평가 확정
-                    </button>
+                            {% if not team_final_state.can_finalize %}disabled{% endif %}>평가 확정</button>
                   {% endif %}
                 </div>
               </div>
@@ -139,15 +133,16 @@
             {% endfor %}
           </div>
         </section>
-
         {% if team_targets %}
           {# 카드 안 "평가 확정" 버튼이 그대로 쓰는 실제 제출 폼 - 화면에는 안 보이고 폼만 남는다. #}
-          <form method="post" id="teamFinalSubmitForm" class="d-none" action="{% url 'reviews:final-submit' 'TEAM' %}">
+          <form method="post"
+                id="teamFinalSubmitForm"
+                class="d-none"
+                action="{% url 'reviews:final-submit' 'TEAM' %}">
             {% csrf_token %}
           </form>
         {% endif %}
       </div>
-
       <div class="col-lg-6 d-flex flex-column">
         <section class="card-custom review-column-card">
           <div class="card-header-custom">
@@ -182,7 +177,10 @@
                     {% if peer_final_state.finalized or target.locked %}응답 보기{% elif target.completed %}수정하기{% else %}평가하기{% endif %}
                   </a>
                   {% if not peer_final_state.finalized and not target.locked %}
-                    <form method="post" id="peerLockForm-{{ target.pk }}" action="{% url 'reviews:peer-lock' target.pk %}" class="d-none">
+                    <form method="post"
+                          id="peerLockForm-{{ target.pk }}"
+                          action="{% url 'reviews:peer-lock' target.pk %}"
+                          class="d-none">
                       {% csrf_token %}
                     </form>
                     <button type="button"
@@ -190,9 +188,7 @@
                             data-form-id="peerLockForm-{{ target.pk }}"
                             data-final-title="{{ target.label }} 평가 확정"
                             data-final-msg="{{ target.label }} 평가를 확정하면 더 이상 고칠 수 없습니다. 진행할까요?"
-                            {% if not target.completed %}disabled{% endif %}>
-                      평가 확정
-                    </button>
+                            {% if not target.completed %}disabled{% endif %}>평가 확정</button>
                   {% endif %}
                 </div>
               </div>
@@ -204,9 +200,7 @@
             {% endfor %}
           </div>
         </section>
-
       </div>
-
       <div class="slide-panel-backdrop" id="editBackdrop"></div>
       <div class="slide-panel" id="editPanel">
         <div class="slide-panel-header">
@@ -218,27 +212,33 @@
     </div>
   {% endif %}
 {% endblock %}
-
 {% block modals %}
-  <div class="modal fade" id="finalConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade"
+       id="finalConfirmModal"
+       tabindex="-1"
+       aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content rounded-4 border-0 shadow text-center p-3">
         <div class="modal-body pt-3 pb-2">
-          <i class="bi bi-exclamation-circle-fill text-primary" style="font-size:2.5rem;"></i>
+          <i class="bi bi-exclamation-circle-fill text-primary"
+             style="font-size:2.5rem"></i>
           <h6 class="fw-bold mb-2 mt-3" id="finalConfirmTitle">평가 확정</h6>
           <p class="small text-muted mb-0" id="finalConfirmMsg">최종 제출하면 더 이상 고칠 수 없습니다. 진행할까요?</p>
         </div>
         <div class="modal-footer border-0 justify-content-center gap-2 p-0 pt-3">
-          <button type="button" class="btn btn-ax-secondary px-4" data-bs-dismiss="modal">취소</button>
-          <button type="button" class="btn btn-ax-primary px-4" id="finalConfirmSubmitBtn">확정</button>
+          <button type="button"
+                  class="btn btn-ax-secondary px-4"
+                  data-bs-dismiss="modal">취소</button>
+          <button type="button"
+                  class="btn btn-ax-primary px-4"
+                  id="finalConfirmSubmitBtn">확정</button>
         </div>
       </div>
     </div>
   </div>
 {% endblock %}
-
 {% block extra_js %}
-<script>
+  <script>
 (() => {
   const panel = document.getElementById('editPanel');
   const backdrop = document.getElementById('editBackdrop');
@@ -340,5 +340,5 @@
     if (form) form.submit();
   });
 })();
-</script>
+  </script>
 {% endblock %}
