@@ -44,7 +44,8 @@
             {% csrf_token %}
             <label class="ax-switch" title="4개 항목 전체 공개 전환">
               <input type="checkbox"
-                     onchange="this.form.submit()"
+                     onchange="if (this.dataset.confirm &amp;&amp; !window.confirm(this.dataset.confirm)) { this.checked = !this.checked; return; } this.form.requestSubmit();"
+                     {% if not all_published %}data-confirm="참가자 {{ participant_count }}명에게 결과 공개 알림과 메일이 나갑니다. 계속할까요?"{% endif %}
                      aria-label="4개 항목 전체 공개 전환"
                      {% if all_published %}checked{% endif %}>
               <span class="ax-slider"></span>

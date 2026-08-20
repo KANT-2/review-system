@@ -8,12 +8,17 @@
         <span class="ax-publish-time">{{ item.published_at|date:"Y-m-d H:i" }} 공개</span>
       {% endif %}
     </div>
+    {% comment %}공개를 켜는 순간 참가자 전원에게 알림과 메일이 나간다. 되돌려도 이미 나간 메일은
+    거둘 수 없으므로 켤 때만 대상 인원과 함께 한 번 확인받는다. 확인을 onchange에서 하는 이유는
+    취소했을 때 스위치를 원래 자리로 되돌려야 하기 때문이다(그러지 않으면 화면은 켜짐,
+    서버는 꺼짐으로 어긋난다).{% endcomment %}
     <form method="post"
           action="{% url 'rounds:publish-results' round_obj.pk item.key %}">
       {% csrf_token %}
       <label class="ax-switch" title="{{ item.label }} 공개 전환">
         <input type="checkbox"
-               onchange="this.form.submit()"
+               onchange="if (this.dataset.confirm &amp;&amp; !window.confirm(this.dataset.confirm)) { this.checked = !this.checked; return; } this.form.requestSubmit();"
+               {% if not item.published and item.key == 'my_score' %}data-confirm="참가자 {{ participant_count }}명에게 결과 공개 알림과 메일이 나갑니다. 계속할까요?"{% endif %}
                aria-label="{{ item.label }} 공개 전환"
                {% if item.published %}checked{% endif %}>
         <span class="ax-slider"></span>

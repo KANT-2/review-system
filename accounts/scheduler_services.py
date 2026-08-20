@@ -28,13 +28,16 @@ def process_scheduled_emails():
     processed_count = 0
     for scheduled_item in pending_emails:
         try:
-            recipient_emails = []
+            recipients = []
             if scheduled_item.target_type == ScheduledEmail.TargetType.TEAM:
                 if scheduled_item.target_team:
-                    recipient_emails = list(
-                        scheduled_item.target_team.memberships.values_list(
-                            "participant__user__email", flat=True
+                    recipients = list(
+                        User.objects.filter(
+                            round_participations__team_membership__team=scheduled_item.target_team,
+                            is_active=True,
                         )
+                        .exclude(email="")
+                        .distinct()
                     )
             elif scheduled_item.target_type in {
                 ScheduledEmail.TargetType.SELECT,
@@ -44,28 +47,33 @@ def process_scheduled_emails():
                     user_ids = json.loads(scheduled_item.selected_user_ids_json or "[]")
                 except Exception:
                     user_ids = []
-                recipient_emails = list(
+                recipients = list(
                     User.objects.filter(
                         id__in=user_ids,
                         role=User.Role.STUDENT,
                         is_active=True,
-                    ).values_list("email", flat=True)
+                    ).exclude(email="")
                 )
             else:
                 # ALL 또는 default
-                recipient_emails = list(
-                    User.objects.filter(role=User.Role.STUDENT, is_active=True).values_list(
-                        "email", flat=True
-                    )
+                recipients = list(
+                    User.objects.filter(role=User.Role.STUDENT, is_active=True).exclude(email="")
                 )
 
-            if recipient_emails:
-                sent_count = send_tutor_announcement_email(
-                    subject=scheduled_item.subject,
+            if recipients:
+                # 즉시 발송과 같은 경로다 - 종 알림은 전원에게, 메일은 꺼두지 않은 사람에게만.
+                mailed = announce(
+                    recipients,
+                    category=Notification.Category.NOTICE,
+                    title=scheduled_item.subject,
                     message=scheduled_item.message,
-                    recipient_emails=recipient_emails,
+                    email_sender=lambda users, item=scheduled_item: send_tutor_announcement_email(
+                        subject=item.subject,
+                        message=item.message,
+                        recipient_emails=[user.email for user in users],
+                    ),
                 )
-                scheduled_item.sent_count = len(recipient_emails) if sent_count > 0 else 0
+                scheduled_item.sent_count = len(mailed)
             else:
                 scheduled_item.sent_count = 0
 

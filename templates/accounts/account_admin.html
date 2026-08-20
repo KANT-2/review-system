@@ -15,6 +15,7 @@
       <span class="text-muted font-size-115">즉시 또는 예약 발송</span>
     </div>
     <div class="card-body-custom">
+      {% comment %}보낸 메일은 거둘 수 없다 - 몇 명에게 나가는지 보여주고 한 번 확인받는다.{% endcomment %}
       <form action="{% url 'accounts:send_announcement' %}"
             method="post"
             id="announcement_form">
@@ -79,7 +80,10 @@
                       required></textarea>
           </div>
         </div>
-        <div class="d-flex justify-content-end mt-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+          <span class="text-muted font-size-115"
+                id="announcementTargetHint"
+                data-all-count="{{ active_student_count }}">활성 수강생 {{ active_student_count }}명 전원에게</span>
           <button type="submit" id="submit_email_btn" class="btn btn-ax-primary">공지 메일 보내기</button>
         </div>
         <div id="selected_users_container"></div>

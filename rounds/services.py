@@ -460,7 +460,7 @@ def delete_question_template(*, template_id, actor):
 
 
 @transaction.atomic
-def delete_round(*, round_id, actor):
+def delete_round(*, round_id, actor, confirm_title=None):
     """회차를 지운다 - 준비 중(DRAFT)이거나 완료(COMPLETED)된 회차만 대상이다.
 
     진행 중(IN_PROGRESS) 회차는 실시간으로 쓰이고 있어 지우지 않는다(먼저 마감하거나
@@ -477,6 +477,12 @@ def delete_round(*, round_id, actor):
         raise ValidationError(
             "진행 중인 회차는 삭제할 수 없습니다. 먼저 마감하거나 준비 중으로 되돌려 주세요."
         )
+    # 완료된 회차는 제출된 평가와 채점 결과를 함께 안고 있다 - 다시 만들 수 없는 기록이라
+    # 확인창 한 번으로는 부족하다. 회차 제목을 정확히 받아야 진행한다.
+    # (준비 중 회차에는 제출이 존재할 수 없어 브라우저 확인만으로 충분하다.)
+    if round_obj.status == EvaluationRound.Status.COMPLETED:
+        if (confirm_title or "").strip() != round_obj.title:
+            raise ValidationError("회차 제목을 정확히 입력해야 삭제할 수 있습니다.")
     record_event(
         action="ROUND_DELETED",
         target=round_obj,
