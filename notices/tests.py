@@ -6,6 +6,7 @@ from accounts.models import User
 from audit.models import AuditEvent
 from notices.models import Notice
 from notices.services import delete_notice, toggle_notice_publish
+from notifications.models import Notification
 from notifications.services import unread_count
 
 
@@ -58,6 +59,15 @@ class NoticeServiceTests(TestCase):
         toggle_notice_publish(notice_id=self.notice.pk, actor=self.tutor)
 
         self.assertEqual(unread_count(self.student), 1)
+
+    def test_notification_link_points_to_this_notices_detail_endpoint(self):
+        toggle_notice_publish(notice_id=self.notice.pk, actor=self.tutor)
+
+        notification = Notification.objects.get(recipient=self.student)
+        self.assertEqual(
+            notification.link,
+            reverse("notices:notice-detail-json", kwargs={"notice_id": self.notice.pk}),
+        )
 
     def test_unpublishing_a_notice_does_not_notify(self):
         toggle_notice_publish(notice_id=self.notice.pk, actor=self.tutor)  # 공개로 전환
@@ -141,3 +151,54 @@ class NoticePortalAccessTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Notice.objects.filter(title="새 공지").exists())
+
+
+class NoticeDetailJsonTests(TestCase):
+    def setUp(self):
+        self.tutor = User.objects.create_user(
+            email="notice-detail-tutor@example.com",
+            password="strong-test-password",
+            first_name="튜터",
+            role=User.Role.TUTOR,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.student = User.objects.create_user(
+            email="notice-detail-student@example.com",
+            password="strong-test-password",
+            first_name="학생",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.notice = Notice.objects.create(
+            title="공개 공지", content="내용입니다", created_by=self.tutor, is_published=True
+        )
+
+    def test_student_can_read_a_published_notices_detail(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(
+            reverse("notices:notice-detail-json", kwargs={"notice_id": self.notice.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["title"], "공개 공지")
+        self.assertEqual(data["content"], "내용입니다")
+
+    def test_unpublished_notice_returns_404(self):
+        self.notice.is_published = False
+        self.notice.save(update_fields=["is_published"])
+        self.client.force_login(self.student)
+
+        response = self.client.get(
+            reverse("notices:notice-detail-json", kwargs={"notice_id": self.notice.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_user_cannot_read_notice_detail(self):
+        response = self.client.get(
+            reverse("notices:notice-detail-json", kwargs={"notice_id": self.notice.pk})
+        )
+
+        self.assertNotEqual(response.status_code, 200)

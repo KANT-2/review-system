@@ -3,7 +3,14 @@ from django.urls import reverse
 
 from accounts.models import User
 from notifications.models import Notification
-from notifications.services import mark_all_read, mark_read, notify_users, unread_count
+from notifications.services import (
+    delete_all_notifications,
+    delete_notification,
+    mark_all_read,
+    mark_read,
+    notify_users,
+    unread_count,
+)
 
 
 class NotifyUsersTests(TestCase):
@@ -46,6 +53,32 @@ class NotifyUsersTests(TestCase):
         mark_all_read(self.students[0])
 
         self.assertEqual(unread_count(self.students[0]), 0)
+
+    def test_delete_notification_only_removes_that_recipients_row(self):
+        notify_users(self.students, category=Notification.Category.NOTICE, title="공지")
+        target = Notification.objects.get(recipient=self.students[0])
+
+        delete_notification(user=self.students[0], notification_id=target.pk)
+
+        self.assertEqual(Notification.objects.filter(recipient=self.students[0]).count(), 0)
+        self.assertEqual(Notification.objects.filter(recipient=self.students[1]).count(), 1)
+
+    def test_delete_notification_ignores_another_users_notification(self):
+        notify_users(self.students, category=Notification.Category.NOTICE, title="공지")
+        other_notification = Notification.objects.get(recipient=self.students[1])
+
+        delete_notification(user=self.students[0], notification_id=other_notification.pk)
+
+        self.assertTrue(Notification.objects.filter(pk=other_notification.pk).exists())
+
+    def test_delete_all_notifications_clears_only_that_users_rows(self):
+        notify_users(self.students, category=Notification.Category.NOTICE, title="공지")
+        notify_users(self.students, category=Notification.Category.NOTICE, title="공지2")
+
+        delete_all_notifications(self.students[0])
+
+        self.assertEqual(Notification.objects.filter(recipient=self.students[0]).count(), 0)
+        self.assertEqual(Notification.objects.filter(recipient=self.students[1]).count(), 2)
 
 
 class NotificationApiTests(TestCase):
@@ -110,3 +143,43 @@ class NotificationApiTests(TestCase):
         response = self.client.get(reverse("notifications:summary"))
 
         self.assertNotEqual(response.status_code, 200)
+
+    def test_delete_endpoint_removes_the_notification(self):
+        notify_users([self.student], category=Notification.Category.NOTICE, title="공지")
+        notification = Notification.objects.get(recipient=self.student)
+        self.client.force_login(self.student)
+
+        response = self.client.post(
+            reverse("notifications:delete", kwargs={"notification_id": notification.pk})
+        )
+
+        self.assertEqual(response.json()["unread_count"], 0)
+        self.assertFalse(Notification.objects.filter(pk=notification.pk).exists())
+
+    def test_a_student_cannot_delete_another_students_notification(self):
+        other = User.objects.create_user(
+            email="notify-delete-other@example.com",
+            password="strong-test-password",
+            first_name="다른학생",
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        notify_users([other], category=Notification.Category.NOTICE, title="공지")
+        notification = Notification.objects.get(recipient=other)
+        self.client.force_login(self.student)
+
+        self.client.post(
+            reverse("notifications:delete", kwargs={"notification_id": notification.pk})
+        )
+
+        self.assertTrue(Notification.objects.filter(pk=notification.pk).exists())
+
+    def test_delete_all_endpoint_clears_every_notification(self):
+        notify_users([self.student], category=Notification.Category.NOTICE, title="공지")
+        notify_users([self.student], category=Notification.Category.NOTICE, title="공지2")
+        self.client.force_login(self.student)
+
+        response = self.client.post(reverse("notifications:delete-all"))
+
+        self.assertEqual(response.json()["unread_count"], 0)
+        self.assertEqual(Notification.objects.filter(recipient=self.student).count(), 0)

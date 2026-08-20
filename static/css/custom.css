@@ -1266,20 +1266,49 @@ tbody.collapse.show { display: table-row-group; }
   padding: 8px;
 }
 .ax-notification-empty { padding: 32px 16px; text-align: center; color: var(--ax-text-muted); font-size: 13px; }
+/* 바깥은 div, 안에 "본문(이동/모달)"·"삭제" 두 개의 독립 버튼이 들어간다
+   (button 안에 button을 넣을 수 없어서 이렇게 나눴다). */
 .ax-notification-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 4px;
   width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 10px 8px;
+  padding: 10px 4px 10px 8px;
   border-radius: var(--radius-sm);
-  cursor: pointer;
 }
 .ax-notification-item:hover { background: var(--ax-surface-subtle); }
 .ax-notification-item.unread { background: var(--ax-primary-container); }
+.ax-notification-item-body-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.ax-notification-item-delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  color: var(--ax-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease, background 160ms ease, color 160ms ease;
+}
+.ax-notification-item:hover .ax-notification-item-delete,
+.ax-notification-item-delete:focus-visible { opacity: 1; }
+.ax-notification-item-delete:hover { background: var(--ax-error-bg); color: var(--ax-error); }
 /* 알림 종류별 아이콘 배지 - 색으로도 한눈에 종류를 구분할 수 있게 한다. */
 .ax-notification-item-icon {
   flex-shrink: 0;

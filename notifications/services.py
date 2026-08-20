@@ -37,3 +37,11 @@ def mark_read(*, user, notification_id):
 
 def mark_all_read(user):
     Notification.objects.filter(recipient=user, read_at__isnull=True).update(read_at=timezone.now())
+
+
+def delete_notification(*, user, notification_id):
+    Notification.objects.filter(pk=notification_id, recipient=user).delete()
+
+
+def delete_all_notifications(user):
+    Notification.objects.filter(recipient=user).delete()
