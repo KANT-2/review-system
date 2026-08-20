@@ -1,5 +1,9 @@
 from django.contrib import admin, messages
 
+from accounts.admin_permissions import (
+    OperationsAdminMixin,
+    OperationsReadOnlyAdminMixin,
+)
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from rounds.services import pending_participant_rows
 
@@ -12,7 +16,7 @@ def _round_recipient_emails(round_obj):
     )
 
 
-class TemplateQuestionInline(admin.TabularInline):
+class TemplateQuestionInline(OperationsAdminMixin, admin.TabularInline):
     model = TemplateQuestion
     extra = 1
 
@@ -24,7 +28,7 @@ class TemplateQuestionInline(admin.TabularInline):
 
 
 @admin.register(QuestionTemplate)
-class QuestionTemplateAdmin(admin.ModelAdmin):
+class QuestionTemplateAdmin(OperationsAdminMixin, admin.ModelAdmin):
     list_display = ("name", "category", "created_by", "created_at", "locked")
     list_filter = ("category",)
     search_fields = ("name",)
@@ -48,7 +52,7 @@ class QuestionTemplateAdmin(admin.ModelAdmin):
 
 
 @admin.register(EvaluationRound)
-class EvaluationRoundAdmin(admin.ModelAdmin):
+class EvaluationRoundAdmin(OperationsAdminMixin, admin.ModelAdmin):
     list_display = ("title", "status", "evaluation_start_at", "evaluation_end_at")
     list_filter = ("status",)
     readonly_fields = ("status", "started_at", "completed_at", "lock_version")
@@ -101,7 +105,7 @@ class EvaluationRoundAdmin(admin.ModelAdmin):
 
 
 @admin.register(RoundParticipant)
-class RoundParticipantAdmin(admin.ModelAdmin):
+class RoundParticipantAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("round", "student_number_snapshot", "display_name_snapshot")
     readonly_fields = ("round", "user", "student_number_snapshot", "display_name_snapshot")
 

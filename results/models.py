@@ -29,6 +29,8 @@ class CalculationRun(models.Model):
     peer_ranking_published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "채점"
+        verbose_name_plural = "채점 목록"
         ordering = ("-version",)
         constraints = [
             models.UniqueConstraint(fields=("round", "version"), name="results_run_version_unique"),
@@ -65,6 +67,8 @@ class TutorNote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "튜터 메모"
+        verbose_name_plural = "튜터 메모 목록"
         ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(condition=~Q(body=""), name="results_tutor_note_not_blank"),
@@ -116,6 +120,8 @@ class EvaluationResult(models.Model):
     data_status = models.CharField(max_length=16, choices=DataStatus.choices)
 
     class Meta:
+        verbose_name = "채점 결과"
+        verbose_name_plural = "채점 결과 목록"
         ordering = ("result_type", "primary_rank", "id")
         constraints = [
             models.CheckConstraint(

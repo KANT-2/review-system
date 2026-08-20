@@ -37,6 +37,8 @@ class QuestionTemplate(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "문항 템플릿"
+        verbose_name_plural = "문항 템플릿 목록"
         ordering = ("category", "name")
         indexes = [models.Index(fields=("category", "name"))]
         constraints = [
@@ -109,6 +111,8 @@ class TemplateQuestion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "문항"
+        verbose_name_plural = "문항 목록"
         ordering = ("display_order", "id")
         constraints = [
             models.UniqueConstraint(
@@ -184,6 +188,8 @@ class EvaluationRound(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "평가 회차"
+        verbose_name_plural = "평가 회차 목록"
         ordering = ("-created_at",)
         constraints = [
             models.CheckConstraint(
@@ -249,6 +255,8 @@ class RoundParticipant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "회차 참가자"
+        verbose_name_plural = "회차 참가자 목록"
         ordering = ("student_number_snapshot", "id")
         constraints = [
             models.UniqueConstraint(

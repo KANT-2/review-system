@@ -1,10 +1,11 @@
 from django.contrib import admin
 
+from accounts.admin_permissions import OperationsAdminMixin
 from notices.models import Notice
 
 
 @admin.register(Notice)
-class NoticeAdmin(admin.ModelAdmin):
+class NoticeAdmin(OperationsAdminMixin, admin.ModelAdmin):
     list_display = ("title", "is_published", "created_by", "created_at")
     list_filter = ("is_published",)
     search_fields = ("title", "content")

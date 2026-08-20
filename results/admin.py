@@ -1,9 +1,10 @@
 from django.contrib import admin
 
+from accounts.admin_permissions import OperationsReadOnlyAdminMixin
 from results.models import CalculationRun, EvaluationResult
 
 
-class ReadOnlyAdmin(admin.ModelAdmin):
+class ReadOnlyAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 

@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
+from accounts.admin_permissions import AdminOnlyMixin
 from accounts.models import AuthThrottleBucket, User, WhitelistEmail
 
 
 @admin.register(User)
-class AccountUserAdmin(UserAdmin):
+class AccountUserAdmin(AdminOnlyMixin, UserAdmin):
     ordering = ("email",)
     list_display = (
         "email",

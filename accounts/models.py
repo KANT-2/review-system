@@ -105,9 +105,10 @@ class User(AbstractUser):
         verbose_name_plural = _("사용자 목록")
         constraints = [
             models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique"),
+            # 튜터도 운영 담당자라 관리자 화면을 쓴다. 수강생은 여전히 들어갈 수 없다.
             models.CheckConstraint(
-                condition=(models.Q(is_staff=True, role="admin"))
-                | (models.Q(is_staff=False) & ~models.Q(role="admin")),
+                condition=models.Q(is_staff=True, role__in=("admin", "tutor"))
+                | models.Q(is_staff=False, role="student"),
                 name="accounts_staff_role_consistent",
             ),
             models.CheckConstraint(
@@ -117,8 +118,19 @@ class User(AbstractUser):
             ),
         ]
 
+    #: 관리자 화면을 쓰는 역할. 제약(accounts_staff_role_consistent)과 같은 목록이어야 한다.
+    STAFF_ROLES = ("admin", "tutor")
+
     def save(self, *args, **kwargs):
         self.email = canonicalize_email(self.email)
+        # 역할이 접근 권한을 정한다 - 역할만 바꾸면 관리자 화면 접근이 따라온다.
+        # queryset.update()처럼 save()를 건너뛰는 경로는 위 DB 제약이 막는다.
+        expected_staff = self.role in self.STAFF_ROLES
+        if self.is_staff != expected_staff:
+            self.is_staff = expected_staff
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                kwargs["update_fields"] = {*update_fields, "is_staff"}
         if self.pk:
             previous_email = (
                 type(self).objects.filter(pk=self.pk).values_list("email", flat=True).first()

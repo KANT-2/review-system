@@ -57,9 +57,11 @@
         <li class="sidebar-nav-item"><a href="{% url 'audit:log' %}"
    title="감사 로그"
    class="sidebar-nav-link {% if request.resolver_match.namespace == 'audit' %}active{% endif %}"><i class="bi bi-clock-history"></i><span class="nav-text">감사 로그</span></a></li>
+        {% comment %}Django 관리자 화면은 운영 담당자(튜터·관리자)가 원본 데이터를 직접 볼 때 쓴다.
+        계정 관리는 관리자에게만 열린다(accounts.admin_permissions) - 예전 문구는 사실과 달랐다.{% endcomment %}
         {% if user.is_staff %}<li class="sidebar-nav-item"><a href="{% url 'admin:index' %}"
-   title="템플릿·계정 관리"
-   class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">템플릿·계정 관리</span></a></li>{% endif %}
+   title="원본 데이터 관리"
+   class="sidebar-nav-link"><i class="bi bi-gear-fill"></i><span class="nav-text">원본 데이터 관리</span></a></li>{% endif %}
       </ul>
     {% else %}
       <div class="nav-section-title">홈</div>

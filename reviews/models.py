@@ -42,6 +42,8 @@ class ReviewSubmission(models.Model):
     )
 
     class Meta:
+        verbose_name = "평가 제출"
+        verbose_name_plural = "평가 제출 목록"
         ordering = ("submitted_at",)
         constraints = [
             models.CheckConstraint(
@@ -93,6 +95,8 @@ class ReviewAnswer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "평가 응답"
+        verbose_name_plural = "평가 응답 목록"
         ordering = ("question__display_order",)
         constraints = [
             models.UniqueConstraint(
@@ -137,6 +141,8 @@ class ReviewFinalSubmission(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "최종 제출"
+        verbose_name_plural = "최종 제출 목록"
         constraints = [
             models.UniqueConstraint(
                 fields=("round", "evaluator", "review_type"),
@@ -173,6 +179,8 @@ class TutorReview(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "튜터 개인평가"
+        verbose_name_plural = "튜터 개인평가 목록"
         ordering = ("target_participant__student_number_snapshot", "id")
         constraints = [
             models.UniqueConstraint(
@@ -195,6 +203,8 @@ class TutorReviewAnswer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "튜터 개인평가 응답"
+        verbose_name_plural = "튜터 개인평가 응답 목록"
         ordering = ("question__display_order",)
         constraints = [
             models.UniqueConstraint(
@@ -240,6 +250,8 @@ class TutorTeamReview(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "튜터 팀평가"
+        verbose_name_plural = "튜터 팀평가 목록"
         ordering = ("target_team__team_number", "id")
         constraints = [
             models.UniqueConstraint(
@@ -262,6 +274,8 @@ class TutorTeamReviewAnswer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "튜터 팀평가 응답"
+        verbose_name_plural = "튜터 팀평가 응답 목록"
         ordering = ("question__display_order",)
         constraints = [
             models.UniqueConstraint(

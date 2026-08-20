@@ -1,10 +1,14 @@
 from django.contrib import admin, messages
 
+from accounts.admin_permissions import (
+    OperationsAdminMixin,
+    OperationsReadOnlyAdminMixin,
+)
 from rounds.models import EvaluationRound
 from teams.models import Team, TeamMembership
 
 
-class TeamMembershipInline(admin.TabularInline):
+class TeamMembershipInline(OperationsAdminMixin, admin.TabularInline):
     model = TeamMembership
     extra = 0
     readonly_fields = ("participant", "created_at")
@@ -17,7 +21,7 @@ class TeamMembershipInline(admin.TabularInline):
 
 
 @admin.register(Team)
-class TeamAdmin(admin.ModelAdmin):
+class TeamAdmin(OperationsAdminMixin, admin.ModelAdmin):
     list_display = ("round", "team_number", "name", "member_count")
     inlines = (TeamMembershipInline,)
     actions = ["send_announcement_to_team"]
@@ -61,7 +65,7 @@ class TeamAdmin(admin.ModelAdmin):
 
 
 @admin.register(TeamMembership)
-class TeamMembershipAdmin(admin.ModelAdmin):
+class TeamMembershipAdmin(OperationsReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("team", "participant", "created_at")
     readonly_fields = ("team", "participant", "created_at")
 

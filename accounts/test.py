@@ -908,14 +908,29 @@ class SocialClaimTests(TestCase):
 
 
 class AuthorityConstraintTests(TransactionTestCase):
-    def test_admin_role_requires_staff_flag(self):
+    def test_staff_flag_follows_the_role(self):
+        """역할이 관리자 화면 접근을 정한다 - is_staff를 따로 챙기지 않아도 맞춰진다."""
+        tutor = User.objects.create_user(
+            email="staff-tutor@ax.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.TUTOR,
+            is_staff=False,
+        )
+        self.assertTrue(tutor.is_staff)
+
+        student = User.objects.create_user(
+            email="staff-student@ax.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.STUDENT,
+            is_staff=True,
+        )
+        self.assertFalse(student.is_staff)
+
+    def test_database_rejects_a_staff_flag_that_contradicts_the_role(self):
+        """save()를 건너뛰는 경로(queryset.update)는 DB 제약이 막아야 한다."""
+        student = User.objects.create_user(email="raw-student@ax.com", password=STRONG_PASSWORD)
         with self.assertRaises(IntegrityError), transaction.atomic():
-            User.objects.create_user(
-                email="invalid-admin@ax.com",
-                password=STRONG_PASSWORD,
-                role=User.Role.ADMIN,
-                is_staff=False,
-            )
+            User.objects.filter(pk=student.pk).update(is_staff=True)
 
     def test_email_is_immutable(self):
         user = User.objects.create_user(email="immutable@ax.com", password=STRONG_PASSWORD)

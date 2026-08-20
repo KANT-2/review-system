@@ -12,6 +12,8 @@ class Team(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "팀"
+        verbose_name_plural = "팀 목록"
         ordering = ("team_number",)
         constraints = [
             models.UniqueConstraint(fields=("round", "team_number"), name="teams_number_unique"),
@@ -30,6 +32,8 @@ class TeamMembership(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "팀 구성원"
+        verbose_name_plural = "팀 구성원 목록"
         ordering = ("team__team_number", "participant__student_number_snapshot")
 
     def __str__(self):

@@ -30,6 +30,8 @@ class AuditEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
+        verbose_name = "감사 기록"
+        verbose_name_plural = "감사 기록 목록"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("round", "created_at")),
