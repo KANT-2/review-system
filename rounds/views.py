@@ -500,11 +500,11 @@ def template_restore(request, template_id):
     return redirect("rounds:template-list")
 
 
-def _round_lifecycle_action(request, round_id, *, action, success_message):
+def _round_lifecycle_action(request, round_id, *, action, success_message, **action_kwargs):
     """회차 상태를 되돌리는 세 가지 동작이 결과 처리 방식이 같아 한곳에 모았다."""
     _require_operations(request.user)
     try:
-        action(round_id=round_id, actor=request.user)
+        action(round_id=round_id, actor=request.user, **action_kwargs)
     except (EvaluationRound.DoesNotExist, ValidationError) as error:
         messages.error(request, " ".join(getattr(error, "messages", [str(error)])))
         return redirect("rounds:list")
@@ -516,7 +516,11 @@ def _round_lifecycle_action(request, round_id, *, action, success_message):
 @require_POST
 def round_delete(request, round_id):
     return _round_lifecycle_action(
-        request, round_id, action=delete_round, success_message="회차를 삭제했습니다."
+        request,
+        round_id,
+        action=delete_round,
+        success_message="회차를 삭제했습니다.",
+        confirm_title=request.POST.get("confirm_title", ""),
     )
 
 

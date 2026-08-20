@@ -83,12 +83,55 @@
                         다시 열기
                       </button>
                     </form>
-                    <form method="post"
-                          action="{% url 'rounds:delete' item.pk %}"
-                          onsubmit="return confirm('{{ item.title }} 회차를 완전히 삭제합니다. 제출된 평가·채점 결과·튜터 평가가 모두 함께 지워지며 되돌릴 수 없습니다. 계속할까요?')">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
-                    </form>
+                    {% comment %}완료 회차는 성적 원본을 안고 있다 - 확인창 한 번으로 지워지면 안 되므로
+                    무엇이 사라지는지 건수로 보여주고 제목을 직접 받는다(서버에서도 다시 확인한다).{% endcomment %}
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteRoundModal{{ item.pk }}">삭제</button>
+                  </div>
+                  <div class="modal fade"
+                       id="deleteRoundModal{{ item.pk }}"
+                       tabindex="-1"
+                       aria-labelledby="deleteRoundLabel{{ item.pk }}"
+                       aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h2 class="h6 fw-bold mb-0" id="deleteRoundLabel{{ item.pk }}">회차를 완전히 삭제합니다</h2>
+                          <button type="button"
+                                  class="btn-close"
+                                  data-bs-dismiss="modal"
+                                  aria-label="닫기"></button>
+                        </div>
+                        <form method="post" action="{% url 'rounds:delete' item.pk %}">
+                          {% csrf_token %}
+                          <div class="modal-body text-start">
+                            <p class="mb-2">
+                              <strong>{{ item.title }}</strong> 회차와 아래 기록이 함께 지워지며 되돌릴 수 없습니다.
+                            </p>
+                            <ul class="text-muted font-size-135 mb-3">
+                              <li>참가자 {{ item.participant_count }}명 · 팀 {{ item.team_count }}개</li>
+                              <li>제출된 평가 {{ item.submission_count }}건</li>
+                              <li>채점 기록 {{ item.run_count }}건</li>
+                            </ul>
+                            <label class="form-label small fw-bold" for="confirmTitle{{ item.pk }}">
+                              계속하려면 회차 제목을 그대로 입력해 주세요
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="confirmTitle{{ item.pk }}"
+                                   name="confirm_title"
+                                   autocomplete="off"
+                                   placeholder="{{ item.title }}">
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-ax-secondary" data-bs-dismiss="modal">취소</button>
+                            <button type="submit" class="btn btn-danger">삭제</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
                   </div>
                 {% endif %}
               </td>

@@ -99,7 +99,9 @@
                                 title="사용 중인 템플릿은 삭제 대신 보관할 수 있습니다.">보관</button>
                       </form>
                     {% else %}
-                      <form method="post" action="{% url 'rounds:template-delete' template.pk %}">
+                      <form method="post"
+                            action="{% url 'rounds:template-delete' template.pk %}"
+                            onsubmit="return confirm('&quot;{{ template.name|escapejs }}&quot; 템플릿을 삭제합니다. 문항 {{ template.question_count }}개가 함께 지워지고 되돌릴 수 없습니다. 계속할까요?')">
                         {% csrf_token %}
                         <button type="submit"
                                 class="btn btn-sm btn-outline-danger"
