@@ -126,6 +126,54 @@ def publish_entry(request):
     return redirect("rounds:publish-settings", round_id=latest_completed.pk)
 
 
+@login_required
+def tutor_evaluation_entry(request):
+    """사이드바 '튜터평가' - 진행 중인 회차의 튜터평가 화면으로 바로 이동한다.
+
+    튜터평가는 회차가 시작된 뒤(tutor_reviewable)에만 의미가 있고, 회차는 동시에 하나만
+    진행 중일 수 있으므로(rounds_single_in_progress) 그 회차로 바로 보낸다.
+    """
+    _require_operations(request.user)
+    current_round = EvaluationRound.objects.filter(
+        status=EvaluationRound.Status.IN_PROGRESS
+    ).first()
+    if not current_round:
+        messages.info(
+            request,
+            "진행 중인 회차가 없어 튜터평가를 작성할 수 없습니다. 회차를 시작한 뒤 다시 시도해 주세요.",
+        )
+        return redirect("rounds:list")
+    return redirect("rounds:tutor-evaluation", round_id=current_round.pk)
+
+
+@login_required
+def tutor_evaluation(request, round_id):
+    """튜터평가 통합 화면 - 팀 평가와 개인 평가를 한 화면에서 확인하고 작성한다.
+
+    기존에 따로 있던 tutor_review_list(개인)/tutor_team_review_list(팀)를 한 페이지로
+    모아 보여준다 - 작성 화면(tutor_review_form/tutor_team_review_form) 자체는 그대로 둔다.
+    """
+    _require_operations(request.user)
+    round_obj = get_object_or_404(EvaluationRound, pk=round_id)
+    reviewable = tutor_reviewable(round_obj)
+    team_targets = tutor_team_review_targets(round_obj, request.user) if reviewable else []
+    peer_targets = tutor_review_targets(round_obj, request.user) if reviewable else []
+    return render(
+        request,
+        "rounds/tutor_evaluation.html",
+        {
+            "round_obj": round_obj,
+            "team_targets": team_targets,
+            "peer_targets": peer_targets,
+            "team_completed_count": sum(target.completed for target in team_targets),
+            "peer_completed_count": sum(target.completed for target in peer_targets),
+            "editable": reviewable,
+            "has_team_questions": tutor_team_review_questions(round_obj).exists(),
+            "has_peer_questions": tutor_review_questions(round_obj).exists(),
+        },
+    )
+
+
 def _participant_count(form, round_obj):
     """회차 설정 화면에 보여줄 참가자 수 - 저장했을 때 실제로 들어갈 인원과 같아야 한다."""
     user_ids = set(form.fields["participants"].queryset.values_list("pk", flat=True))

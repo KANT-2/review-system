@@ -18,6 +18,12 @@ urlpatterns = [
     path("rounds/", views.round_list, name="list"),
     path("results/", views.results_entry, name="results-entry"),
     path("publish/", views.publish_entry, name="publish-entry"),
+    path("tutor-evaluation/", views.tutor_evaluation_entry, name="tutor-evaluation-entry"),
+    path(
+        "rounds/<int:round_id>/tutor-evaluation/",
+        views.tutor_evaluation,
+        name="tutor-evaluation",
+    ),
     path("rounds/new/", views.round_edit, name="create"),
     path("rounds/<int:round_id>/", views.round_edit, name="edit"),
     path("rounds/<int:round_id>/start/", views.round_start, name="start"),
