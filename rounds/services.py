@@ -285,19 +285,26 @@ def rounds_dashboard_rows():
 
 
 def question_template_rows():
-    """템플릿 목록 화면용 - 문항 수, 사용 중(잠금) 여부, 복제본 유무를 함께 계산한다."""
+    """템플릿 목록 화면용 - 문항 수, 사용 중(잠금) 여부, 복제본 유무를 함께 계산한다.
+
+    보관된 템플릿이 맨 아래로 가도록 정렬한다 - 안 쓸 템플릿이지만 존재는 알 수 있어야
+    한다("전체"/"보관됨" 탭 구분은 뷰에서 이 목록을 다시 걸러 쓴다). 보관된 행에는
+    왜 못 지우는지 보여줄 round_titles를 같이 채운다.
+    """
     templates = (
         QuestionTemplate.objects.annotate(
             question_count=Count("questions", distinct=True),
             copy_count=Count("copies", distinct=True),
         )
-        .select_related("created_by")
-        .order_by("category", "name")
+        .select_related("created_by", "archived_by")
+        .order_by("is_archived", "category", "name")
     )
     rows = []
     for template in templates:
         template.locked = template.is_locked
         template.has_copies = template.copy_count > 0
+        if template.is_archived:
+            template.round_titles = template.rounds_in_use()
         rows.append(template)
     return rows
 
@@ -371,6 +378,50 @@ def copy_question_template(*, template_id, actor):
         summary={"source_id": source.pk, "question_count": copy.questions.count()},
     )
     return copy
+
+
+@transaction.atomic
+def archive_question_template(*, template_id, actor):
+    """지울 수 없는(잠긴) 템플릿을 목록/새 회차 선택지에서 치운다.
+
+    save()가 잠긴 템플릿의 변경 자체를 막기 때문에 인스턴스를 고쳐 save()를 부르지 않고
+    쿼리셋 update로 우회한다 - 내용은 그대로 두고 상태만 바꾸는 것이라 잠금 목적과
+    충돌하지 않는다.
+    """
+    template = QuestionTemplate.objects.get(pk=template_id)
+    if not template.is_locked:
+        raise ValidationError("사용 중이지 않은 템플릿은 보관 대신 삭제해 주세요.")
+    if template.is_archived:
+        return template
+    QuestionTemplate.objects.filter(pk=template_id).update(
+        is_archived=True, archived_at=timezone.now(), archived_by=actor
+    )
+    record_event(
+        action="QUESTION_TEMPLATE_ARCHIVED",
+        target=template,
+        actor=actor,
+        summary={"name": template.name, "category": template.category},
+    )
+    template.refresh_from_db()
+    return template
+
+
+@transaction.atomic
+def restore_question_template(*, template_id, actor):
+    template = QuestionTemplate.objects.get(pk=template_id)
+    if not template.is_archived:
+        return template
+    QuestionTemplate.objects.filter(pk=template_id).update(
+        is_archived=False, archived_at=None, archived_by=None
+    )
+    record_event(
+        action="QUESTION_TEMPLATE_RESTORED",
+        target=template,
+        actor=actor,
+        summary={"name": template.name, "category": template.category},
+    )
+    template.refresh_from_db()
+    return template
 
 
 @transaction.atomic

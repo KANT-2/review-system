@@ -36,6 +36,8 @@ ACTION_LABELS = {
     "QUESTION_TEMPLATE_UPDATED": "문항 템플릿 수정",
     "QUESTION_TEMPLATE_COPIED": "문항 템플릿 복제",
     "QUESTION_TEMPLATE_DELETED": "문항 템플릿 삭제",
+    "QUESTION_TEMPLATE_ARCHIVED": "문항 템플릿 보관",
+    "QUESTION_TEMPLATE_RESTORED": "문항 템플릿 복원",
     "WHITELIST_ADDED": "명단 추가",
     "WHITELIST_UPDATED": "명단 수정",
     "WHITELIST_REMOVED": "명단 삭제",
