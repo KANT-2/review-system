@@ -47,7 +47,102 @@
         <div class="card-body-custom">
           {{ form.non_field_errors }}
           {% for field in form %}
-            {% if field.name != 'participants' %}
+            {% if field.name == 'participants' or field.name == 'personal_score_weight' or field.name == 'tutor_score_weight' %}
+              {# participants는 화면에 없는 자동 채움 항목, 개인/튜터 비율은 team_score_weight와 함께 아래에서 한 번에 그린다 #}
+            {% elif field.name == 'team_score_weight' %}
+              <div class="mb-3">
+                <label class="form-label fw-semibold">점수 반영 비율</label>
+                <div class="ax-weight-group" id="axWeightGroup">
+                  <div class="ax-weight-row">
+                    <div class="ax-weight-row-head">
+                      <span class="ax-weight-row-label"><i class="ax-dot ax-dot-team"></i>팀 점수 비율</span>
+                      <span class="ax-weight-row-right">
+                        <span class="ax-weight-row-value" id="axWeightValue-team">0%</span>
+                        <label class="ax-weight-lock" title="비율 고정">
+                          <input type="checkbox" id="axWeightLock-team" data-key="team">
+                          <i class="bi bi-unlock"></i>
+                        </label>
+                      </span>
+                    </div>
+                    <div class="ax-weight-slider" id="axWeightSlider-team" data-key="team">
+                      <div class="ax-weight-slider-track">
+                        <div class="ax-weight-slider-fill ax-fill-team" id="axWeightFill-team"></div>
+                      </div>
+                      <div class="ax-weight-ticks" id="axWeightTicks-team"></div>
+                      <div class="ax-weight-handle ax-handle-team"
+                           id="axWeightHandle-team"
+                           tabindex="0"
+                           role="slider"
+                           aria-label="팀 점수 비율"
+                           aria-valuemin="0"
+                           aria-valuemax="100"></div>
+                    </div>
+                  </div>
+                  <div class="ax-weight-row">
+                    <div class="ax-weight-row-head">
+                      <span class="ax-weight-row-label"><i class="ax-dot ax-dot-personal"></i>개인 점수 비율</span>
+                      <span class="ax-weight-row-right">
+                        <span class="ax-weight-row-value" id="axWeightValue-personal">0%</span>
+                        <label class="ax-weight-lock" title="비율 고정">
+                          <input type="checkbox" id="axWeightLock-personal" data-key="personal">
+                          <i class="bi bi-unlock"></i>
+                        </label>
+                      </span>
+                    </div>
+                    <div class="ax-weight-slider"
+                         id="axWeightSlider-personal"
+                         data-key="personal">
+                      <div class="ax-weight-slider-track">
+                        <div class="ax-weight-slider-fill ax-fill-personal"
+                             id="axWeightFill-personal"></div>
+                      </div>
+                      <div class="ax-weight-ticks" id="axWeightTicks-personal"></div>
+                      <div class="ax-weight-handle ax-handle-personal"
+                           id="axWeightHandle-personal"
+                           tabindex="0"
+                           role="slider"
+                           aria-label="개인 점수 비율"
+                           aria-valuemin="0"
+                           aria-valuemax="100"></div>
+                    </div>
+                  </div>
+                  <div class="ax-weight-row">
+                    <div class="ax-weight-row-head">
+                      <span class="ax-weight-row-label"><i class="ax-dot ax-dot-tutor"></i>튜터 점수 비율</span>
+                      <span class="ax-weight-row-right">
+                        <span class="ax-weight-row-value" id="axWeightValue-tutor">0%</span>
+                        <label class="ax-weight-lock" title="비율 고정">
+                          <input type="checkbox" id="axWeightLock-tutor" data-key="tutor">
+                          <i class="bi bi-unlock"></i>
+                        </label>
+                      </span>
+                    </div>
+                    <div class="ax-weight-slider" id="axWeightSlider-tutor" data-key="tutor">
+                      <div class="ax-weight-slider-track">
+                        <div class="ax-weight-slider-fill ax-fill-tutor" id="axWeightFill-tutor"></div>
+                      </div>
+                      <div class="ax-weight-ticks" id="axWeightTicks-tutor"></div>
+                      <div class="ax-weight-handle ax-handle-tutor"
+                           id="axWeightHandle-tutor"
+                           tabindex="0"
+                           role="slider"
+                           aria-label="튜터 점수 비율"
+                           aria-valuemin="0"
+                           aria-valuemax="100"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-text">핸들을 마우스로 끌어 10% 단위로 비율을 조정합니다. 하나를 바꾸면 나머지 둘이 자동으로 조정되어 합은 항상 100%로 유지됩니다. 자물쇠를 체크하면 그 비율은 고정되어 다른 값이 바뀌어도 움직이지 않습니다.</div>
+                <div class="ax-weight-hidden-fields">
+                  {{ form.team_score_weight }}
+                  {{ form.personal_score_weight }}
+                  {{ form.tutor_score_weight }}
+                </div>
+                {% for error in form.team_score_weight.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% for error in form.personal_score_weight.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% for error in form.tutor_score_weight.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </div>
+            {% else %}
               <div class="mb-3">
                 <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {% if field.name == 'team_template' or field.name == 'peer_template' %}
@@ -171,6 +266,151 @@
           render(previews[select?.value]);
         });
       });
+    })();
+    </script>
+    <script>
+    (() => {
+      const group = document.getElementById('axWeightGroup');
+      if (!group) return;
+
+      const KEYS = ['team', 'personal', 'tutor'];
+      const STEP = 10;
+      const snap = (value) => Math.min(100, Math.max(0, Math.round(value / STEP) * STEP));
+
+      const hiddenInputs = {
+        team: document.getElementById('{{ form.team_score_weight.id_for_label }}'),
+        personal: document.getElementById('{{ form.personal_score_weight.id_for_label }}'),
+        tutor: document.getElementById('{{ form.tutor_score_weight.id_for_label }}'),
+      };
+      const sliders = {};
+      const fills = {};
+      const handles = {};
+      const valueLabels = {};
+      const lockInputs = {};
+      const lockIcons = {};
+      KEYS.forEach((key) => {
+        sliders[key] = document.getElementById(`axWeightSlider-${key}`);
+        fills[key] = document.getElementById(`axWeightFill-${key}`);
+        handles[key] = document.getElementById(`axWeightHandle-${key}`);
+        valueLabels[key] = document.getElementById(`axWeightValue-${key}`);
+        lockInputs[key] = document.getElementById(`axWeightLock-${key}`);
+        lockIcons[key] = lockInputs[key].nextElementSibling;
+        // 10% 간격 눈금점을 동그라미로 표시(0~100, 11개).
+        const ticksLayer = document.getElementById(`axWeightTicks-${key}`);
+        for (let pct = 0; pct <= 100; pct += STEP) {
+          const tick = document.createElement('span');
+          tick.className = 'ax-tick';
+          tick.style.left = `${pct}%`;
+          ticksLayer.appendChild(tick);
+        }
+      });
+
+      const state = {
+        team: snap(Number(hiddenInputs.team.value) || 0),
+        personal: snap(Number(hiddenInputs.personal.value) || 0),
+        tutor: snap(Number(hiddenInputs.tutor.value) || 0),
+      };
+      const locked = { team: false, personal: false, tutor: false };
+
+      const renderAll = () => {
+        KEYS.forEach((key) => {
+          fills[key].style.width = `${state[key]}%`;
+          handles[key].style.left = `${state[key]}%`;
+          valueLabels[key].textContent = `${state[key]}%`;
+          handles[key].setAttribute('aria-valuenow', state[key]);
+          hiddenInputs[key].value = state[key];
+          sliders[key].classList.toggle('is-locked', locked[key]);
+          lockIcons[key].classList.toggle('bi-unlock', !locked[key]);
+          lockIcons[key].classList.toggle('bi-lock-fill', locked[key]);
+        });
+      };
+      renderAll();
+
+      // changedKey를 새 값으로 바꾸고, 잠기지 않은 나머지들에서만 남은 몫을 재분배한다.
+      // 잠긴 항목은 값을 그대로 유지 - 항상 세 값의 합은 100.
+      const setValue = (changedKey, rawValue) => {
+        if (locked[changedKey]) return;
+        let newValue = snap(rawValue);
+        const others = KEYS.filter((key) => key !== changedKey);
+        const lockedOthers = others.filter((key) => locked[key]);
+        const unlockedOthers = others.filter((key) => !locked[key]);
+        const lockedSum = lockedOthers.reduce((sum, key) => sum + state[key], 0);
+
+        if (unlockedOthers.length === 0) {
+          // 나머지 둘 다 고정돼 있으면 changedKey는 자유도가 없다 - 남는 몫으로 자동 결정.
+          state[changedKey] = 100 - lockedSum;
+          renderAll();
+          return;
+        }
+
+        const cap = 100 - lockedSum;
+        newValue = Math.min(newValue, cap);
+        const remaining = cap - newValue;
+
+        if (unlockedOthers.length === 1) {
+          state[changedKey] = newValue;
+          state[unlockedOthers[0]] = remaining;
+        } else {
+          const [a, b] = unlockedOthers;
+          const oldSum = state[a] + state[b];
+          let first = oldSum === 0 ? snap(remaining / 2) : snap((state[a] * remaining) / oldSum);
+          first = Math.min(first, remaining);
+          state[changedKey] = newValue;
+          state[a] = first;
+          state[b] = remaining - first;
+        }
+        renderAll();
+      };
+
+      KEYS.forEach((key) => {
+        lockInputs[key].addEventListener('change', () => {
+          locked[key] = lockInputs[key].checked;
+          renderAll();
+        });
+      });
+
+      const bindSlider = (key) => {
+        const moveTo = (clientX) => {
+          const rect = sliders[key].getBoundingClientRect();
+          const pct = ((clientX - rect.left) / rect.width) * 100;
+          setValue(key, pct);
+        };
+        const onMouseMove = (e) => moveTo(e.clientX);
+        const onTouchMove = (e) => {
+          moveTo(e.touches[0].clientX);
+          e.preventDefault();
+        };
+        const stopDrag = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', stopDrag);
+          document.removeEventListener('touchmove', onTouchMove);
+          document.removeEventListener('touchend', stopDrag);
+        };
+        handles[key].addEventListener('mousedown', (e) => {
+          if (locked[key]) return;
+          e.preventDefault();
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', stopDrag);
+        });
+        handles[key].addEventListener('touchstart', () => {
+          if (locked[key]) return;
+          document.addEventListener('touchmove', onTouchMove, { passive: false });
+          document.addEventListener('touchend', stopDrag);
+        });
+        // 트랙을 직접 클릭해도 그 위치로 바로 이동한다.
+        sliders[key].addEventListener('mousedown', (e) => {
+          if (locked[key] || e.target === handles[key]) return;
+          moveTo(e.clientX);
+        });
+        handles[key].addEventListener('keydown', (e) => {
+          if (locked[key]) return;
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          const delta = e.key === 'ArrowLeft' ? -STEP : STEP;
+          setValue(key, state[key] + delta);
+          e.preventDefault();
+        });
+      };
+      KEYS.forEach(bindSlider);
     })();
     </script>
   {% endif %}

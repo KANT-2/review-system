@@ -593,9 +593,13 @@ def api_onboarding(request):
 TRUE_VALUES = {"1", "true", "on", "yes"}
 
 
-@login_required
 @require_POST
 def update_profile_api(request):
+    # login_required의 기본 동작(로그인 페이지로 302 리다이렉트)은 fetch가
+    # 응답을 그대로 HTML로 받게 만들어 JSON 파싱이 깨진다. 세션 만료 시에도
+    # 이 API는 JSON으로 응답해야 하므로 여기서 직접 인증 여부를 확인한다.
+    if not request.user.is_authenticated:
+        return JsonResponse({"success": False, "message": "다시 로그인해 주세요."}, status=401)
     # request.body는 multipart 업로드에서도 전체 페이로드를 메모리로 읽어
     # DATA_UPLOAD_MAX_MEMORY_SIZE 검사에 걸리게 만든다. 파일이 함께 오는
     # multipart 요청에서는 request.body를 건드리지 않고 request.POST를 쓴다.
