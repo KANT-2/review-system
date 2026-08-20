@@ -1206,8 +1206,9 @@ class StudentDashboardTests(TestCase):
         response = self.client.get(reverse("accounts:dashboard"))
 
         self.assertTrue(response.context["portal"]["round"]["is_urgent"])
+        # "해야 할 평가" 섹션은 대시보드 통합 개편으로 빠지고(평가 제출 페이지로 CTA 하나만 남음),
+        # 마감임박 표시는 진행률 카드 쪽으로 옮겨왔다.
         self.assertContains(response, "마감임박")
-        self.assertContains(response, 'id="todo-eval-section"')
 
     def test_submitted_evaluations_move_from_pending_to_completed(self):
         target = self.participants[1]
@@ -1223,7 +1224,8 @@ class StudentDashboardTests(TestCase):
         pending_targets = [row["target"] for row in portal["pending_evaluations"]]
         self.assertIn("학생2", " ".join(completed_targets))
         self.assertNotIn("학생2", " ".join(pending_targets))
-        self.assertContains(response, "제출 완료")
+        # 대시보드 화면에는 더 이상 개별 평가 카드를 나열하지 않는다(평가 제출 페이지로 CTA만
+        # 보여줌) - 제출 완료 여부는 portal 컨텍스트(pending/completed_evaluations)로 확인한다.
 
     def test_finishing_everything_clears_the_pending_list(self):
         from reviews.services import peer_targets, team_targets
@@ -1241,7 +1243,8 @@ class StudentDashboardTests(TestCase):
         portal = response.context["portal"]
         self.assertEqual(len(portal["pending_evaluations"]), len(remaining_team))
         if not remaining_team:
-            self.assertContains(response, "제출할 평가를 모두 끝냈습니다")
+            # "모두 끝냈습니다" 안내는 대시보드가 아니라 reviews:home(평가 제출 페이지)에서 보여준다 -
+            # 여기서는 portal 컨텍스트가 빈 목록으로 정확히 계산되는지만 확인한다.
             self.assertFalse(portal["round"]["is_urgent"])
 
 
