@@ -63,6 +63,8 @@ def _serialize_result(result):
     return {
         "round_id": run.round_id,
         "round_name": run.round.title,
+        "evaluation_start_at": run.round.evaluation_start_at,
+        "evaluation_end_at": run.round.evaluation_end_at,
         "team_score": result.team_score_raw,
         "peer_score": result.peer_score_raw,
         "tutor_score": result.tutor_score_raw,
@@ -349,6 +351,7 @@ def build_student_result_portal(user, *, selected_round_id=None):
     serialized = [_serialize_result(result) for result in rows]
     trend = [
         {
+            "round_id": row["round_id"],
             "round_name": row["round_name"],
             "team_score": float(row["team_score"]) if row["team_score"] is not None else None,
             "peer_score": float(row["peer_score"]) if row["peer_score"] is not None else None,

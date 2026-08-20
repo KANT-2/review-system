@@ -5,11 +5,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const rootStyles = getComputedStyle(document.documentElement);
   const textColor = rootStyles.getPropertyValue("--ax-text-muted").trim() || "#667085";
+  const textColorStrong = rootStyles.getPropertyValue("--ax-text").trim() || "#333333";
   const gridColor = rootStyles.getPropertyValue("--ax-border").trim() || "#E2E8F0";
   const primaryColor = rootStyles.getPropertyValue("--ax-primary").trim() || "#1769E0";
-  const successColor = rootStyles.getPropertyValue("--ax-success").trim() || "#168A50";
-  const warningColor = rootStyles.getPropertyValue("--ax-warning").trim() || "#B7791F";
-  const infoColor = rootStyles.getPropertyValue("--ax-info").trim() || "#7C3AED";
 
   const readJson = (id) => {
     const node = document.getElementById(id);
@@ -75,49 +73,83 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const trendWrap = document.getElementById("scoreTrendWrap");
   const trendCanvas = document.getElementById("scoreTrendChart");
   const trendData = readJson("score-trend-data");
-  if (trendCanvas && trendData) {
-    // 최종 점수는 막대 하나를 더 늘리는 대신 선으로 겹쳐 그린다 - 팀/개인 막대와 헷갈리지
-    // 않게 구분하면서도, 헤드라인 지표인 최종 점수의 추이를 함께 볼 수 있게 한다.
-    const coverageLabel = (valid, expected) =>
-      expected ? ` (${valid ?? 0}/${expected}명 응답)` : "";
+  if (trendWrap && trendCanvas && trendData && trendData.length) {
+    // 최종 점수를 단일 라인+영역으로 그린다 - 팀/개인/튜터 막대를 나란히 놓고 비교하게
+    // 하는 대신, 헤드라인 지표(최종 점수) 하나의 추이를 또렷하게 보여주는 쪽을 택했다.
+    // 회차별 팀/개인 점수 자체는 위쪽 통계 카드에서 선택한 회차 기준으로 이미 보여준다.
+    const currentRoundId = Number(trendWrap.dataset.currentRoundId) || null;
+    const currentIndex = trendData.findIndex((row) => row.round_id === currentRoundId);
+
+    // "4기 평가 11회차" -> "11회차", "[시드] 평가 6회차" -> "6회차 · 시드"
+    const shortRoundLabel = (name) => {
+      const match = name.match(/(\d+회차)\s*$/);
+      const suffix = match ? match[1] : name;
+      return name.startsWith("[시드]") ? `${suffix} · 시드` : suffix;
+    };
+
+    const ctx = trendCanvas.getContext("2d");
+    const areaFill = ctx.createLinearGradient(0, 0, 0, trendCanvas.parentElement.clientHeight || 320);
+    areaFill.addColorStop(0, `${primaryColor}26`);
+    areaFill.addColorStop(1, `${primaryColor}00`);
+
+    // 커스텀 툴팁 - Chart.js 기본 박스 대신 흰 카드로 그린다.
+    let tooltipEl = trendWrap.querySelector(".ax-trend-tooltip");
+    if (!tooltipEl) {
+      tooltipEl = document.createElement("div");
+      tooltipEl.className = "ax-trend-tooltip";
+      trendWrap.appendChild(tooltipEl);
+    }
+
+    const externalTooltip = (context) => {
+      const model = context.tooltip;
+      if (!model || model.opacity === 0 || !model.dataPoints || !model.dataPoints.length) {
+        tooltipEl.style.opacity = "0";
+        return;
+      }
+      const row = trendData[model.dataPoints[0].dataIndex];
+      const parts = [`팀 ${row.team_score_weight}%`, `개인 ${row.personal_score_weight}%`];
+      if (row.tutor_score_weight) parts.push(`튜터 ${row.tutor_score_weight}%`);
+      const coverageBits = [];
+      if (row.team_expected_count) {
+        coverageBits.push(`팀 제출 ${row.team_valid_count ?? 0}/${row.team_expected_count}명`);
+      }
+      if (row.peer_expected_count) {
+        coverageBits.push(`개인 제출 ${row.peer_valid_count ?? 0}/${row.peer_expected_count}명`);
+      }
+      tooltipEl.innerHTML = `
+        <div class="ax-trend-tooltip-title">${row.round_name}</div>
+        <div class="ax-trend-tooltip-row">최종 점수 ${row.final_score === null ? "N/A" : row.final_score.toFixed(2)}</div>
+        <div class="ax-trend-tooltip-sub">${parts.join(" · ")}로 계산</div>
+        ${coverageBits.length ? `<div class="ax-trend-tooltip-sub">${coverageBits.join(" · ")}</div>` : ""}
+      `;
+      tooltipEl.style.opacity = "1";
+      tooltipEl.style.left = `${model.caretX}px`;
+      tooltipEl.style.top = `${model.caretY}px`;
+    };
+
     new Chart(trendCanvas, {
+      type: "line",
       data: {
-        labels: trendData.map((row) => row.round_name),
+        labels: trendData.map((row) => shortRoundLabel(row.round_name)),
         datasets: [
           {
-            type: "bar",
-            label: "팀 점수",
-            data: trendData.map((row) => row.team_score),
-            backgroundColor: primaryColor,
-            order: 2,
-          },
-          {
-            type: "bar",
-            label: "개인 점수",
-            data: trendData.map((row) => row.peer_score),
-            backgroundColor: successColor,
-            order: 2,
-          },
-          {
-            type: "bar",
-            label: "튜터 점수",
-            data: trendData.map((row) => row.tutor_score),
-            backgroundColor: infoColor,
-            order: 2,
-          },
-          {
-            type: "line",
             label: "최종 점수",
             data: trendData.map((row) => row.final_score),
-            borderColor: warningColor,
-            backgroundColor: warningColor,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointBackgroundColor: warningColor,
-            tension: 0.25,
-            order: 1,
+            borderColor: primaryColor,
+            backgroundColor: areaFill,
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            spanGaps: true,
+            pointRadius: (context) => (context.dataIndex === currentIndex ? 6 : 3),
+            pointHoverRadius: (context) => (context.dataIndex === currentIndex ? 7 : 5),
+            pointBackgroundColor: (context) =>
+              context.dataIndex === currentIndex ? primaryColor : "#fff",
+            pointBorderColor: primaryColor,
+            pointBorderWidth: 2,
           },
         ],
       },
@@ -125,36 +157,22 @@ document.addEventListener("DOMContentLoaded", () => {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          y: {
-            min: 0,
-            max: 5,
-            ticks: { color: textColor, stepSize: 1 },
-            grid: { color: gridColor },
-          },
-          x: { ticks: { color: textColor }, grid: { display: false } },
-        },
-        plugins: {
-          legend: { labels: { color: textColor, boxWidth: 12, font: { size: 11 } } },
-          tooltip: {
-            callbacks: {
-              label: (context) => {
-                const row = trendData[context.dataIndex];
-                const label = context.dataset.label;
-                if (label === "팀 점수") {
-                  return `${label}: ${context.formattedValue}${coverageLabel(row.team_valid_count, row.team_expected_count)}`;
-                }
-                if (label === "개인 점수") {
-                  return `${label}: ${context.formattedValue}${coverageLabel(row.peer_valid_count, row.peer_expected_count)}`;
-                }
-                if (label === "최종 점수") {
-                  const parts = [`팀 ${row.team_score_weight}%`, `개인 ${row.personal_score_weight}%`];
-                  if (row.tutor_score_weight) parts.push(`튜터 ${row.tutor_score_weight}%`);
-                  return `${label}: ${context.formattedValue} (${parts.join(" · ")}로 계산)`;
-                }
-                return `${label}: ${context.formattedValue}`;
-              },
+          y: { min: 0, max: 5, display: false },
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              color: (context) => (context.index === currentIndex ? textColorStrong : textColor),
+              font: (context) => ({
+                size: 11.5,
+                weight: context.index === currentIndex ? "700" : "500",
+              }),
             },
           },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false, external: externalTooltip },
         },
       },
     });
