@@ -301,6 +301,47 @@ main { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
   position: relative;
   height: 320px;
 }
+/* 회차별 점수 그래프 위 커스텀 호버 툴팁 - Chart.js 기본 박스 대신 흰 카드로 그린다
+   (mypage-charts.js의 external tooltip 콜백이 위치를 잡아 준다). */
+.ax-trend-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 190px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--ax-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  transition: opacity 120ms ease-out;
+}
+.ax-trend-tooltip-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ax-text-muted);
+  margin-bottom: 4px;
+}
+.ax-trend-tooltip-row {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ax-text);
+}
+.ax-trend-tooltip-row::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ax-primary);
+}
+.ax-trend-tooltip-sub {
+  font-size: 11.5px;
+  color: var(--ax-text-muted);
+  margin-top: 3px;
+  padding-left: 14px;
+}
 /* 프로필 카드의 피드백 미리보기 - 긴 텍스트는 2줄로 잘라서 카드가 늘어지지 않게 한다. */
 .ax-feedback-clamp {
   display: -webkit-box;

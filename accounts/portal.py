@@ -347,6 +347,7 @@ def build_student_result_portal(user, *, selected_round_id=None):
     serialized = [_serialize_result(result) for result in rows]
     trend = [
         {
+            "round_id": row["round_id"],
             "round_name": row["round_name"],
             "team_score": float(row["team_score"]) if row["team_score"] is not None else None,
             "peer_score": float(row["peer_score"]) if row["peer_score"] is not None else None,
