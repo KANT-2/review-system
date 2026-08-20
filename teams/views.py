@@ -8,6 +8,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from notifications.models import Notification
 from notifications.services import notify_users
+from results.models import CalculationRun, EvaluationResult
 from rounds.models import RoundParticipant
 from teams.application import (
     AutoTeamBoardResult,
@@ -27,6 +28,7 @@ from teams.domain import TeamBoard
 from teams.queries import (
     ManagementTeamView,
     RoundParticipantNotFoundError,
+    StudentRoundOption,
     StudentTeamView,
 )
 from teams.services import (
@@ -39,7 +41,9 @@ from teams.services import (
 class TeamsHttpBackend(Protocol):
     """실제 Django ORM 어댑터가 제공해야 하는 HTTP 연결 인터페이스다."""
 
-    def get_student_team(self, user_id: int) -> StudentTeamView: ...
+    def get_student_team(self, user_id: int, round_id: int | None = None) -> StudentTeamView: ...
+
+    def get_student_round_options(self, user_id: int) -> tuple[StudentRoundOption, ...]: ...
 
     def get_management_team(self, round_id: int) -> ManagementTeamView: ...
 
@@ -154,8 +158,12 @@ def student_team_page(request: HttpRequest) -> HttpResponse:
     permission_error = _permission_error(request, allowed_roles={"student"})
     if permission_error is not None:
         return permission_error
+    backend = get_teams_backend()
+    round_param = request.GET.get("round")
+    round_id = int(round_param) if round_param and round_param.isdigit() else None
+    round_options = backend.get_student_round_options(request.user.id)
     try:
-        view = get_teams_backend().get_student_team(request.user.id)
+        view = backend.get_student_team(request.user.id, round_id)
     except LookupError:
         return render(
             request,
@@ -173,6 +181,8 @@ def student_team_page(request: HttpRequest) -> HttpResponse:
                     "my_participant_id": None,
                 },
                 "my_participant_id": None,
+                "round_options": round_options,
+                "selected_round_id": round_id,
             },
         )
     return render(
@@ -182,8 +192,56 @@ def student_team_page(request: HttpRequest) -> HttpResponse:
             "role": "student",
             "team_data": student_team_response(view),
             "my_participant_id": view.participant_id,
+            "round_options": round_options,
+            "selected_round_id": view.round_id,
+            "result_summary": _student_team_result_summary(
+                view.round_id, view.team.team_number if view.team else None
+            ),
         },
     )
+
+
+def _student_team_result_summary(round_id: int, team_number: int | None) -> dict | None:
+    """학생 '내 팀' 화면 상단에 보여줄 팀 결과 요약 - 튜터가 공개한 항목만 채운다.
+
+    팀 1위/내 팀 순위 둘 다 비공개면 요약 자체를 그리지 않는다(화면에 빈 카드만
+    남는 걸 피하려고 None을 돌려준다).
+    """
+    run = CalculationRun.objects.filter(round_id=round_id, is_active=True).first()
+    if not run:
+        return None
+
+    winner = None
+    if run.winner_published_at:
+        winner_result = (
+            run.results.filter(result_type=EvaluationResult.ResultType.TEAM, primary_rank=1)
+            .select_related("team")
+            .first()
+        )
+        if winner_result:
+            winner = {"name": winner_result.team.name, "score": winner_result.team_score_raw}
+
+    my_team = None
+    if run.team_ranking_published_at and team_number is not None:
+        my_result = (
+            run.results.filter(
+                result_type=EvaluationResult.ResultType.TEAM,
+                team__round_id=round_id,
+                team__team_number=team_number,
+            )
+            .select_related("team")
+            .first()
+        )
+        if my_result and my_result.primary_rank:
+            my_team = {
+                "team_name": my_result.team.name,
+                "rank": my_result.primary_rank,
+                "score": my_result.team_score_raw,
+            }
+
+    if winner is None and my_team is None:
+        return None
+    return {"winner": winner, "my_team": my_team}
 
 
 @require_GET

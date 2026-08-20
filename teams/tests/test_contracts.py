@@ -170,6 +170,7 @@ class TeamResponseContractTests(TestCase):
             response,
             {
                 "round_id": 10,
+                "round_status": "",
                 "is_configured": False,
                 "team": None,
                 "teams": [],

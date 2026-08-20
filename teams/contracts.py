@@ -108,6 +108,7 @@ def management_team_response(view: ManagementTeamView) -> dict[str, Any]:
 def student_team_response(view: StudentTeamView) -> dict[str, Any]:
     return {
         "round_id": view.round_id,
+        "round_status": view.round_status,
         "is_configured": view.is_configured,
         "team": _team_view_response(view.team) if view.team is not None else None,
         # 기존 team 필드는 호환성을 위해 유지하고 전체 편성 조회를 추가한다.

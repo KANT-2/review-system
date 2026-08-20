@@ -11,7 +11,7 @@ from teams.application import (
 from teams.backends import ServiceTeamsBackend
 from teams.contracts import AutoAssignmentRequest, TeamSaveRequest
 from teams.domain import TeamBoard, TeamDraft
-from teams.queries import ParticipantSnapshot, StoredTeam, TeamQueryData
+from teams.queries import ParticipantSnapshot, StoredTeam, StudentRoundOption, TeamQueryData
 
 
 class FakeDataSource:
@@ -40,8 +40,11 @@ class FakeDataSource:
         self.seed_calls = []
         self.previous_pair_calls = []
 
-    def get_current_student_round_data(self, user_id):
+    def get_student_round_data(self, user_id, round_id=None):
         return self.query_data
+
+    def get_student_round_options(self, user_id):
+        return (StudentRoundOption(round_id=10, round_title="테스트 회차"),)
 
     def get_round_team_data(self, round_id):
         return self.query_data

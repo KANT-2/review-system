@@ -16,6 +16,7 @@ from teams.contracts import AutoAssignmentRequest, TeamSaveRequest
 from teams.domain import TeamBoard
 from teams.queries import (
     ManagementTeamView,
+    StudentRoundOption,
     StudentTeamView,
     TeamQueryData,
     build_management_team_view,
@@ -26,7 +27,11 @@ from teams.queries import (
 class TeamsDataSource(Protocol):
     """rounds·results·teams ORM 조회가 제공해야 하는 최소 데이터 경계다."""
 
-    def get_current_student_round_data(self, user_id: int) -> TeamQueryData: ...
+    def get_student_round_data(
+        self, user_id: int, round_id: int | None = None
+    ) -> TeamQueryData: ...
+
+    def get_student_round_options(self, user_id: int) -> tuple[StudentRoundOption, ...]: ...
 
     def get_round_team_data(self, round_id: int) -> TeamQueryData: ...
 
@@ -59,9 +64,12 @@ class ServiceTeamsBackend:
         self.unit_of_work_factory = unit_of_work_factory
         self.rng_factory = rng_factory
 
-    def get_student_team(self, user_id: int) -> StudentTeamView:
-        data = self.data_source.get_current_student_round_data(user_id)
+    def get_student_team(self, user_id: int, round_id: int | None = None) -> StudentTeamView:
+        data = self.data_source.get_student_round_data(user_id, round_id)
         return build_student_team_view(data, user_id)
+
+    def get_student_round_options(self, user_id: int) -> tuple[StudentRoundOption, ...]:
+        return self.data_source.get_student_round_options(user_id)
 
     def get_management_team(self, round_id: int) -> ManagementTeamView:
         data = self.data_source.get_round_team_data(round_id)
