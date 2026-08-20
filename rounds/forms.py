@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import User
@@ -64,11 +65,16 @@ class EvaluationRoundForm(forms.ModelForm):
             approval_status=User.ApprovalStatus.APPROVED,
             is_active=True,
         ).order_by("first_name", "email")
+        # 보관된 템플릿은 선택지에서 뺀다 - 다만 이 회차가 이미 쓰고 있는 템플릿이 그
+        # 사이에 (다른 회차 때문에) 보관됐다면, 지금 선택된 값이 조용히 사라지면 안 되니
+        # 예외로 계속 보여준다.
         self.fields["team_template"].queryset = QuestionTemplate.objects.filter(
-            category=QuestionTemplate.Category.TEAM
+            Q(category=QuestionTemplate.Category.TEAM)
+            & (Q(is_archived=False) | Q(pk=self.instance.team_template_id))
         )
         self.fields["peer_template"].queryset = QuestionTemplate.objects.filter(
-            category=QuestionTemplate.Category.PEER
+            Q(category=QuestionTemplate.Category.PEER)
+            & (Q(is_archived=False) | Q(pk=self.instance.peer_template_id))
         )
         if self.instance.pk:
             self.fields["participants"].initial = self.instance.participants.values_list(

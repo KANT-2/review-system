@@ -865,6 +865,46 @@ class RoundFormTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(round_obj.participants.filter(user=leaver).exists())
 
+    def test_archived_template_is_not_offered_for_a_new_round(self):
+        active = QuestionTemplate.objects.create(
+            name="쓸 수 있는 팀 템플릿", category="TEAM", created_by=self.tutor
+        )
+        archived = QuestionTemplate.objects.create(
+            name="보관된 팀 템플릿",
+            category="TEAM",
+            created_by=self.tutor,
+            is_archived=True,
+        )
+
+        response = self.client.get(reverse("rounds:create"))
+
+        queryset = response.context["form"].fields["team_template"].queryset
+        self.assertIn(active, queryset)
+        self.assertNotIn(archived, queryset)
+
+    def test_a_round_keeps_its_own_template_even_if_it_gets_archived_later(self):
+        """다른 회차 때문에 보관된 템플릿이라도, 이미 그걸 쓰고 있는 이 회차의 선택지에서는
+        조용히 사라지면 안 된다(그러면 폼 저장 시 선택값이 유효하지 않아 진다)."""
+        now = timezone.now()
+        template = QuestionTemplate.objects.create(
+            name="나중에 보관될 템플릿",
+            category="TEAM",
+            created_by=self.tutor,
+            is_archived=True,
+        )
+        round_obj = EvaluationRound.objects.create(
+            title="보관된 템플릿을 쓰는 회차",
+            evaluation_start_at=now + timedelta(days=1),
+            evaluation_end_at=now + timedelta(days=2),
+            team_template=template,
+            created_by=self.tutor,
+        )
+
+        response = self.client.get(reverse("rounds:edit", kwargs={"round_id": round_obj.pk}))
+
+        queryset = response.context["form"].fields["team_template"].queryset
+        self.assertIn(template, queryset)
+
     def test_round_form_no_longer_shows_target_team_count(self):
         response = self.client.get(reverse("rounds:create"))
 
