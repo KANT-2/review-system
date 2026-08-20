@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
+from audit.models import AuditEvent
 from results.application import (
     PUBLICATION_FIELDS,
     calculate_round,
@@ -17,6 +18,7 @@ from results.application import (
 from results.models import CalculationRun, EvaluationResult, TutorNote
 from reviews.models import (
     ReviewAnswer,
+    ReviewFinalSubmission,
     ReviewSubmission,
     TutorReview,
     TutorReviewAnswer,
@@ -24,6 +26,7 @@ from reviews.models import (
     TutorTeamReviewAnswer,
 )
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
+from rounds.services import delete_round
 from teams.models import Team, TeamMembership
 
 
@@ -560,6 +563,50 @@ class ResultWorkflowTests(TestCase):
 
         after = self.client.get(reverse("accounts:mypage"))
         self.assertContains(after, winner.team.name)
+
+    def test_completed_round_can_be_deleted_with_all_related_data(self):
+        run = calculate_round(round_id=self.round.pk, actor=self.tutor)
+        TutorReview.objects.create(
+            round=self.round, evaluator=self.tutor, target_participant=self.participants[0]
+        )
+        TutorTeamReview.objects.create(
+            round=self.round, evaluator=self.tutor, target_team=self.teams[0]
+        )
+        ReviewFinalSubmission.objects.create(
+            round=self.round, evaluator=self.participants[0], review_type="TEAM"
+        )
+        AuditEvent.objects.create(
+            round=self.round,
+            actor=self.tutor,
+            action="ROUND_STARTED",
+            target_type="rounds.EvaluationRound",
+            target_id=str(self.round.pk),
+            result=AuditEvent.Result.SUCCEEDED,
+        )
+
+        delete_round(round_id=self.round.pk, actor=self.tutor)
+
+        self.assertFalse(EvaluationRound.objects.filter(pk=self.round.pk).exists())
+        self.assertFalse(CalculationRun.objects.filter(pk=run.pk).exists())
+        self.assertFalse(EvaluationResult.objects.filter(calculation_run_id=run.pk).exists())
+        self.assertFalse(ReviewSubmission.objects.filter(round_id=self.round.pk).exists())
+        self.assertFalse(ReviewFinalSubmission.objects.filter(round_id=self.round.pk).exists())
+        self.assertFalse(TutorReview.objects.filter(round_id=self.round.pk).exists())
+        self.assertFalse(TutorTeamReview.objects.filter(round_id=self.round.pk).exists())
+        self.assertFalse(Team.objects.filter(round_id=self.round.pk).exists())
+        self.assertFalse(RoundParticipant.objects.filter(round_id=self.round.pk).exists())
+        # 감사 로그 자체는 지우지 않고 round 참조만 비운다.
+        preserved = AuditEvent.objects.get(action="ROUND_STARTED")
+        self.assertIsNone(preserved.round)
+
+    def test_in_progress_round_cannot_be_deleted(self):
+        self.round.status = EvaluationRound.Status.IN_PROGRESS
+        self.round.save(update_fields=["status"])
+
+        with self.assertRaises(ValidationError):
+            delete_round(round_id=self.round.pk, actor=self.tutor)
+
+        self.assertTrue(EvaluationRound.objects.filter(pk=self.round.pk).exists())
 
 
 class StudentResultRoundSelectionTests(TestCase):

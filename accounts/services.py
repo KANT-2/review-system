@@ -235,6 +235,7 @@ def _lock_superuser_authority():
 
 
 def set_account_active(*, actor, target_id, is_active, break_glass=False):
+    """계정을 활성/비활성 전환한다. 관리자는 전원, 튜터는 수강생만 대상으로 할 수 있다."""
     with transaction.atomic():
         _lock_superuser_authority()
         if actor is not None:
@@ -243,14 +244,23 @@ def set_account_active(*, actor, target_id, is_active, break_glass=False):
         if break_glass:
             if actor is not None:
                 raise PermissionDenied
-        elif actor is None or not actor.is_application_admin or target.pk == actor.pk:
+        elif actor is None or target.pk == actor.pk:
             raise PermissionDenied
-        elif target.is_superuser:
-            if not actor.is_superuser:
+        elif actor.is_application_admin:
+            if target.is_superuser:
+                if not actor.is_superuser:
+                    raise PermissionDenied
+                active_superusers = User.objects.filter(is_superuser=True, is_active=True).count()
+                if not is_active and active_superusers <= 1:
+                    raise InvalidAccountTransition
+        else:
+            actor_is_tutor = (
+                actor.role == User.Role.TUTOR
+                and actor.is_active
+                and actor.approval_status == User.ApprovalStatus.APPROVED
+            )
+            if not actor_is_tutor or target.role != User.Role.STUDENT:
                 raise PermissionDenied
-            active_superusers = User.objects.filter(is_superuser=True, is_active=True).count()
-            if not is_active and active_superusers <= 1:
-                raise InvalidAccountTransition
         target.is_active = is_active
         target.auth_session_version = F("auth_session_version") + 1
         target.save(update_fields=["is_active", "auth_session_version"])

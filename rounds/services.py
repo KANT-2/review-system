@@ -6,6 +6,9 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from audit.services import record_event
+from notifications.models import Notification
+from notifications.services import notify_users
+from results.models import EvaluationResult
 from reviews.models import ReviewSubmission
 from rounds.models import (
     EvaluationRound,
@@ -39,6 +42,7 @@ def participant_snapshot_values(user):
 @transaction.atomic
 def save_round(*, form, actor):
     round_obj = form.save(commit=False)
+    is_create = round_obj.pk is None
     if round_obj.pk:
         current = EvaluationRound.objects.select_for_update().get(pk=round_obj.pk)
         if current.status != EvaluationRound.Status.DRAFT:
@@ -61,6 +65,13 @@ def save_round(*, form, actor):
             participant.save(update_fields=(*values.keys(),))
         else:
             RoundParticipant.objects.create(round=round_obj, user=user, **values)
+    if is_create and selected_users:
+        notify_users(
+            selected_users,
+            category=Notification.Category.ROUND_CREATED,
+            title="새 평가 회차가 생성되었습니다",
+            message=f"'{round_obj.title}' 회차가 생성되었습니다.",
+        )
     return round_obj
 
 
@@ -205,6 +216,26 @@ def participant_progress_rows(round_obj):
     return rows
 
 
+def is_participant_complete(participant):
+    """이 참가자 한 명만 팀·개인 평가를 다 제출했는지 확인한다.
+
+    participant_progress_rows는 회차 전체를 훑어야 해서, 제출 한 건마다 완료 여부만
+    가볍게 확인하려는 곳(예: 완료 알림)에는 이 쪽이 낫다.
+    """
+    if not hasattr(participant, "team_membership"):
+        return False
+    round_obj = participant.round
+    team_expected = max(round_obj.teams.count() - 1, 0)
+    peer_expected = max(participant.team_membership.team.memberships.count() - 1, 0)
+    team_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.TEAM
+    ).count()
+    peer_completed = ReviewSubmission.objects.filter(
+        round=round_obj, evaluator=participant, review_type=ReviewSubmission.ReviewType.PEER
+    ).count()
+    return team_completed == team_expected and peer_completed == peer_expected
+
+
 def pending_participant_rows(round_obj):
     """팀·개인 평가 중 하나라도 덜 제출한 참가자 행만 반환한다."""
     return [
@@ -232,6 +263,12 @@ def complete_round(*, round_id, actor, force_confirmed=False):
         actor=actor,
         round_obj=round_obj,
         summary={"missing_count": progress.missing_count, "confirmed": bool(force_confirmed)},
+    )
+    notify_users(
+        (participant.user for participant in round_obj.participants.select_related("user")),
+        category=Notification.Category.ROUND_COMPLETED,
+        title="평가가 종료되었습니다",
+        message=f"'{round_obj.title}' 회차 평가가 종료되었습니다.",
     )
     return round_obj
 
@@ -361,22 +398,36 @@ def delete_question_template(*, template_id, actor):
 
 @transaction.atomic
 def delete_round(*, round_id, actor):
-    """준비 중인 회차를 지운다.
+    """회차를 지운다 - 준비 중(DRAFT)이거나 완료(COMPLETED)된 회차만 대상이다.
 
-    시작된 회차는 참가자 스냅샷이 동결되고 제출·채점이 붙기 때문에 지울 수 없다. 준비 중
-    회차는 팀·구성원·참가자를 함께 정리해야 지워진다(모두 PROTECT로 묶여 있다).
+    진행 중(IN_PROGRESS) 회차는 실시간으로 쓰이고 있어 지우지 않는다(먼저 마감하거나
+    준비 중으로 되돌려야 한다).
+
+    완료된 회차는 채점 결과·평가 제출·튜터 개인/팀평가·감사 로그까지 팀·참가자·회차를
+    PROTECT로 참조하고 있어서, 그 역순(자식 -> 부모)으로 하나씩 정리해야 삭제 시
+    ProtectedError 없이 끝까지 지워진다. 감사 로그(AuditEvent)는 내용은 남기고
+    round만 비워서(nullable) 회차 삭제 뒤에도 "누가 언제 무엇을 했는지" 기록 자체는
+    보존한다.
     """
     round_obj = EvaluationRound.objects.select_for_update().get(pk=round_id)
-    if round_obj.status != EvaluationRound.Status.DRAFT:
-        raise ValidationError("준비 중인 회차만 삭제할 수 있습니다.")
-    if round_obj.review_submissions.exists() or round_obj.calculation_runs.exists():
-        raise ValidationError("제출이나 채점 기록이 있는 회차는 삭제할 수 없습니다.")
+    if round_obj.status == EvaluationRound.Status.IN_PROGRESS:
+        raise ValidationError(
+            "진행 중인 회차는 삭제할 수 없습니다. 먼저 마감하거나 준비 중으로 되돌려 주세요."
+        )
     record_event(
         action="ROUND_DELETED",
         target=round_obj,
         actor=actor,
         summary={"title": round_obj.title, "participant_count": round_obj.participants.count()},
     )
+
+    EvaluationResult.objects.filter(calculation_run__round=round_obj).delete()
+    round_obj.calculation_runs.all().delete()
+    round_obj.review_final_submissions.all().delete()
+    round_obj.review_submissions.all().delete()
+    round_obj.tutor_team_reviews.all().delete()
+    round_obj.tutor_reviews.all().delete()
+    round_obj.audit_events.update(round=None)
     for team in round_obj.teams.all():
         team.memberships.all().delete()
     round_obj.teams.all().delete()
@@ -396,6 +447,10 @@ def revert_round_to_draft(*, round_id, actor):
         raise ValidationError("진행 중인 회차만 되돌릴 수 있습니다.")
     if round_obj.review_submissions.exists():
         raise ValidationError("이미 제출된 평가가 있어 되돌릴 수 없습니다. 마감 후 채점해 주세요.")
+    if round_obj.tutor_reviews.exists() or round_obj.tutor_team_reviews.exists():
+        raise ValidationError(
+            "이미 작성된 튜터 평가가 있어 되돌릴 수 없습니다. 마감 후 채점해 주세요."
+        )
     round_obj.status = EvaluationRound.Status.DRAFT
     round_obj.started_at = None
     round_obj.save(update_fields=("status", "started_at", "updated_at"))

@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
+from notifications.services import unread_count
 from reviews.models import ReviewAnswer, ReviewFinalSubmission, ReviewSubmission
 from rounds.models import EvaluationRound, QuestionTemplate, RoundParticipant, TemplateQuestion
 from teams.models import Team, TeamMembership
@@ -169,6 +170,26 @@ class ReviewPageTests(TestCase):
         status = self.client.get(reverse("reviews:status"))
         self.assertContains(status, "1/1")
         self.assertContains(status, "학생2")
+
+    def test_tutor_is_notified_once_the_student_completes_every_submission(self):
+        self.client.post(
+            reverse("reviews:team-form", args=(self.team_two.pk,)),
+            {f"question_{self.team_question.pk}": "5"},
+        )
+        self.assertEqual(unread_count(self.tutor), 0)  # 개인 평가가 아직 안 끝났다
+
+        self.client.post(
+            reverse("reviews:peer-form", args=(self.participants[1].pk,)),
+            {f"question_{self.peer_question.pk}": "4"},
+        )
+        self.assertEqual(unread_count(self.tutor), 1)
+
+        # 최종 제출 전 재저장은 이미 완료 상태라 알림이 또 가지 않는다.
+        self.client.post(
+            reverse("reviews:team-form", args=(self.team_two.pk,)),
+            {f"question_{self.team_question.pk}": "3"},
+        )
+        self.assertEqual(unread_count(self.tutor), 1)
 
 
 class PastRoundAccessTests(TestCase):
