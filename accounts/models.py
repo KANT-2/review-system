@@ -87,6 +87,8 @@ class User(AbstractUser):
         _("수강생 식별번호"), max_length=32, null=True, blank=True, unique=True
     )
     phone_number = models.CharField(_("연락처"), max_length=20, blank=True, default="")
+    # 마이페이지에서 종류별로 끄고 켠다. 비어 있으면 전부 받는다(기본값).
+    muted_email_categories = models.JSONField(_("메일로 받지 않을 알림"), default=list, blank=True)
     # 마이페이지에서 본인이 올린다. 비어 있으면 이름 첫 글자 아바타를 그대로 쓴다.
     profile_image = models.ImageField(
         _("프로필 사진"), upload_to="profiles/", blank=True, null=True
@@ -147,6 +149,13 @@ class User(AbstractUser):
     def login_provider(self):
         social_account = self.socialaccount_set.order_by("provider").first()
         return social_account.provider if social_account else "email"
+
+    def wants_email(self, category):
+        """이 종류를 메일로도 받을지. 종 알림은 이 설정과 무관하게 항상 남는다.
+
+        본인 확인·비밀번호 재설정 메일은 계정을 지키는 수단이라 이 경로를 타지 않는다.
+        """
+        return str(category) not in (self.muted_email_categories or [])
 
     @property
     def is_application_admin(self):

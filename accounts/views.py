@@ -46,6 +46,7 @@ from accounts.services import (
     whitelist_rows,
 )
 from notices.services import active_notices
+from notifications.services import EMAIL_CAPABLE_CATEGORIES
 from results.application import (
     add_tutor_note,
     delete_all_tutor_notes,
@@ -259,16 +260,45 @@ def mypage_view(request):
         if is_student
         else None
     )
+    email_preferences = [
+        {
+            "value": category.value,
+            "label": category.label,
+            "enabled": request.user.wants_email(category.value),
+        }
+        for category in EMAIL_CAPABLE_CATEGORIES
+    ]
     return render(
         request,
         "accounts/mypage.html",
         {
             "portal": portal,
             "is_student": is_student,
+            "email_preferences": email_preferences,
             # base.html의 전역 "통합 피드백 센터" 모달(#feedbackModal)이 읽는 컨텍스트.
             "feedbacks": portal["feedback"] if portal else None,
         },
     )
+
+
+@login_required
+@require_POST
+def update_email_preferences(request):
+    """마이페이지의 메일 수신 설정 - 종 알림은 그대로 두고 메일만 켜고 끈다.
+
+    본인 확인·비밀번호 재설정 메일은 계정을 지키는 수단이라 이 설정을 타지 않는다.
+    """
+    wanted = set(request.POST.getlist("email_categories"))
+    muted = [
+        category.value for category in EMAIL_CAPABLE_CATEGORIES if category.value not in wanted
+    ]
+    request.user.muted_email_categories = muted
+    request.user.save(update_fields=["muted_email_categories"])
+    messages.success(
+        request,
+        "메일 수신 설정을 저장했습니다." if muted else "모든 알림을 메일로도 받도록 설정했습니다.",
+    )
+    return redirect("accounts:mypage")
 
 
 @login_required

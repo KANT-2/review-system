@@ -827,7 +827,11 @@ class RoundFormTests(TestCase):
         self.assertEqual(created.participants.count(), len(self.approved))
         self.assertFalse(created.participants.filter(user=self.pending).exists())
 
-    def test_creating_a_round_notifies_its_participants(self):
+    def test_creating_a_round_does_not_notify_participants_yet(self):
+        """회차를 만든 시점에는 팀 편성도 질문지도 확정되지 않아 학생이 할 수 있는 일이 없다.
+
+        알림은 제출이 실제로 열리는 start_round에서 나간다.
+        """
         now = timezone.now()
         self.client.post(
             reverse("rounds:create"),
@@ -839,7 +843,7 @@ class RoundFormTests(TestCase):
             },
         )
 
-        self.assertEqual(unread_count(self.approved[0]), 1)
+        self.assertEqual(unread_count(self.approved[0]), 0)
         self.assertEqual(unread_count(self.pending), 0)
 
     def test_existing_participant_is_kept_even_if_no_longer_eligible(self):

@@ -4,10 +4,13 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
 from audit.services import record_event
+from notifications.models import Notification
+from notifications.services import announce
 from results.models import CalculationRun, EvaluationResult, TutorNote
 from results.services import (
     FORMULA_VERSION,
@@ -262,6 +265,27 @@ def _guard_partial_publication(run, *, turning_on, partial_confirmed):
 
 
 @transaction.atomic
+def _announce_results_published(run):
+    """학생이 실제로 자기 점수를 볼 수 있게 되는 순간에만 알린다.
+
+    공개 항목은 넷이지만 학생 화면에 점수가 뜨는 기준은 my_score다. 항목을 켤 때마다
+    알리면 같은 회차로 알림이 네 번 간다.
+    """
+    from accounts.email_services import send_results_released_email
+
+    round_obj = run.round
+    announce(
+        [participant.user for participant in round_obj.participants.select_related("user")],
+        category=Notification.Category.RESULTS_PUBLISHED,
+        title="평가 결과가 공개되었습니다",
+        message=f"'{round_obj.title}' 회차의 내 점수를 확인할 수 있습니다.",
+        link=reverse("accounts:mypage"),
+        email_sender=lambda users: send_results_released_email(
+            round_obj, [user.email for user in users]
+        ),
+    )
+
+
 def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
     field = PUBLICATION_FIELDS.get(item_key)
     if not field:
@@ -278,6 +302,8 @@ def toggle_publication(*, round_id, item_key, actor, partial_confirmed=False):
         round_obj=run.round,
         summary={"item": item_key, "published": turning_on, "partial_confirmed": partial_confirmed},
     )
+    if turning_on and item_key == "my_score":
+        _announce_results_published(run)
     return run
 
 
@@ -303,6 +329,8 @@ def toggle_all_publications(*, round_id, actor, partial_confirmed=False):
         round_obj=run.round,
         summary={"item": "ALL", "published": turning_on, "partial_confirmed": partial_confirmed},
     )
+    if turning_on:
+        _announce_results_published(run)
     return run
 
 

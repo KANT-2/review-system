@@ -6,8 +6,10 @@ class Notification(models.Model):
     class Category(models.TextChoices):
         NOTICE = "NOTICE", "공지"
         ROUND_CREATED = "ROUND_CREATED", "새 회차"
+        ROUND_STARTED = "ROUND_STARTED", "평가 시작"
         TEAM_CREATED = "TEAM_CREATED", "새 팀"
         ROUND_COMPLETED = "ROUND_COMPLETED", "평가 종료"
+        RESULTS_PUBLISHED = "RESULTS_PUBLISHED", "결과 공개"
         SUBMISSION_REMINDER = "SUBMISSION_REMINDER", "제출 안내"
         PARTICIPANT_COMPLETED = "PARTICIPANT_COMPLETED", "제출 완료"
 

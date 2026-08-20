@@ -13,6 +13,11 @@ urlpatterns = [
     path("dashboard/", views.dashboard_view, name="dashboard"),
     path("mypage/", views.mypage_view, name="mypage"),
     path(
+        "mypage/email-preferences/",
+        views.update_email_preferences,
+        name="email_preferences",
+    ),
+    path(
         "mypage/rounds/<int:round_id>/result.csv",
         views.mypage_round_result_csv,
         name="mypage_round_result_csv",
