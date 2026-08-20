@@ -28,6 +28,19 @@
     return div.innerHTML;
   }
 
+  // 알림 종류(notifications.models.Notification.Category)별 아이콘·색상 - 백엔드 값과
+  // 이름을 맞춰 둔다. 모르는 종류가 오면 muted 회색 종으로 무난하게 떨어진다.
+  const CATEGORY_ICONS = {
+    NOTICE: { icon: "bi-megaphone-fill", variant: "notice" },
+    ROUND_CREATED: { icon: "bi-calendar-plus-fill", variant: "info" },
+    TEAM_CREATED: { icon: "bi-people-fill", variant: "muted" },
+    ROUND_COMPLETED: { icon: "bi-flag-fill", variant: "warning" },
+    SUBMISSION_REMINDER: { icon: "bi-alarm-fill", variant: "error" },
+    PARTICIPANT_COMPLETED: { icon: "bi-check2-circle", variant: "success" },
+  };
+  const DEFAULT_CATEGORY_ICON = { icon: "bi-bell-fill", variant: "muted" };
+  const categoryIcon = (category) => CATEGORY_ICONS[category] || DEFAULT_CATEGORY_ICON;
+
   class NotificationCenter {
     constructor(bell) {
       this.bell = bell;
@@ -130,13 +143,17 @@
       }
       list.innerHTML = "";
       items.forEach((item) => {
+        const { icon, variant } = categoryIcon(item.category);
         const button = document.createElement("button");
         button.type = "button";
         button.className = `ax-notification-item${item.is_read ? "" : " unread"}`;
         button.innerHTML = `
-          <div class="ax-notification-item-title">${escapeHtml(item.title)}</div>
-          ${item.message ? `<div class="ax-notification-item-message">${escapeHtml(item.message)}</div>` : ""}
-          <div class="ax-notification-item-time">${timeAgo(item.created_at)}</div>
+          <div class="ax-notification-item-icon ax-notification-icon--${variant}"><i class="bi ${icon}"></i></div>
+          <div class="ax-notification-item-body">
+            <div class="ax-notification-item-title">${escapeHtml(item.title)}</div>
+            ${item.message ? `<div class="ax-notification-item-message">${escapeHtml(item.message)}</div>` : ""}
+            <div class="ax-notification-item-time">${timeAgo(item.created_at)}</div>
+          </div>
         `;
         button.addEventListener("click", () => this._openItem(item));
         list.appendChild(button);
