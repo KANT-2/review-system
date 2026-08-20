@@ -137,18 +137,17 @@
   </div>
   {% if is_student %}
     {% if portal %}
-      <section class="card-custom mb-4" aria-labelledby="my-result-title">
-        <div class="card-header-custom">
-          <div class="card-title-custom" id="my-result-title">
-            <i class="bi bi-bar-chart-line-fill text-primary"></i>평가 결과
-          </div>
+      <section class="ax-result-panel mb-4" aria-labelledby="my-result-title">
+        <div class="ax-result-eyebrow">평가 결과</div>
+        <div class="ax-result-heading-row">
+          <h2 class="ax-result-heading" id="my-result-title">{{ portal.selected.round_name }}</h2>
           <div class="d-flex align-items-center gap-2">
             {% if portal.round_options|length > 1 %}
-              <form method="get" class="d-flex align-items-center gap-2">
+              <form method="get">
                 <label for="resultRoundSelect" class="visually-hidden">회차 선택</label>
                 <select id="resultRoundSelect"
                         name="round"
-                        class="ax-round-select"
+                        class="ax-round-pill-select"
                         onchange="this.form.submit()">
                   {% for option in portal.round_options %}
                     <option value="{{ option.round_id }}"
@@ -158,68 +157,115 @@
                   {% endfor %}
                 </select>
               </form>
-            {% else %}
-              <span class="badge badge-ax badge-ax-completed">{{ portal.selected.round_name }}</span>
             {% endif %}
             <a href="{% url 'accounts:mypage_round_result_csv' portal.selected.round_id %}"
-               class="btn btn-sm btn-ax-secondary"><i class="bi bi-download me-1"></i>CSV</a>
+               class="ax-result-csv-link"
+               title="CSV로 내려받기"><i class="bi bi-download"></i></a>
           </div>
         </div>
-        <div class="card-body-custom">
-          <div class="row g-3">
-            <div class="col-6 col-lg-3">
-              <div class="p-3 rounded-3 border border-primary-subtle bg-primary-subtle h-100"
-                   title="팀 {{ portal.selected.team_score_weight }}% · 개인 {{ portal.selected.personal_score_weight }}%{% if portal.selected.tutor_score_weight %} · 튜터 {{ portal.selected.tutor_score_weight }}%{% endif %}로 계산 (선택한 회차 기준)">
-                <div class="text-muted font-size-135">
-                  최종 점수 <i class="bi bi-info-circle text-muted font-size-115"></i>
-                </div>
-                <div class="fs-3 fw-bold text-primary mt-1">
-                  {{ portal.selected.final_score|as_five_point|default:"N/A" }}<small class="fs-6">/5</small>
-                </div>
-                {% include "accounts/_score_delta.html" with delta=portal.deltas.final_score %}
+        <div class="ax-result-card">
+          <div class="ax-hero-row">
+            <div>
+              <div class="ax-hero-label"
+                   title="팀 {{ portal.selected.team_score_weight }}% · 개인 {{ portal.selected.personal_score_weight }}%{% if portal.selected.tutor_score_weight %} · 튜터 {{ portal.selected.tutor_score_weight }}%{% endif %}로 계산">
+                <i class="bi bi-clock"></i>최종 점수
               </div>
-            </div>
-            <div class="col-6 col-lg-3">
-              <div class="p-3 rounded-3 border bg-body-secondary h-100">
-                <div class="text-muted font-size-135">팀 점수</div>
-                <div class="fs-3 fw-bold mt-1">
-                  {{ portal.selected.team_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small>
-                </div>
-                {% include "accounts/_score_delta.html" with delta=portal.deltas.team_score %}
+              <div class="ax-hero-number">
+                {{ portal.selected.final_score|as_five_point|default:"N/A" }}<span class="ax-hero-unit">/ 5</span>
               </div>
-            </div>
-            <div class="col-6 col-lg-3">
-              <div class="p-3 rounded-3 border bg-body-secondary h-100">
-                <div class="text-muted font-size-135">개인 점수</div>
-                <div class="fs-3 fw-bold mt-1">
-                  {{ portal.selected.peer_score|as_five_point|default:"N/A" }}<small class="fs-6 text-muted">/5</small>
+              {% if portal.deltas.final_score %}
+                <div class="ax-hero-delta ax-hero-delta--{{ portal.deltas.final_score.direction }}">
+                  {% if portal.deltas.final_score.direction == "up" %}
+                    <i class="bi bi-caret-up-fill"></i>
+                  {% elif portal.deltas.final_score.direction == "down" %}
+                    <i class="bi bi-caret-down-fill"></i>
+                  {% endif %}
+                  {{ portal.deltas.final_score.value }}
+                  <span class="ax-hero-delta-sub">&nbsp;지난 회차 대비</span>
                 </div>
-                {% include "accounts/_score_delta.html" with delta=portal.deltas.peer_score %}
+              {% endif %}
+            </div>
+            <div class="ax-hero-winner">
+              <div class="ax-hero-winner-label">1등 팀<i class="bi bi-trophy-fill text-warning"></i></div>
+              {% if portal.team_winner %}
+                <div class="ax-hero-winner-name">{{ portal.team_winner.name }}</div>
+                <div class="ax-hero-winner-score">{{ portal.team_winner.score|as_five_point }} / 5</div>
+              {% else %}
+                <div class="ax-hero-winner-name text-muted">비공개</div>
+                <div class="ax-hero-winner-score">튜터가 공개하면 표시돼요</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="ax-chart-area">
+            <div class="ax-chart-caption">
+              <span>
+                {% if portal.selected.evaluation_start_at %}{{ portal.selected.evaluation_start_at|date:"Y-m-d" }} – {{ portal.selected.evaluation_end_at|date:"Y-m-d" }}{% endif %}
+              </span>
+              <span class="ax-chart-legend"><span class="ax-chart-legend-dot"></span>최종 점수</span>
+            </div>
+            <div class="ax-trend-compact"
+                 id="scoreTrendWrap"
+                 data-current-round-id="{{ portal.selected.round_id }}">
+              <canvas id="scoreTrendChart"></canvas>
+            </div>
+          </div>
+          <hr class="ax-result-hairline">
+          <div class="ax-metric-list">
+            <div class="ax-metric-row">
+              <div class="ax-metric-left">
+                <span class="ax-metric-icon ax-metric-icon--team"><i class="bi bi-people-fill"></i></span>
+                <span class="ax-metric-name">팀 점수</span>
               </div>
-            </div>
-            <div class="col-6 col-lg-3">
-              <div class="p-3 rounded-3 border bg-body-secondary h-100">
-                <div class="text-muted font-size-135">
-                  <i class="bi bi-trophy-fill text-warning me-1"></i>1등 팀
-                </div>
-                {% if portal.team_winner %}
-                  <div class="fs-5 fw-bold mt-1">{{ portal.team_winner.name }}</div>
-                  <div class="text-muted font-size-115">{{ portal.team_winner.score|as_five_point }}/5</div>
-                {% else %}
-                  <div class="fs-5 fw-bold mt-1 text-muted">비공개</div>
-                  <div class="text-muted font-size-115">튜터가 공개하면 표시됩니다.</div>
+              <div class="ax-metric-right">
+                {% if portal.deltas.team_score %}
+                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.team_score.direction }}">
+                    {% if portal.deltas.team_score.direction == "up" %}
+                      <i class="bi bi-caret-up-fill"></i>
+                    {% elif portal.deltas.team_score.direction == "down" %}
+                      <i class="bi bi-caret-down-fill"></i>
+                    {% endif %}
+                    {{ portal.deltas.team_score.value }}
+                  </span>
                 {% endif %}
+                <span class="ax-metric-value">
+                  {{ portal.selected.team_score|as_five_point|default:"N/A" }}<span class="ax-hero-unit"> / 5</span>
+                </span>
               </div>
             </div>
-          </div>
-          <hr class="my-4">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold font-size-135">회차별 점수</span>
-          </div>
-          <div class="ax-trend-compact"
-               id="scoreTrendWrap"
-               data-current-round-id="{{ portal.selected.round_id }}">
-            <canvas id="scoreTrendChart"></canvas>
+            <div class="ax-metric-row">
+              <div class="ax-metric-left">
+                <span class="ax-metric-icon ax-metric-icon--peer"><i class="bi bi-person-fill"></i></span>
+                <span class="ax-metric-name">개인 점수</span>
+              </div>
+              <div class="ax-metric-right">
+                {% if portal.deltas.peer_score %}
+                  <span class="ax-metric-delta ax-metric-delta--{{ portal.deltas.peer_score.direction }}">
+                    {% if portal.deltas.peer_score.direction == "up" %}
+                      <i class="bi bi-caret-up-fill"></i>
+                    {% elif portal.deltas.peer_score.direction == "down" %}
+                      <i class="bi bi-caret-down-fill"></i>
+                    {% endif %}
+                    {{ portal.deltas.peer_score.value }}
+                  </span>
+                {% endif %}
+                <span class="ax-metric-value">
+                  {{ portal.selected.peer_score|as_five_point|default:"N/A" }}<span class="ax-hero-unit"> / 5</span>
+                </span>
+              </div>
+            </div>
+            {% if portal.selected.tutor_score_weight %}
+              <div class="ax-metric-row">
+                <div class="ax-metric-left">
+                  <span class="ax-metric-icon ax-metric-icon--tutor"><i class="bi bi-mortarboard-fill"></i></span>
+                  <span class="ax-metric-name">튜터 점수</span>
+                </div>
+                <div class="ax-metric-right">
+                  <span class="ax-metric-value">
+                    {{ portal.selected.tutor_score|as_five_point|default:"N/A" }}<span class="ax-hero-unit"> / 5</span>
+                  </span>
+                </div>
+              </div>
+            {% endif %}
           </div>
         </div>
       </section>

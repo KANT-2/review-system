@@ -61,6 +61,8 @@ def _serialize_result(result):
     return {
         "round_id": run.round_id,
         "round_name": run.round.title,
+        "evaluation_start_at": run.round.evaluation_start_at,
+        "evaluation_end_at": run.round.evaluation_end_at,
         "team_score": result.team_score_raw,
         "peer_score": result.peer_score_raw,
         "tutor_score": result.tutor_score_raw,
