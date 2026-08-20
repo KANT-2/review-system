@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django import forms
+from django.utils import timezone
 
 from accounts.models import User
 from rounds.models import EvaluationRound, QuestionTemplate, TemplateQuestion
@@ -71,6 +74,12 @@ class EvaluationRoundForm(forms.ModelForm):
             self.fields["participants"].initial = self.instance.participants.values_list(
                 "user_id", flat=True
             )
+        else:
+            # 새 회차는 평가 시작을 오늘, 종료를 그로부터 일주일 뒤로 미리 채워 준다 -
+            # 매번 직접 입력하지 않아도 되고, 빈 값 그대로 저장 시도해 검증 오류를 보는 일을 줄인다.
+            start_default = timezone.localtime(timezone.now())
+            self.fields["evaluation_start_at"].initial = start_default
+            self.fields["evaluation_end_at"].initial = start_default + timedelta(days=7)
         # 세 비율 필드는 옛 폼(비율 필드가 없던 시절)이 보낸 요청도 계속 통과해야 하므로
         # 필수로 두지 않는다 - 값이 안 오면 clean()에서 모델 기본값(40/60/0) 또는 기존 값으로
         # 채운다.
