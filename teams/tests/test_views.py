@@ -16,6 +16,7 @@ from teams.contracts import AutoAssignmentRequest, TeamSaveRequest
 from teams.domain import TeamBoard, TeamDraft
 from teams.queries import (
     ManagementTeamView,
+    StudentRoundOption,
     StudentTeamView,
     TeamMemberView,
     TeamView,
@@ -47,7 +48,7 @@ class FakeTeamsBackend:
         self.auto_error = None
         self.save_error = None
 
-    def get_student_team(self, user_id):
+    def get_student_team(self, user_id, round_id=None):
         team = TeamView(1, "1팀", (TeamMemberView(101, "A001", "김민수"),))
         return StudentTeamView(
             10,
@@ -55,7 +56,11 @@ class FakeTeamsBackend:
             team,
             (team, TeamView(2, "2팀", (TeamMemberView(102, "A002", "이영희"),))),
             101,
+            "IN_PROGRESS",
         )
+
+    def get_student_round_options(self, user_id):
+        return (StudentRoundOption(round_id=10, round_title="테스트 회차"),)
 
     def get_management_team(self, round_id):
         return ManagementTeamView(

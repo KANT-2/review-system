@@ -8,7 +8,87 @@
 }
 
 .teams-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 16px;
+}
+
+.teams-round-form { margin: 0; }
+
+/* 학생 화면 상단 - 팀 1위 / 내 팀 순위 요약 (딱 두 개만) */
+.teams-result-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.teams-result-tile {
+  background: #fff;
+  border: 1px solid var(--teams-line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.teams-result-tile.mine {
+  border-color: var(--ax-primary, #1769e0);
+  background: var(--ax-primary-container, #eaf2ff);
+}
+
+.teams-result-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 17px;
+}
+
+.teams-result-icon.gold {
+  background: #fdf0d8;
+  color: #a3690a;
+}
+
+.teams-result-icon.mine {
+  background: #fff;
+  color: var(--ax-primary, #1769e0);
+}
+
+.teams-result-label {
+  font-size: 12.5px;
+  color: var(--teams-muted);
+  font-weight: 600;
+}
+
+.teams-result-value {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.teams-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  margin-left: 8px;
+  background: #eef1f5;
+  color: #5b6472;
+}
+
+@media (max-width: 720px) {
+  .teams-result-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .teams-heading h1 {

@@ -8,7 +8,7 @@ from teams.application import RoundForTeamEditing
 from teams.backends import ServiceTeamsBackend
 from teams.domain import TeamBoard
 from teams.models import Team, TeamMembership
-from teams.queries import ParticipantSnapshot, StoredTeam, TeamQueryData
+from teams.queries import ParticipantSnapshot, StoredTeam, StudentRoundOption, TeamQueryData
 
 
 class DjangoTeamsDataSource:
@@ -40,17 +40,42 @@ class DjangoTeamsDataSource:
             teams=teams,
         )
 
-    def get_current_student_round_data(self, user_id):
+    def get_student_round_data(self, user_id, round_id=None):
+        """학생 본인의 팀 화면에 쓸 회차 데이터.
+
+        round_id가 없으면 "가장 최근에 팀이 편성된 회차"를 고른다 - 진행 중인 회차가
+        끝나도 그 팀 구성을 계속 보여주고, 다음 회차 팀이 새로 나오면 자동으로 그쪽으로
+        넘어가야 하기 때문에(요구사항) 상태(IN_PROGRESS)가 아니라 회차 생성 순서로 고른다.
+        """
+        base_queryset = EvaluationRound.objects.prefetch_related(
+            "participants", "teams__memberships"
+        )
+        if round_id is not None:
+            round_obj = base_queryset.filter(pk=round_id, participants__user_id=user_id).first()
+            if not round_obj:
+                raise LookupError("회차가 없습니다.")
+            return self._query_data(round_obj)
+
         round_obj = (
-            EvaluationRound.objects.filter(
-                status=EvaluationRound.Status.IN_PROGRESS, participants__user_id=user_id
-            )
-            .prefetch_related("participants", "teams__memberships")
+            base_queryset.filter(teams__memberships__participant__user_id=user_id)
+            .distinct()
+            .order_by("-created_at")
             .first()
         )
         if not round_obj:
-            raise LookupError("현재 참가 중인 회차가 없습니다.")
+            raise LookupError("배정된 팀이 없습니다.")
         return self._query_data(round_obj)
+
+    def get_student_round_options(self, user_id):
+        rounds = (
+            EvaluationRound.objects.filter(teams__memberships__participant__user_id=user_id)
+            .distinct()
+            .order_by("-created_at")
+        )
+        return tuple(
+            StudentRoundOption(round_id=round_obj.pk, round_title=round_obj.title)
+            for round_obj in rounds
+        )
 
     def get_round_team_data(self, round_id):
         try:

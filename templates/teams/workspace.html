@@ -5,10 +5,59 @@
   <link href="{% static 'teams/css/workspace.css' %}" rel="stylesheet">
   <div class="teams-workspace">
     <div class="teams-heading">
-      <span id="statusBadge" class="teams-status"></span>
-      <h1>{% if role == "student" %}내 팀{% else %}프로젝트 팀 편성{% endif %}</h1>
-      <p id="pageDescription"></p>
+      <div>
+        <span id="statusBadge" class="teams-status"></span>
+        <h1>{% if role == "student" %}내 팀{% else %}프로젝트 팀 편성{% endif %}</h1>
+        <p id="pageDescription"></p>
+      </div>
+      {% if role == "student" and round_options|length > 1 %}
+        <form method="get" class="teams-round-form">
+          <label class="visually-hidden" for="teamRoundSelect">회차 선택</label>
+          <select id="teamRoundSelect"
+                  name="round"
+                  class="ax-round-pill-select"
+                  onchange="this.form.submit()">
+            {% for option in round_options %}
+              <option value="{{ option.round_id }}"
+                      {% if option.round_id == selected_round_id %}selected{% endif %}>
+                {{ option.round_title }}
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+      {% endif %}
     </div>
+    {% if role == "student" and result_summary %}
+      <div class="teams-result-summary">
+        <div class="teams-result-tile">
+          <span class="teams-result-icon gold"><i class="bi bi-trophy-fill"></i></span>
+          <div>
+            <div class="teams-result-label">팀 1위</div>
+            <div class="teams-result-value">
+              {% if result_summary.winner %}
+                {{ result_summary.winner.name }}
+              {% else %}
+                <span class="text-muted">비공개</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="teams-result-tile mine">
+          <span class="teams-result-icon mine"><i class="bi bi-people-fill"></i></span>
+          <div>
+            <div class="teams-result-label">내 팀 순위</div>
+            <div class="teams-result-value">
+              {% if result_summary.my_team %}
+                {{ result_summary.my_team.team_name }}
+                <span class="teams-rank-badge">{{ result_summary.my_team.rank }}위</span>
+              {% else %}
+                <span class="text-muted">비공개</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
     <section id="toolbar" class="teams-toolbar" hidden>
       <label for="teamCount">
         팀 수

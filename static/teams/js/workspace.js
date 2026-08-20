@@ -457,8 +457,14 @@
       );
       return;
     }
-    byId("statusBadge").textContent = "팀 배정 완료";
-    byId("pageDescription").textContent = "현재 프로젝트의 전체 팀과 나의 팀을 확인하세요.";
+    // 진행 중인 회차의 팀이면 "배정 완료", 끝난 회차의 팀을 그대로 보여주는 중이면
+    // "최근 배정"으로 구분한다 - 회차가 끝나도 마지막으로 배정된 팀은 계속 보여준다.
+    const isCurrentRound = data.round_status === "IN_PROGRESS";
+    byId("statusBadge").textContent = isCurrentRound ? "팀 배정 완료" : "지난 회차 · 최근 배정";
+    byId("statusBadge").classList.toggle("closed", !isCurrentRound);
+    byId("pageDescription").textContent = isCurrentRound
+      ? "현재 프로젝트의 전체 팀과 나의 팀을 확인하세요."
+      : "가장 최근에 배정된 팀이에요. 새 회차 팀이 정해지면 자동으로 바뀌어요.";
     byId("legend").textContent = "";
     renderBoard({ showMyTeam: true });
   }

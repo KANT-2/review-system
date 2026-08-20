@@ -70,6 +70,15 @@ class StudentTeamView:
     team: TeamView | None
     teams: tuple[TeamView, ...] = ()
     participant_id: int | None = None
+    round_status: str = ""
+
+
+@dataclass(frozen=True)
+class StudentRoundOption:
+    """학생이 팀에 배정된 적 있는 회차 - 화면 드롭다운 선택지."""
+
+    round_id: int
+    round_title: str
 
 
 def build_management_team_view(
@@ -134,6 +143,7 @@ def build_student_team_view(data: TeamQueryData, user_id: int) -> StudentTeamVie
             None,
             management_view.teams,
             participant_id,
+            data.round_status,
         )
     return StudentTeamView(
         data.round_id,
@@ -141,6 +151,7 @@ def build_student_team_view(data: TeamQueryData, user_id: int) -> StudentTeamVie
         matching_teams[0],
         management_view.teams,
         participant_id,
+        data.round_status,
     )
 
 
