@@ -420,7 +420,7 @@ class FinalSubmitTests(TestCase):
     def test_final_submit_is_blocked_until_every_target_is_done(self):
         response = self.client.post(self.url)
 
-        self.assertRedirects(response, reverse("reviews:team-list"))
+        self.assertRedirects(response, reverse("reviews:home"))
         self.assertFalse(ReviewFinalSubmission.objects.exists())
 
     def test_final_submit_locks_the_review_type(self):
@@ -428,7 +428,7 @@ class FinalSubmitTests(TestCase):
 
         response = self.client.post(self.url)
 
-        self.assertRedirects(response, reverse("reviews:team-list"))
+        self.assertRedirects(response, reverse("reviews:home"))
         self.assertTrue(
             ReviewFinalSubmission.objects.filter(
                 round=self.round, evaluator=self.participants[0], review_type="TEAM"
