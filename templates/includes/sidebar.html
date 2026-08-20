@@ -1,16 +1,27 @@
-<aside id="sidebar">
+<aside id="sidebar"
+       class="offcanvas-lg offcanvas-start"
+       tabindex="-1"
+       aria-label="주 메뉴">
   <div>
     <div class="sidebar-header">
       <a href="{% url 'home' %}" class="sidebar-brand">
         <i class="bi bi-mortarboard-fill"></i>
         <span class="brand-text">AX Console</span>
       </a>
+      {% comment %}좁은 화면에서는 사이드바가 오프캔버스라 '접기'가 의미 없다 - 닫기 버튼으로 바꾼다.{% endcomment %}
       <button type="button"
-              class="btn btn-sm text-white p-0"
+              class="btn btn-sm text-white p-0 d-none d-lg-inline-flex"
               id="sidebar-toggle"
               title="사이드바 토글"
               aria-label="사이드바 접기 또는 펼치기">
         <i class="bi bi-list fs-5"></i>
+      </button>
+      <button type="button"
+              class="btn btn-sm text-white p-0 d-lg-none"
+              data-bs-dismiss="offcanvas"
+              data-bs-target="#sidebar"
+              aria-label="메뉴 닫기">
+        <i class="bi bi-x-lg fs-5"></i>
       </button>
     </div>
     {% if user.role == 'tutor' or user.role == 'admin' %}

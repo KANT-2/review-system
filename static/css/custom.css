@@ -73,10 +73,16 @@ body {
   font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-color: var(--ax-bg);
   color: var(--ax-text);
-  font-size: 14px;
+  /* 보조 텍스트가 11~12px까지 내려가는 화면이 많아 본문 기준을 한 단계 올린다. */
+  font-size: 15px;
   letter-spacing: -0.015em;
   line-height: 1.6;
   margin: 0;
+  /* 한국어는 기본값(normal)이면 음절 단위로 아무 데서나 끊겨 "최종 점수에 반" / "영됩니다"처럼
+     읽히는 줄바꿈이 나온다. 띄어쓰기에서만 넘기고, 이메일·URL처럼 띄어쓰기가 없어
+     줄을 넘칠 수 있는 문자열만 예외로 끊는다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 #app-shell { display: flex; min-height: 100vh; }
@@ -1724,3 +1730,145 @@ tbody.collapse.show { display: table-row-group; }
 .cal-side-placeholder i { font-size: 22px; }
 .cal-side-placeholder p { margin: 0; }
 .ax-notification-item-time { font-size: 11px; color: var(--ax-text-muted); margin-top: 4px; }
+
+/* hidden 속성은 .d-flex 같은 display 유틸리티에 밀린다 - 숨김이 이기게 한다. */
+[hidden] { display: none !important; }
+
+@media (min-width: 992px) {
+  /* Bootstrap의 .offcanvas-lg는 넓은 화면에서 배경을 투명으로 되돌린다 - 사이드바 색을 지킨다. */
+  #sidebar.offcanvas-lg { background-color: var(--ax-nav) !important; }
+}
+
+/* ===== 좁은 화면 (lg 미만) =====
+   사이드바는 Bootstrap 오프캔버스로 동작한다. #sidebar 규칙이 ID 선택자라
+   .offcanvas-lg의 position·width를 덮어쓰므로, 여기서 다시 되돌려 준다.
+   (transform·visibility는 건드리지 않아야 열고 닫는 동작이 그대로 산다.) */
+@media (max-width: 991.98px) {
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: min(280px, 82vw);
+    z-index: 1045;
+  }
+
+  /* 접기 상태는 넓은 화면 전용이다 - 오프캔버스로 열렸을 때는 항상 펼친 모습으로 둔다. */
+  #sidebar.collapsed { width: min(280px, 82vw); }
+  #sidebar.collapsed .nav-text,
+  #sidebar.collapsed .nav-section-title,
+  #sidebar.collapsed .brand-text { display: revert; }
+  #sidebar.collapsed .sidebar-nav-link {
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 10px 12px;
+    gap: 12px;
+    justify-content: flex-start;
+  }
+
+  #topbar { padding: 0 16px; gap: 12px; }
+  .topbar-actions { gap: 8px; }
+  main { padding: 16px; }
+
+  /* 브레드크럼이 좁은 폭에서 세 줄로 접히던 문제 - 현재 위치만 한 줄로 남긴다. */
+  .topbar-breadcrumb {
+    min-width: 0;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .topbar-breadcrumb .current {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 공지 바 - 컨트롤이 제목을 밀어내 정작 공지가 안 보이던 문제. 제목을 한 줄 차지하게 한다. */
+  .notice-bar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 14px;
+  }
+  .notice-bar-track {
+    flex: 1 0 100%;
+    order: 2;
+  }
+  .notice-bar-label { order: 1; }
+  .notice-bar-controls { order: 3; margin-left: auto; }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  /* 표 안의 조작 버튼이 좁은 화면에서 서로 붙지 않게 한다. */
+  .table td .btn + .btn,
+  .table td form + form { margin-top: 4px; }
+
+  /* table-responsive는 내용이 넘칠 때만 스크롤된다. 최소 폭을 주지 않으면 표가 화면 폭에
+     맞춰 찌그러지면서 글자가 한 자씩 세로로 쌓인다 - 스크롤되게 두는 편이 읽을 수 있다.
+     다만 점수처럼 보러 온 값이 화면 밖으로 밀리면 안 되므로, 보조 열은 접는다. */
+  .table-responsive > .table { min-width: 460px; }
+  .ax-col-optional { display: none; }
+
+  /* 같은 이유로 칸 안의 글자도 끊지 않는다. "결과 공개 변경"이 석 줄로, 날짜가 "2026-08-" /
+     "20"으로 쪼개지던 자리다. 넘치는 폭은 위 컨테이너가 가로로 스크롤해 받아 준다. */
+  .table-responsive > .table th,
+  .table-responsive > .table td { white-space: nowrap; }
+  /* 문장이 들어가는 칸만 예외 - 한 줄로 늘어놓으면 표가 끝없이 넓어진다. 대신 너무 좁게
+     접혀 행이 다섯 줄로 부풀지 않도록 최소 폭을 주고 두 줄에서 끊는다(전문은 CSV로 받는다). */
+  .table-responsive > .table .ax-cell-wrap,
+  .table-responsive > .table .ax-cell-wrap * { white-space: normal; }
+  .table-responsive > .table .ax-cell-wrap {
+    min-width: 200px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 카드 머리말은 제목과 곁들인 설명이 한 줄을 나눠 쓰다 제목이 "승인 대기" / "목록"으로
+     끊겼다. 자리가 모자라면 설명을 아랫줄로 내려보내고 제목은 온전히 둔다. */
+  .card-header-custom {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  main { padding: 12px; }
+  .page-title { font-size: 19px; }
+  .card-body-custom { padding: 16px; }
+  /* 브레드크럼은 좁은 화면에서 현재 위치만 남긴다. */
+  .topbar-breadcrumb { font-size: 12px; }
+  .topbar-breadcrumb-root,
+  .topbar-breadcrumb-sep { display: none; }
+  .topbar-actions .fw-semibold { display: none; }
+
+  /* 1~5 선택지가 폭이 모자라 "4개 + 1개"로 갈라졌다. 남는 폭을 다섯 칸이 똑같이 나눠 갖게
+     하고, 양 끝 설명은 위아래로 갈라 놓아 왼쪽에서 오른쪽으로 커지는 척도의 방향이
+     그대로 읽히게 한다. */
+  .ax-rating {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .ax-rating > div {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  /* 선택지 하나는 grid 칸을 꽉 채운다 - 안 그러면 글자 폭(30px)까지 쪼그라들어 누르기 어렵다. */
+  .ax-rating > div > div { display: flex; }
+  .ax-rating label {
+    min-width: 0;
+    width: 100%;
+    padding: 10px 2px;
+  }
+  .ax-rating-anchor:last-child { align-self: flex-end; }
+}
+
+/* 표 안의 작은 버튼도 손가락으로 누를 수 있는 크기는 남긴다. */
+.table td .btn-sm,
+.table td .btn.btn-sm { min-height: 32px; }

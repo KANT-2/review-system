@@ -162,8 +162,9 @@
             <tr>
               <th scope="col" class="text-end">순위</th>
               <th scope="col">수강생</th>
-              <th scope="col">팀</th>
-              <th scope="col" class="text-end">
+              {% comment %}좁은 화면에서는 보러 온 값(순위·이름·최종점수)만 남기고 접는다.{% endcomment %}
+              <th scope="col" class="ax-col-optional">팀</th>
+              <th scope="col" class="text-end ax-col-optional">
                 점수 계산
                 <i class="bi bi-info-circle ax-info-icon"
                    data-bs-toggle="tooltip"
