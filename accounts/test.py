@@ -423,23 +423,23 @@ class AccountsTests(TestCase):
         self.assertFalse(self.approved_student.is_active)
         self.assertGreater(self.approved_student.auth_session_version, before)
 
-    def test_admin_switches_role_between_student_and_tutor(self):
+    def test_role_change_is_not_an_app_action_anymore(self):
+        """앱에서 역할을 올리는 길은 화면에 없었고 주소로만 닿았다 - 그 길도 막는다.
+
+        튜터는 관리자 화면까지 쓰는 운영 담당자라, 앱 안에 역할을 올리는 경로를 두면
+        권한이 늘어나는 길이 화면 없이 URL로만 존재하게 된다.
+        """
         admin = User.objects.create_superuser(
             email="role-admin@ax.com", password=STRONG_PASSWORD, first_name="관리자"
         )
         self.client.force_login(admin)
 
-        self.client.post(
-            reverse("accounts:account_action", args=[self.approved_student.pk, "make-tutor"])
-        )
-        self.approved_student.refresh_from_db()
-        self.assertEqual(self.approved_student.role, User.Role.TUTOR)
-
-        self.client.post(
-            reverse("accounts:account_action", args=[self.approved_student.pk, "make-student"])
-        )
-        self.approved_student.refresh_from_db()
-        self.assertEqual(self.approved_student.role, User.Role.STUDENT)
+        for action in ("make-tutor", "make-student"):
+            self.client.post(
+                reverse("accounts:account_action", args=[self.approved_student.pk, action])
+            )
+            self.approved_student.refresh_from_db()
+            self.assertEqual(self.approved_student.role, User.Role.STUDENT)
 
     def test_students_cannot_reach_account_management(self):
         self.client.force_login(self.approved_student)
@@ -1637,3 +1637,47 @@ class ProfileImageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.student.refresh_from_db()
         self.assertEqual(self.student.first_name, "이름변경")
+
+
+class DjangoAdminRoleLockTests(TestCase):
+    """관리자 화면에서도 역할을 바꿀 수 없어야 한다 - 앱에서 걷어낸 경로를 여기 남기면 같다."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email="lock-admin@ax.com", password=STRONG_PASSWORD, first_name="관리자"
+        )
+        self.student = User.objects.create_user(
+            email="lock-student@ax.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.STUDENT,
+            approval_status=User.ApprovalStatus.APPROVED,
+        )
+        self.client.force_login(self.admin)
+
+    def test_role_field_is_read_only_on_the_change_form(self):
+        response = self.client.get(f"/admin/accounts/user/{self.student.pk}/change/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="role"')
+
+    def test_posting_a_role_change_does_not_take_effect(self):
+        """폼에서 지웠어도 요청을 직접 만들어 보내면 어떻게 되는지 확인한다."""
+        response = self.client.post(
+            f"/admin/accounts/user/{self.student.pk}/change/",
+            {
+                "email": self.student.email,
+                "first_name": "",
+                "student_number": "",
+                "phone_number": "",
+                "role": User.Role.TUTOR,
+                "approval_status": User.ApprovalStatus.APPROVED,
+                "is_active": "on",
+                "date_joined_0": "2026-01-01",
+                "date_joined_1": "00:00:00",
+            },
+        )
+
+        self.assertIn(response.status_code, (200, 302))
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.role, User.Role.STUDENT)
+        self.assertFalse(self.student.is_staff)

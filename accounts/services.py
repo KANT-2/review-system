@@ -390,36 +390,6 @@ def revert_approval_to_pending(*, actor, target_id):
 
 
 @transaction.atomic
-def change_user_role(*, actor, target_id, role):
-    """수강생과 튜터 사이의 역할만 바꾼다.
-
-    관리자 역할은 is_staff와 함께 움직여야 해서(accounts_staff_role_consistent 제약) 화면에서
-    다루지 않는다 - 권한 상승 경로를 만들지 않기 위해서다.
-    """
-    if role not in {User.Role.STUDENT, User.Role.TUTOR}:
-        raise InvalidAccountTransition("수강생과 튜터 사이에서만 역할을 바꿀 수 있습니다.")
-    target = User.objects.select_for_update().get(pk=target_id)
-    if not actor.is_application_admin:
-        raise PermissionDenied
-    if target.pk == actor.pk or target.is_superuser or target.role == User.Role.ADMIN:
-        raise PermissionDenied
-    if target.role == role:
-        raise InvalidAccountTransition("이미 같은 역할입니다.")
-    previous = target.role
-    target.role = role
-    target.auth_session_version = F("auth_session_version") + 1
-    target.save(update_fields=["role", "auth_session_version"])
-    record_event(
-        action="ACCOUNT_ROLE_CHANGED",
-        target=target,
-        actor=actor,
-        summary={"from": previous, "to": role},
-    )
-    target.refresh_from_db()
-    return target
-
-
-@transaction.atomic
 def require_password_rotation(*, actor, target_id):
     """다음 로그인에서 비밀번호를 새로 정하게 만든다(기존 세션도 함께 끊는다)."""
     target = User.objects.select_for_update().get(pk=target_id)

@@ -34,7 +34,6 @@ from accounts.services import (
     account_rows,
     add_whitelist_emails,
     change_password,
-    change_user_role,
     finalize_password_login,
     finish_password_reset,
     remove_whitelist_email,
@@ -423,20 +422,12 @@ def account_action(request, user_id, action):
         "require-password-reset": lambda: require_password_rotation(
             actor=request.user, target_id=user_id
         ),
-        "make-tutor": lambda: change_user_role(
-            actor=request.user, target_id=user_id, role=User.Role.TUTOR
-        ),
-        "make-student": lambda: change_user_role(
-            actor=request.user, target_id=user_id, role=User.Role.STUDENT
-        ),
     }
     messages_by_action = {
         "revert-approval": "승인 대기로 되돌렸습니다.",
         "activate": "계정을 다시 활성화했습니다.",
         "deactivate": "계정을 비활성화했습니다. 기존 로그인 세션도 끊겼습니다.",
         "require-password-reset": "다음 로그인에서 비밀번호를 새로 정하도록 했습니다.",
-        "make-tutor": "튜터로 역할을 바꿨습니다.",
-        "make-student": "수강생으로 역할을 바꿨습니다.",
     }
     handler = handlers.get(action)
     if handler is None:
