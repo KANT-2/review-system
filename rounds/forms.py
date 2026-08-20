@@ -144,11 +144,6 @@ class TemplateQuestionForm(forms.ModelForm):
         self.fields["competency"].choices = [
             ("", "역량 미지정")
         ] + TemplateQuestion.Competency.choices
-        self.fields["response_type"].choices = [
-            choice
-            for choice in TemplateQuestion.ResponseType.choices
-            if choice[0] != TemplateQuestion.ResponseType.TEXT
-        ]
         if not self.instance.pk:
             # 새 줄은 1~5점을 기본으로 둔다 - 점수 문항이 하나도 없으면 회차를 시작할 수 없다.
             self.fields["response_type"].initial = TemplateQuestion.ResponseType.RATING_5

@@ -30,6 +30,8 @@
   --ax-warning-bg: #FEF7EA;
   --ax-error: #C93C3C;
   --ax-error-bg: #FEF3F2;
+  --ax-info: #7C3AED;
+  --ax-info-bg: #F3EBFF;
 
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 72px;
@@ -63,6 +65,8 @@
   --ax-warning-bg: #3A2C10;
   --ax-error: #F87171;
   --ax-error-bg: #3A1A1A;
+  --ax-info: #A78BFA;
+  --ax-info-bg: #2E2249;
 }
 
 body {
@@ -286,14 +290,23 @@ main { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; flex-grow:
   object-fit: cover;
 }
 
-/* 마이페이지 차트는 프로필과 나란히 놓기 위해 작게 유지한다. */
+/* 레이더차트는 프로필과 나란히 놓기 위해 작게 유지한다. */
 .ax-radar-compact {
   position: relative;
-  height: 190px;
+  height: 260px;
 }
+/* 회차별 점수 그래프는 카드 전체 너비를 혼자 쓰므로 레이더차트보다 높이를 더 준다 -
+   그래야 가로로 길게 눌려 납작해 보이지 않는다. */
 .ax-trend-compact {
   position: relative;
-  height: 160px;
+  height: 320px;
+}
+/* 프로필 카드의 피드백 미리보기 - 긴 텍스트는 2줄로 잘라서 카드가 늘어지지 않게 한다. */
+.ax-feedback-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .min-width-0 {
   min-width: 0;
