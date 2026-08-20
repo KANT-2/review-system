@@ -87,7 +87,8 @@
     const cardLabel = isMyTeam
       ? '<span class="mine-label">나의 팀</span>'
       : `<span>${team.members.length}명</span>`;
-    return `<article class="team-card${isMyTeam ? " mine" : ""}" data-team="${team.team_number}"><header><h2>${escapeHtml(team.name)}</h2>${cardLabel}</header><div class="members">${team.members.map((person) => memberMarkup(person, canEdit)).join("")}</div></article>`;
+    const members = sortBySeedDescending(team.members);
+    return `<article class="team-card${isMyTeam ? " mine" : ""}" data-team="${team.team_number}"><header><h2>${escapeHtml(team.name)}</h2>${cardLabel}</header><div class="members">${members.map((person) => memberMarkup(person, canEdit)).join("")}</div></article>`;
   }
 
   function renderBoard({ canEdit = false, showMyTeam = false } = {}) {
@@ -104,8 +105,20 @@
     if (canEdit) bindDragEvents();
   }
 
+  function seedValue(person) {
+    const score = data.seed_scores?.[person.participant_id];
+    return score == null ? -Infinity : Number(score);
+  }
+
+  // 튜터가 자동/수동 배치를 판단할 때 시드가 높은 학생을 먼저 보도록 정렬한다.
+  // 학생 화면에는 시드가 아예 내려오지 않으므로 정렬 없이 원래 순서를 쓴다.
+  function sortBySeedDescending(people) {
+    if (config.role !== "tutor") return people;
+    return [...people].sort((a, b) => seedValue(b) - seedValue(a));
+  }
+
   function renderUnassignedMembers(canEdit) {
-    const people = data.unassigned_members || [];
+    const people = sortBySeedDescending(data.unassigned_members || []);
     const memberChips = people
       .map((person) => {
         const dragAttributes = canEdit
@@ -301,15 +314,22 @@
 
   async function createAutomaticAssignment() {
     const teamCount = Number(byId("teamCount").value);
+    // 이미 '미배정'으로 빼놓은 학생은 자동배치 대상에서 계속 제외한다 - 여기서
+    // 다시 섞어 넣으면 나중에 수동으로 빼도 평균 계산에는 이미 반영된 뒤다.
+    const excludedIds = (data.unassigned_members || []).map(
+      (person) => person.participant_id,
+    );
+
     if (config.previewMode) {
-      const people = allParticipants();
+      const assignable = allParticipants().filter(
+        (person) => !excludedIds.includes(person.participant_id),
+      );
       data.teams = Array.from({ length: teamCount }, (_, index) => ({
         team_number: index + 1,
         name: `${index + 1}팀`,
         members: [],
       }));
-      people.forEach((person, index) => data.teams[index % teamCount].members.push(person));
-      data.unassigned_members = [];
+      assignable.forEach((person, index) => data.teams[index % teamCount].members.push(person));
       byId("seedMetric").textContent = "유효 시드 29명";
       byId("balanceMetric").textContent = "팀 균형 편차 8.42 → 3.18";
       isDirty = true;
@@ -321,6 +341,7 @@
     const result = await post(config.autoUrl, {
       team_count: teamCount,
       lock_version: data.lock_version,
+      excluded_participant_ids: excludedIds,
     });
     data.teams = result.teams.map((team) => ({
       ...team,
@@ -330,7 +351,6 @@
         )
         .filter(Boolean),
     }));
-    data.unassigned_members = [];
     data.seed_scores = result.seed_scores || {};
     byId("seedMetric").textContent = `유효 시드 ${result.quality.seeded_participant_count}명`;
     const initialDeviation = result.quality.initial_standard_deviation ?? "N/A";

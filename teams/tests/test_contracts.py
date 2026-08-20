@@ -21,6 +21,20 @@ class TeamRequestContractTests(TestCase):
 
         self.assertEqual(request.team_count, 3)
         self.assertEqual(request.lock_version, 4)
+        self.assertEqual(request.excluded_participant_ids, ())
+
+    def test_parses_auto_assignment_request_with_excluded_participants(self):
+        request = AutoAssignmentRequest.from_payload(
+            {"team_count": 3, "lock_version": 4, "excluded_participant_ids": [101, 104]}
+        )
+
+        self.assertEqual(request.excluded_participant_ids, (101, 104))
+
+    def test_rejects_non_list_excluded_participants(self):
+        with self.assertRaisesRegex(TeamContractError, "excluded_participant_ids must be a list"):
+            AutoAssignmentRequest.from_payload(
+                {"team_count": 3, "lock_version": 4, "excluded_participant_ids": 101}
+            )
 
     def test_rejects_boolean_as_integer(self):
         with self.assertRaisesRegex(TeamContractError, "team_count must be an integer"):

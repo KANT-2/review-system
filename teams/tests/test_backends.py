@@ -144,6 +144,29 @@ class ServiceTeamsBackendTests(TestCase):
             [(10, (101, 102, 103, 104))],
         )
 
+    def test_excludes_unassigned_participants_from_auto_assignment(self):
+        result = self.backend.create_auto_assignment(
+            10,
+            AutoAssignmentRequest(
+                team_count=2,
+                lock_version=4,
+                excluded_participant_ids=(104,),
+            ),
+        )
+
+        assigned_participants = {
+            participant_id for team in result.board.teams for participant_id in team.participant_ids
+        }
+        self.assertNotIn(104, assigned_participants)
+        self.assertEqual(assigned_participants, {101, 102, 103})
+        # 화면에는 제외된 참가자의 시드도 계속 표시해야 하므로 조회는 전원 대상이다.
+        self.assertEqual(self.data_source.seed_calls, [(10, (101, 102, 103, 104))])
+        # 직전 팀 회피 계산은 실제로 배정될 인원만 대상으로 한다.
+        self.assertEqual(
+            self.data_source.previous_pair_calls,
+            [(10, (101, 102, 103))],
+        )
+
     def test_rejects_auto_assignment_for_stale_version_before_seed_queries(self):
         with self.assertRaises(TeamVersionConflictError):
             self.backend.create_auto_assignment(
