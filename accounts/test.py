@@ -504,6 +504,22 @@ class AccountsTests(TestCase):
 
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response["Retry-After"], "900")
+        self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
+        self.assertTemplateUsed(response, "accounts/login.html")
+        self.assertContains(
+            response,
+            "로그인 시도가 너무 많습니다. 15분 후 다시 시도해 주세요.",
+            status_code=429,
+        )
+        self.assertContains(
+            response,
+            '<div class="alert alert-danger py-2 small">'
+            "로그인 시도가 너무 많습니다. 15분 후 다시 시도해 주세요."
+            "</div>",
+            status_code=429,
+            html=True,
+        )
+        self.assertNotContains(response, '"success": false', status_code=429)
 
     def test_tutor_can_approve_a_pending_student(self):
         target = User.objects.create_user(
