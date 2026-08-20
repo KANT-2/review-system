@@ -39,12 +39,32 @@ document.addEventListener("DOMContentLoaded", () => {
       syncSelectedUsers();
     };
 
+    // 보낸 메일은 거둘 수 없다 - 몇 명에게 나가는지 폼에 계속 보여준다.
+    const targetHint = document.getElementById("announcementTargetHint");
+    const allStudentCount = Number(targetHint?.dataset.allCount || 0);
+
+    const describeTarget = () => {
+      if (targetType.value === "team") {
+        const label = teamSelect.options[teamSelect.selectedIndex]?.text || "";
+        return teamSelect.value ? `${label}에게` : "조(팀)를 선택해 주세요";
+      }
+      if (targetType.value === "select") {
+        return `목록에서 고른 ${selectedRecipientBoxes().length}명에게`;
+      }
+      return `활성 수강생 ${allStudentCount}명 전원에게`;
+    };
+
+    const refreshTargetHint = () => {
+      if (targetHint) targetHint.textContent = describeTarget();
+    };
+
     const refreshTargetFields = () => {
       const isTeam = targetType.value === "team";
       teamWrapper.classList.toggle("d-none", !isTeam);
       teamSelect.required = isTeam;
       if (!isTeam) teamSelect.value = "";
       syncSelectedUsers();
+      refreshTargetHint();
     };
 
     const refreshScheduleFields = () => {
@@ -56,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     targetType.addEventListener("change", refreshTargetFields);
+    teamSelect.addEventListener("change", refreshTargetHint);
     sendType.addEventListener("change", refreshScheduleFields);
     recipientSelectAll?.addEventListener("change", () => {
       recipientBoxes().forEach((box) => {
@@ -74,12 +95,18 @@ document.addEventListener("DOMContentLoaded", () => {
       if (targetType.value === "select" && selectedRecipientBoxes().length === 0) {
         window.alert("발송할 수강생을 목록에서 한 명 이상 선택해 주세요.");
         event.preventDefault();
+        return;
+      }
+      const when = sendType.value === "scheduled" ? "예약합니다" : "지금 보냅니다";
+      if (!window.confirm(`${describeTarget()} 공지 메일을 ${when}. 계속할까요?`)) {
+        event.preventDefault();
       }
     });
 
     refreshTargetFields();
     refreshScheduleFields();
     refreshRecipientSelection();
+    refreshTargetHint();
   }
 
   // "더보기" 버튼 문구를 펼침 상태에 맞춰 바꾼다.

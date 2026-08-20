@@ -9,7 +9,12 @@ from django.utils import timezone
 from results.models import CalculationRun, EvaluationResult
 from results.services import round_to_display
 from reviews.models import ReviewAnswer, ReviewSubmission, TutorReviewAnswer, TutorTeamReviewAnswer
-from reviews.services import current_participation, peer_targets, team_targets
+from reviews.services import (
+    current_participation,
+    peer_targets,
+    review_window_state,
+    team_targets,
+)
 from rounds.models import RoundParticipant, TemplateQuestion
 
 COMPETENCY_LABELS = dict(TemplateQuestion.Competency.choices)
@@ -504,6 +509,9 @@ def build_student_portal(user):
     ) + _evaluation_rows(peer_rows, category="PEER", label="개인 평가", completed=True)
     remaining = round_obj.evaluation_end_at - timezone.now()
     d_day = max(ceil(remaining.total_seconds() / 86400), 0)
+    # 회차가 시작돼도 평가 기간 전이면 아직 낼 수 없다. 대시보드가 이걸 모르면 "마감 D-8"에
+    # 제출 링크까지 내밀고, 학생은 눌러 들어가야 "기간이 아닙니다"를 만난다.
+    window_state = review_window_state(round_obj)
     return {
         "is_demo": False,
         "round": {
@@ -512,8 +520,11 @@ def build_student_portal(user):
             "evaluation_start_at": round_obj.evaluation_start_at,
             "evaluation_end_at": round_obj.evaluation_end_at,
             "d_day": d_day,
+            "window_state": window_state,
+            "is_open": window_state == "OPEN",
             # 남은 평가가 있는데 마감이 하루 안쪽이면 화면에서 눈에 띄게 표시한다.
-            "is_urgent": bool(pending) and d_day <= 1,
+            # 제출 기간이 아니면 급할 일이 없다.
+            "is_urgent": bool(pending) and d_day <= 1 and window_state == "OPEN",
         },
         "calendar": _month_calendar(round_obj),
         "team": {

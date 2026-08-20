@@ -1872,3 +1872,11 @@ tbody.collapse.show { display: table-row-group; }
 /* 표 안의 작은 버튼도 손가락으로 누를 수 있는 크기는 남긴다. */
 .table td .btn-sm,
 .table td .btn.btn-sm { min-height: 32px; }
+
+/* 팀 편성 - 드래그 대신 "고르고 → 놓을 곳 누르기"로 옮길 때, 지금 고른 학생을 표시한다. */
+.member.picked,
+.teams-chip.picked {
+  outline: 2px solid var(--ax-primary);
+  outline-offset: 1px;
+  background: var(--ax-primary-container);
+}

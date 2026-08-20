@@ -584,7 +584,7 @@ class ResultWorkflowTests(TestCase):
             result=AuditEvent.Result.SUCCEEDED,
         )
 
-        delete_round(round_id=self.round.pk, actor=self.tutor)
+        delete_round(round_id=self.round.pk, actor=self.tutor, confirm_title=self.round.title)
 
         self.assertFalse(EvaluationRound.objects.filter(pk=self.round.pk).exists())
         self.assertFalse(CalculationRun.objects.filter(pk=run.pk).exists())
@@ -598,6 +598,16 @@ class ResultWorkflowTests(TestCase):
         # 감사 로그 자체는 지우지 않고 round 참조만 비운다.
         preserved = AuditEvent.objects.get(action="ROUND_STARTED")
         self.assertIsNone(preserved.round)
+
+    def test_completed_round_is_not_deleted_without_the_exact_title(self):
+        """성적 원본을 지우는 일이라 확인창 한 번으로는 부족하다 - 제목을 정확히 받아야 한다."""
+        with self.assertRaises(ValidationError):
+            delete_round(round_id=self.round.pk, actor=self.tutor, confirm_title="")
+        with self.assertRaises(ValidationError):
+            delete_round(round_id=self.round.pk, actor=self.tutor, confirm_title="아무 제목")
+
+        self.assertTrue(EvaluationRound.objects.filter(pk=self.round.pk).exists())
+        self.assertTrue(ReviewSubmission.objects.filter(round_id=self.round.pk).exists())
 
     def test_in_progress_round_cannot_be_deleted(self):
         self.round.status = EvaluationRound.Status.IN_PROGRESS

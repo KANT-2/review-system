@@ -49,13 +49,7 @@
         {% endfor %}
       </div>
       <div class="card-body-custom border-top d-flex justify-content-between align-items-center gap-2">
-        <span class="text-muted small">
-          {% if round_obj.tutor_score_weight %}
-            이 평가의 척도형 문항은 최종 점수에 {{ round_obj.tutor_score_weight }}% 반영됩니다.
-          {% else %}
-            이 평가는 기록으로만 남고 학생 최종 점수에는 반영되지 않습니다.
-          {% endif %}
-        </span>
+        <span class="text-muted small">{% include "rounds/_tutor_review_weight_note.html" %}</span>
         <button class="btn btn-ax-primary flex-shrink-0" type="submit">{% if existing %}수정 저장{% else %}저장하기{% endif %}</button>
       </div>
     </section>

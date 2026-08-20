@@ -46,7 +46,8 @@ from accounts.services import (
     whitelist_rows,
 )
 from notices.services import active_notices
-from notifications.services import EMAIL_CAPABLE_CATEGORIES
+from notifications.models import Notification
+from notifications.services import EMAIL_CAPABLE_CATEGORIES, announce
 from results.application import (
     add_tutor_note,
     delete_all_tutor_notes,
@@ -413,6 +414,10 @@ def account_admin(request):
         {
             "teams": teams,
             "current_round_title": current_round_title,
+            # 공지 메일 폼이 "몇 명에게 나가는지"를 미리 보여줄 때 쓴다.
+            "active_student_count": User.objects.filter(role=User.Role.STUDENT, is_active=True)
+            .exclude(email="")
+            .count(),
             "scheduled_emails": scheduled_emails,
             "notes": tutor_notes_by_student(),
             "pending_users": pending_users,
@@ -825,43 +830,39 @@ def send_tutor_announcement_view(request):
         if not team:
             messages.error(request, "발송할 조(팀)를 선택해 주세요.")
             return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
-        recipient_emails = list(
-            team.memberships.filter(participant__user__is_active=True)
-            .exclude(participant__user__email="")
-            .values_list("participant__user__email", flat=True)
+        recipients = list(
+            User.objects.filter(round_participations__team_membership__team=team, is_active=True)
+            .exclude(email="")
+            .distinct()
         )
         team_name = team.name
-        target_info_str = f"'{team_name}' (총 {len(recipient_emails)}명)"
+        target_info_str = f"'{team_name}' (총 {len(recipients)}명)"
     elif target_type == "select":
-        recipient_emails = list(
+        recipients = list(
             User.objects.filter(
                 id__in=selected_user_ids,
                 role=User.Role.STUDENT,
                 is_active=True,
-            )
-            .exclude(email="")
-            .values_list("email", flat=True)
+            ).exclude(email="")
         )
-        if not recipient_emails:
+        if not recipients:
             messages.error(request, "발송할 수강생을 한 명 이상 선택해 주세요.")
             return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
-        target_info_str = f"선택한 수강생 (총 {len(recipient_emails)}명)"
+        target_info_str = f"선택한 수강생 (총 {len(recipients)}명)"
     elif target_user_id:
         target_user = User.objects.filter(id=target_user_id).first()
         if target_user and target_user.role == User.Role.STUDENT and target_user.is_active:
-            recipient_emails = [target_user.email]
+            recipients = [target_user]
             name = target_user.first_name or target_user.email
             target_info_str = f"수강생 {name}님"
         else:
-            recipient_emails = []
+            recipients = []
             target_info_str = "선택한 수강생 (0명)"
     else:
-        recipient_emails = list(
-            User.objects.filter(role=User.Role.STUDENT, is_active=True)
-            .exclude(email="")
-            .values_list("email", flat=True)
+        recipients = list(
+            User.objects.filter(role=User.Role.STUDENT, is_active=True).exclude(email="")
         )
-        target_info_str = f"전체 수강생 (총 {len(recipient_emails)}명)"
+        target_info_str = f"전체 수강생 (총 {len(recipients)}명)"
 
     send_type = request.POST.get("send_type", "now").strip()
     scheduled_at_str = request.POST.get("scheduled_at", "").strip()
@@ -925,8 +926,20 @@ def send_tutor_announcement_view(request):
 
     from accounts.email_services import send_tutor_announcement_email
 
-    send_tutor_announcement_email(subject, message, recipient_emails)
-    messages.success(request, f"{target_info_str}에게 공지 메일을 발송했습니다.")
+    # 공지도 같은 사건이다 - 종 알림을 남기고, 메일을 꺼두지 않은 사람에게만 메일이 나간다.
+    mailed = announce(
+        recipients,
+        category=Notification.Category.NOTICE,
+        title=subject,
+        message=message,
+        email_sender=lambda users: send_tutor_announcement_email(
+            subject, message, [user.email for user in users]
+        ),
+    )
+    messages.success(
+        request,
+        f"{target_info_str}에게 알림 {len(recipients)}명 / 메일 {len(mailed)}명 보냈습니다.",
+    )
     return redirect(request.META.get("HTTP_REFERER", "accounts:account_admin"))
 
 
