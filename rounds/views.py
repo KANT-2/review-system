@@ -418,7 +418,9 @@ def template_list(request):
         request,
         "rounds/template_list.html",
         {
-            "templates": [row for row in all_rows if row.is_archived] if archived_only else all_rows,
+            "templates": [row for row in all_rows if row.is_archived]
+            if archived_only
+            else all_rows,
             "archived_only": archived_only,
             "total_count": len(all_rows),
             "archived_count": archived_count,

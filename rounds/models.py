@@ -77,9 +77,7 @@ class QuestionTemplate(models.Model):
     def rounds_in_use(self):
         """이 템플릿을 쓰는 회차 제목 목록 - 보관 화면에서 왜 못 지우는지 보여줄 때 쓴다."""
         return list(
-            EvaluationRound.objects.filter(
-                Q(team_template=self) | Q(peer_template=self)
-            )
+            EvaluationRound.objects.filter(Q(team_template=self) | Q(peer_template=self))
             .exclude(status=EvaluationRound.Status.DRAFT)
             .order_by("-completed_at", "-started_at")
             .values_list("title", flat=True)
