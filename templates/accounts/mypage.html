@@ -319,8 +319,10 @@
   {% endif %}
 {% endblock %}
 {% block modals %}
-  {# "받은 피드백" 더보기 버튼은 base.html의 전역 #feedbackModal("통합 피드백 센터")을 연다 -
-     여기서 새로 만들면 같은 id가 두 번 나와 그쪽이 먼저 열려버린다. #}
+  {% comment %}
+    "받은 피드백" 더보기 버튼은 base.html의 전역 #feedbackModal("통합 피드백 센터")을 연다 -
+    여기서 새로 만들면 같은 id가 두 번 나와 그쪽이 먼저 열려버린다.
+  {% endcomment %}
   <div class="modal fade"
        id="profileModal"
        tabindex="-1"

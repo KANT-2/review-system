@@ -295,7 +295,9 @@ def _notify_team_assignments(board: TeamBoard) -> None:
             category=Notification.Category.TEAM_CREATED,
             title="팀이 배정되었습니다",
             message=f"'{team.name}'에 배정되었습니다.",
-            link=reverse("teams:student-team"),
+            # "teams:student-team"은 JS가 fetch로 부르는 JSON API라 브라우저로 직접 열면
+            # 안 된다 - 사이드바 "내 팀"이 실제로 쓰는 HTML 페이지 경로를 써야 한다.
+            link=reverse("student-team-page"),
         )
 
 
