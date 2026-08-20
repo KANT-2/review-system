@@ -1110,4 +1110,148 @@ tbody.collapse.show { display: table-row-group; }
 .ax-col-18 { width: 18%; }
 .ax-col-22 { width: 22%; }
 .ax-col-30 { width: 30%; }
+
+/* 회차 설정 - 점수 반영 비율 슬라이더 3종(팀/개인/튜터, 10% 단위 스냅, 하나를 옮기면
+   나머지 둘이 자동으로 재분배되어 합이 항상 100%). 각 슬라이더는 독립된 0~100% 트랙이라
+   핸들이 항상 끝까지(0%·100%) 자유롭게 움직인다. */
+.ax-weight-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ax-weight-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+}
+.ax-weight-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ax-text);
+}
+.ax-weight-row-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ax-weight-row-value {
+  font-weight: 700;
+  color: var(--ax-text);
+}
+/* 고정 체크박스 - 실제 input은 숨기고 자물쇠 아이콘으로 상태를 보여준다. */
+.ax-weight-lock {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--ax-text-muted);
+}
+.ax-weight-lock input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.ax-weight-lock input:checked + i {
+  color: var(--ax-primary);
+}
+.ax-weight-lock input:focus-visible + i {
+  outline: 2px solid var(--ax-primary);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+.ax-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.ax-dot-team { background-color: var(--ax-primary); }
+.ax-dot-personal { background-color: var(--ax-success); }
+.ax-dot-tutor { background-color: var(--ax-warning); }
+
+/* 슬라이더 본체 - 트랙은 얇게(6px), 핸들은 트랙 밖(overflow 영향 없음)에 둬서 0%/100%
+   끝단에서도 잘리지 않고 끝까지 드래그된다. */
+.ax-weight-slider {
+  position: relative;
+  height: 28px;
+  margin: 0 10px;
+  touch-action: none;
+}
+.ax-weight-slider-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  overflow: hidden;
+  background-color: var(--ax-border);
+}
+.ax-weight-slider-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 120ms ease-out;
+}
+.ax-fill-team { background-color: var(--ax-primary); }
+.ax-fill-personal { background-color: var(--ax-success); }
+.ax-fill-tutor { background-color: var(--ax-warning); }
+
+/* 10% 단위 눈금점 - 트랙과 같은 중앙선에 겹쳐 그린다(클릭 대상은 아님). */
+.ax-weight-ticks {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  pointer-events: none;
+}
+.ax-tick {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  margin-top: -2px;
+  border-radius: 999px;
+  background-color: var(--ax-surface);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.ax-weight-handle {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  border-radius: 999px;
+  background-color: var(--ax-surface);
+  border: 2px solid var(--ax-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: ew-resize;
+  transition: left 120ms ease-out;
+}
+.ax-handle-personal { border-color: var(--ax-success); }
+.ax-handle-tutor { border-color: var(--ax-warning); }
+.ax-weight-handle:focus-visible {
+  box-shadow: 0 0 0 3px var(--ax-primary-container);
+}
+
+/* 고정된 슬라이더 - 드래그 대상이 아님을 흐린 핸들과 not-allowed 커서로 보여준다. */
+.ax-weight-slider.is-locked .ax-weight-handle {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ax-weight-slider.is-locked .ax-weight-slider-fill {
+  opacity: 0.6;
+}
+
+.ax-weight-hidden-fields {
+  display: none;
+}
 .ax-col-32 { width: 32%; }
