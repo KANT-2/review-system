@@ -8,6 +8,9 @@
   // 저장 직후에는 저장 버튼이 다음 단계로 이동하는 버튼으로 바뀐다 - 편집을 다시
   // 시작하면(isDirty) 원래 저장 버튼으로 되돌린다.
   let justSaved = false;
+  // 드래그가 어려운 환경(터치·키보드·보조기기)에서도 옮길 수 있게 "고르고 → 놓을 곳 누르기"
+  // 경로를 함께 둔다. 드래그는 그대로 살아 있다.
+  let selectedParticipantId = null;
 
   const byId = (id) => document.getElementById(id);
   // CSRF 쿠키는 HttpOnly라 스크립트로 읽을 수 없다 - 서버가 페이지로 내려준 토큰을 쓴다.
@@ -77,7 +80,10 @@
     const dimmed = matchesSearch(person) ? "" : " dimmed";
     const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
     const seed = config.role === "tutor" ? seedLabel(person) : "";
-    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}" ${draggableAttributes}><span class="member-initial">${initialLetter}</span><span class="member-name">${displayName}</span>${seed}${myLabel}</div>`;
+    const picked = canEdit && person.participant_id === selectedParticipantId ? " picked" : "";
+    // 편집 가능할 때만 버튼처럼 다룬다 - 학생 화면에서는 그냥 이름표다.
+    const reachable = canEdit ? 'tabindex="0" role="button"' : "";
+    return `<div class="member${isMe ? " me" : ""}${dimmed}${hit}${picked}" ${draggableAttributes} ${reachable}><span class="member-initial">${initialLetter}</span><span class="member-name">${displayName}</span>${seed}${myLabel}</div>`;
   }
 
   function teamCardMarkup(team, canEdit, showMyTeam) {
@@ -127,14 +133,16 @@
         const dimmed = matchesSearch(person) ? "" : " dimmed";
         const hit = searchQuery && matchesSearch(person) ? " search-hit" : "";
         const seed = config.role === "tutor" ? seedLabel(person) : "";
-        return `<span class="teams-chip${dimmed}${hit}" ${dragAttributes}>${escapeHtml(person.display_name)}${seed}</span>`;
+        const picked = canEdit && person.participant_id === selectedParticipantId ? " picked" : "";
+        const reachable = canEdit ? 'tabindex="0" role="button"' : "";
+        return `<span class="teams-chip${dimmed}${hit}${picked}" ${dragAttributes} ${reachable}>${escapeHtml(person.display_name)}${seed}</span>`;
       })
       .join("");
     // 편집 중에는 비어 있어도 영역을 남긴다 - 팀에서 뺀 학생을 떨어뜨릴 자리가 필요하다.
     if (canEdit) {
       const body = people.length
         ? `<div>${memberChips}</div>`
-        : '<p class="teams-waiting-hint">학생을 이곳으로 끌어다 놓으면 팀에서 빠집니다.</p>';
+        : '<p class="teams-waiting-hint">학생을 이곳으로 끌어다 놓거나, 학생을 고른 뒤 이곳을 누르면 팀에서 빠집니다.</p>';
       byId("unassignedArea").innerHTML =
         `<div class="teams-waiting${people.length ? "" : " empty"}" data-dropzone="unassigned"><strong>미배정 학생 ${people.length}명</strong>${body}</div>`;
     } else {
@@ -178,6 +186,60 @@
       });
     });
     bindUnassignDropzones();
+    bindClickMoveEvents();
+  }
+
+  function selectPerson(participantId) {
+    selectedParticipantId = selectedParticipantId === participantId ? null : participantId;
+    renderTutorBoard();
+  }
+
+  function dropSelectedOn(teamNumber) {
+    if (selectedParticipantId === null) return false;
+    const participantId = selectedParticipantId;
+    selectedParticipantId = null;
+    if (teamNumber === null) {
+      unassignParticipant(participantId);
+    } else {
+      moveParticipant(participantId, teamNumber);
+    }
+    return true;
+  }
+
+  function bindClickMoveEvents() {
+    document.querySelectorAll("[data-person]").forEach((item) => {
+      const participantId = Number(item.dataset.person);
+      const activate = (event) => {
+        // 이미 고른 학생이 있으면, 다른 학생을 누른 것도 "그 학생이 속한 팀에 놓기"로 읽는다.
+        // 카드가 가득 차 빈 자리가 없을 때 옮길 방법이 없던 문제를 없앤다.
+        if (selectedParticipantId !== null && selectedParticipantId !== participantId) {
+          const card = item.closest("[data-team]");
+          event.stopPropagation();
+          dropSelectedOn(card ? Number(card.dataset.team) : null);
+          return;
+        }
+        event.stopPropagation();
+        selectPerson(participantId);
+      };
+      item.addEventListener("click", activate);
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activate(event);
+        }
+      });
+    });
+    document.querySelectorAll("[data-team]").forEach((team) => {
+      team.addEventListener("click", () => dropSelectedOn(Number(team.dataset.team)));
+    });
+    const waiting = byId("unassignedArea")?.querySelector("[data-dropzone]");
+    waiting?.addEventListener("click", () => dropSelectedOn(null));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && selectedParticipantId !== null) {
+        selectedParticipantId = null;
+        renderTutorBoard();
+      }
+    });
   }
 
   function bindUnassignDropzones() {
@@ -460,6 +522,12 @@
     });
     byId("autoButton").addEventListener("click", () => {
       createAutomaticAssignment().catch(showRequestError);
+    });
+    // 팀 편성은 저장 버튼을 눌러야 서버에 남는다 - 옮겨 놓고 그냥 나가면 전부 사라진다.
+    window.addEventListener("beforeunload", (event) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
     });
     byId("saveButton").addEventListener("click", () => {
       if (justSaved && config.nextUrl) {
