@@ -295,6 +295,7 @@ def _notify_team_assignments(board: TeamBoard) -> None:
             category=Notification.Category.TEAM_CREATED,
             title="팀이 배정되었습니다",
             message=f"'{team.name}'에 배정되었습니다.",
+            link=reverse("teams:student-team"),
         )
 
 

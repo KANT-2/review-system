@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
@@ -331,6 +332,7 @@ def _notify_tutors_of_completion(participant):
             f"{participant.display_name_snapshot}님이 "
             f"'{participant.round.title}' 팀·개인 평가를 모두 제출했습니다."
         ),
+        link=reverse("rounds:reviews", kwargs={"round_id": participant.round_id}),
     )
 
 
