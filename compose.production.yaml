@@ -20,6 +20,7 @@ services:
       - data
 
   app:
+    image: review-system-production-app
     build:
       context: .
     restart: unless-stopped
@@ -55,6 +56,43 @@ services:
       start_period: 15s
     networks:
       - edge
+      - data
+      - mail
+
+  scheduler:
+    # 웹과 같은 릴리스 이미지를 사용해 관리 명령과 메일 템플릿 버전이 어긋나지 않게 한다.
+    image: review-system-production-app
+    restart: unless-stopped
+    init: true
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          if python manage.py process_email_queue --verbosity 0; then
+            touch /tmp/email-scheduler-heartbeat
+          fi
+          sleep 60
+        done
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_EMAIL_BACKEND: ${DJANGO_EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      DJANGO_EMAIL_HOST_PASSWORD: ${DJANGO_EMAIL_HOST_PASSWORD:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - find /tmp/email-scheduler-heartbeat -mmin -2 -print -quit | grep -q .
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
       - data
       - mail
 
