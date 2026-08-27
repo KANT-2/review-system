@@ -133,6 +133,8 @@ def publish_settings(request, round_id):
             "publish_items": publication_rows,
             "pending_confirm": pending_confirm,
             "has_partial": has_partial,
+            # 공개를 켜면 참가자 전원에게 알림과 메일이 나간다 - 몇 명에게 가는지 미리 보여준다.
+            "participant_count": round_obj.participants.count(),
         },
     )
 

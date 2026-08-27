@@ -34,11 +34,21 @@
           <div class="card-body-custom">
             <div class="d-flex justify-content-between align-items-end mb-2 small">
               <div>
-                <span class="badge badge-ax badge-ax-completed me-1">{{ portal.round.status }}</span>
-                {% if portal.round.is_urgent %}
-                  <span class="badge badge-ax badge-ax-danger me-1">마감임박</span>
+                {% comment %}회차가 시작돼도 평가 기간 전이면 아직 낼 수 없다 - 상태와 날짜를
+                기간에 맞춰 적어야 눌러 보고 나서야 알게 되는 일이 없다.{% endcomment %}
+                {% if portal.round.window_state == 'BEFORE' %}
+                  <span class="badge badge-ax badge-ax-pending me-1">제출 시작 전</span>
+                  <span class="text-muted">{{ portal.round.evaluation_start_at|date:"n/j H:i" }}부터</span>
+                {% elif portal.round.window_state == 'CLOSED' %}
+                  <span class="badge badge-ax badge-ax-expired me-1">제출 마감됨</span>
+                  <span class="text-muted">{{ portal.round.evaluation_end_at|date:"n/j H:i" }} 마감</span>
+                {% else %}
+                  <span class="badge badge-ax badge-ax-completed me-1">{{ portal.round.status }}</span>
+                  {% if portal.round.is_urgent %}
+                    <span class="badge badge-ax badge-ax-danger me-1">마감임박</span>
+                  {% endif %}
+                  <span class="text-muted">마감 D-{{ portal.round.d_day }}</span>
                 {% endif %}
-                <span class="text-muted">마감 D-{{ portal.round.d_day }}</span>
               </div>
               <strong class="text-primary">{{ portal.progress.percent }}%</strong>
             </div>
@@ -59,7 +69,13 @@
             <a href="{% url 'reviews:home' %}"
                class="ax-progress-link p-3 rounded-3 border bg-body-secondary d-flex justify-content-between align-items-center mt-3">
               <span class="d-flex align-items-center gap-2 fw-semibold small">
-                <i class="bi bi-clipboard-check-fill text-primary"></i>평가 제출 페이지로 이동
+                {% if portal.round.window_state == 'BEFORE' %}
+                  <i class="bi bi-eye text-primary"></i>문항 미리 보기
+                {% elif portal.round.window_state == 'CLOSED' %}
+                  <i class="bi bi-clipboard-check-fill text-primary"></i>제출한 응답 보기
+                {% else %}
+                  <i class="bi bi-clipboard-check-fill text-primary"></i>평가 제출 페이지로 이동
+                {% endif %}
               </span>
               <span class="d-flex align-items-center gap-3 small text-muted">
                 <span><i class="bi bi-ui-checks-grid me-1"></i>팀 {{ portal.progress.team.completed }}/{{ portal.progress.team.expected }}</span>
@@ -68,7 +84,11 @@
               </span>
             </a>
             <div class="mt-3">
-              <small class="text-muted"><i class="bi bi-info-circle me-1"></i>팀 평가와 개인 평가를 모두 제출해야 최종 점수에 반영됩니다.</small>
+              {% if portal.round.window_state == 'BEFORE' %}
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>{{ portal.round.evaluation_start_at|date:"n월 j일 H:i" }}부터 제출할 수 있습니다. 문항은 지금 미리 볼 수 있습니다.</small>
+              {% else %}
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>팀 평가와 개인 평가를 모두 제출해야 최종 점수에 반영됩니다.</small>
+              {% endif %}
             </div>
           </div>
         </section>

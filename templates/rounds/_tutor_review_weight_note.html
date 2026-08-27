@@ -1,0 +1,22 @@
+{% comment %}
+튜터 평가가 점수에 반영되는지 알려 주는 한 문장.
+
+채점(results.application._build_result_rows)은 회차의 tutor_score_weight가 0보다 클 때만
+튜터 평가를 넣는다. 개인평가와 팀평가가 이 값 하나로 함께 켜지고 꺼지는데, 화면에서는
+개인평가가 "반영 안 됨", 팀평가가 "반영됨"으로 서로 반대로 적혀 있었다. 켜고 꺼지는 규칙을
+이 한 곳에서만 판단해 실제 계산과 어긋나지 않게 한다.
+
+반영되는 방식은 둘이 다르다 - 개인평가는 최종 점수의 tutor_score_weight%를 차지하고,
+팀평가는 학생들이 낸 팀 평가와 함께 평균되어 팀 점수에 섞인다. scope로 구분한다.
+
+쓰는 쪽에서 round_obj를 넘긴다. 팀평가 화면은 scope="team"을 함께 넘긴다.
+{% endcomment %}
+{% if round_obj.tutor_score_weight %}
+  {% if scope == "team" %}
+    이 평가의 척도형 문항은 팀이 받은 다른 팀 평가와 함께 평균되어 팀 점수에 반영됩니다.
+  {% else %}
+    이 평가의 척도형 문항은 최종 점수에 {{ round_obj.tutor_score_weight }}% 반영됩니다.
+  {% endif %}
+{% else %}
+  이 회차는 튜터 평가를 점수에 넣지 않습니다 - 기록으로만 남습니다.
+{% endif %}
