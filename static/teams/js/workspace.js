@@ -316,9 +316,14 @@
     const teamCount = Number(byId("teamCount").value);
     // 이미 '미배정'으로 빼놓은 학생은 자동배치 대상에서 계속 제외한다 - 여기서
     // 다시 섞어 넣으면 나중에 수동으로 빼도 평균 계산에는 이미 반영된 뒤다.
-    const excludedIds = (data.unassigned_members || []).map(
-      (person) => person.participant_id,
-    );
+    //
+    // 다만 아직 아무도 팀에 들어가 있지 않다면 '미배정'은 "일부러 뺀 사람"이 아니라
+    // 그냥 "아직 안 넣은 전원"이다. 이걸 제외로 넘기면 배치할 사람이 0명이 되어
+    // 자동 배치가 실패한다 - 새로 만든 회차가 항상 이 상태다.
+    const hasAssignedMembers = (data.teams || []).some((team) => team.members.length > 0);
+    const excludedIds = hasAssignedMembers
+      ? (data.unassigned_members || []).map((person) => person.participant_id)
+      : [];
 
     if (config.previewMode) {
       const assignable = allParticipants().filter(
@@ -351,6 +356,15 @@
         )
         .filter(Boolean),
     }));
+    // 팀에 들어간 학생은 미배정 목록에서 뺀다 - 그러지 않으면 같은 사람이 팀 카드와
+    // 미배정 영역에 함께 남아 인원이 두 배로 보인다. 자동배치 대상에서 제외됐던
+    // 학생은 어느 팀에도 없으므로 그대로 미배정에 남는다.
+    const assignedIds = new Set(
+      data.teams.flatMap((team) => team.members.map((person) => person.participant_id)),
+    );
+    data.unassigned_members = (data.unassigned_members || []).filter(
+      (person) => !assignedIds.has(person.participant_id),
+    );
     data.seed_scores = result.seed_scores || {};
     byId("seedMetric").textContent = `유효 시드 ${result.quality.seeded_participant_count}명`;
     const initialDeviation = result.quality.initial_standard_deviation ?? "N/A";

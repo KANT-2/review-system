@@ -292,12 +292,19 @@ def validate_assignment(
 
 
 def _validate_assignment_input(participant_ids: Sequence[int], team_count: int) -> None:
+    """자동편성 입력을 검사한다.
+
+    AssignmentValidationError는 ValueError의 하위형이라 기존 호출부는 그대로 동작하고,
+    화면 쪽은 500 대신 무엇이 잘못됐는지 읽을 수 있는 400을 받는다.
+    """
     if team_count < 2:
-        raise ValueError("team_count must be at least 2")
+        raise AssignmentValidationError("팀은 2개 이상이어야 합니다.")
     if team_count > len(participant_ids):
-        raise ValueError("team_count cannot exceed the participant count")
+        raise AssignmentValidationError(
+            f"배치할 학생이 {len(participant_ids)}명뿐이라 {team_count}개 팀으로 나눌 수 없습니다."
+        )
     if len(participant_ids) != len(set(participant_ids)):
-        raise ValueError("participant_ids must not contain duplicates")
+        raise AssignmentValidationError("같은 학생이 두 번 들어 있습니다.")
 
 
 def _find_duplicate_participants(participant_ids: Sequence[int]) -> list[int]:
