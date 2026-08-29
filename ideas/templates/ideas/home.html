@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block title %}아이디어 디벨로퍼{% endblock %}
 {% block breadcrumb %}아이디어 디벨로퍼{% endblock %}
-
 {% block extra_head %}
-<style>
+  <style>
   .idea-stat-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 20px; }
   .idea-stat-label { font-size: 11px; font-weight: 600; color: var(--bs-secondary-color); text-transform: uppercase; letter-spacing: .06em; }
   .idea-stat-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin: 4px 0 2px; }
@@ -28,128 +26,186 @@
   .idea-member-dot:first-child { margin-left: 0; }
   .idea-quick-create { background: #4F46E5; border-radius: 12px; padding: 20px; color: #fff; }
   .idea-sidebar-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 20px; }
-</style>
+  </style>
 {% endblock %}
-
 {% block content %}
-<div class="mb-4">
-  <h1 class="fs-5 fw-bold mb-1">안녕하세요, {{ user_name }}님 👋</h1>
-  <p class="text-secondary" style="font-size:13px;">
-    현재 <span class="fw-semibold" style="color:#4F46E5;">{{ stats.in_progress }}개</span> 프로젝트가 진행 중입니다.
-  </p>
-</div>
-
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">전체 PRD</div><div class="idea-stat-value">{{ stats.total }}</div><div class="idea-stat-sub">개 프로젝트</div></div>
+  <div class="mb-4">
+    <h1 class="fs-5 fw-bold mb-1">안녕하세요, {{ user_name }}님 👋</h1>
+    <p class="text-secondary" style="font-size:13px;">
+      현재 <span class="fw-semibold" style="color:#4F46E5;">{{ stats.in_progress }}개</span> 프로젝트가 진행 중입니다.
+    </p>
   </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">진행 중</div><div class="idea-stat-value" style="color:#4F46E5;">{{ stats.in_progress }}</div><div class="idea-stat-sub">개 진행 중</div></div>
-  </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">평균 완성도</div><div class="idea-stat-value" style="color:#7C3AED;">{{ stats.avg_score }}%</div><div class="idea-stat-sub">전체 PRD 기준</div></div>
-  </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">완료됨</div><div class="idea-stat-value" style="color:#059669;">{{ stats.completed }}</div><div class="idea-stat-sub">개 완료</div></div>
-  </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">AI 코칭</div><div class="idea-stat-value" style="color:#7C3AED;">{{ stats.ai_sessions }}</div><div class="idea-stat-sub">회 진행</div></div>
-  </div>
-  <div class="col-6 col-md-4 col-lg-2">
-    <div class="idea-stat-card"><div class="idea-stat-label">이번 주 마감</div><div class="idea-stat-value {% if stats.soon_deadline > 0 %}text-danger{% endif %}">{{ stats.soon_deadline }}</div><div class="idea-stat-sub">7일 이내</div></div>
-  </div>
-</div>
-
-<div class="d-flex gap-4 flex-column flex-lg-row">
-  <div class="flex-grow-1" style="min-width:0;">
-    <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
-      <div class="idea-filter-bar" id="typeFilter">
-        <button class="idea-filter-btn active" data-filter="all" onclick="ideaFilterPRDs(this)">전체</button>
-        <button class="idea-filter-btn" data-filter="new-product" onclick="ideaFilterPRDs(this)">신규 프로젝트</button>
-        <button class="idea-filter-btn" data-filter="new-feature" onclick="ideaFilterPRDs(this)">신규 기능</button>
-        <button class="idea-filter-btn" data-filter="improvement" onclick="ideaFilterPRDs(this)">개선</button>
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card">
+        <div class="idea-stat-label">전체 PRD</div>
+        <div class="idea-stat-value">{{ stats.total }}</div>
+        <div class="idea-stat-sub">개 프로젝트</div>
       </div>
-      <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm btn-ax-primary">+ 새 PRD 만들기</a>
     </div>
-
-    <div class="row g-3" id="prdGrid">
-      {% for prd in prds %}
-      <div class="col-12 col-md-6 col-xl-4 idea-prd-item" data-type="{{ prd.project_type }}">
-        <a href="{% url 'ideas:prd_write' prd.pk %}" class="idea-prd-card d-flex flex-column gap-3">
-          <div class="d-flex align-items-start justify-content-between gap-2">
-            <div class="flex-grow-1" style="min-width:0;">
-              <div class="d-flex flex-wrap gap-1 mb-1">
-                <span class="idea-badge-type idea-badge-type-{{ prd.project_type }}">{{ prd.get_project_type_display }}</span>
-                <span class="idea-badge-status idea-badge-status-{% if prd.status == '완료' %}done{% elif prd.status == '홀딩' %}hold{% elif prd.status == '드랍' %}drop{% else %}writing{% endif %}">{{ prd.status }}</span>
-              </div>
-              <h3 class="fw-semibold mb-1 text-truncate" style="font-size:13px;">{{ prd.title }}</h3>
-              <p class="text-secondary mb-0" style="font-size:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ prd.description }}</p>
-            </div>
-          </div>
-          <div>
-            <div class="d-flex justify-content-between mb-1" style="font-size:11px;">
-              <span class="text-secondary">완성도</span>
-              <span class="fw-semibold">{{ prd.completion_score }}%</span>
-            </div>
-            <div class="progress" style="height:6px;border-radius:99px;">
-              <div class="progress-bar" style="width:{{ prd.completion_score }}%;background:#4F46E5;"></div>
-            </div>
-          </div>
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="d-flex">
-              {% for member in prd.members.all|slice:":4" %}
-              <div class="idea-member-dot" style="background:#4F46E5;" title="{{ member.get_full_name }}">{{ member.first_name|slice:":1" }}</div>
-              {% endfor %}
-            </div>
-            <div class="d-flex align-items-center gap-2" style="font-size:11px;">
-              {% with days_left=prd.days_left %}
-              {% if days_left != None %}
-                {% if days_left > 0 %}<span class="{% if days_left <= 7 %}text-danger{% endif %} fw-medium">D-{{ days_left }}일</span>
-                {% elif days_left == 0 %}<span class="text-danger fw-medium">D-Day</span>
-                {% else %}<span class="text-secondary">완료</span>{% endif %}
-              {% endif %}
-              {% endwith %}
-              <span class="text-secondary">·</span>
-              <span class="text-secondary">{{ prd.updated_at|date:"m/d" }} 수정</span>
-            </div>
-          </div>
-        </a>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card">
+        <div class="idea-stat-label">진행 중</div>
+        <div class="idea-stat-value" style="color:#4F46E5;">{{ stats.in_progress }}</div>
+        <div class="idea-stat-sub">개 진행 중</div>
       </div>
-      {% empty %}
-      <div class="col-12">
-        <div class="text-center py-5 text-secondary">
-          <div style="font-size:40px;" class="mb-3">📄</div>
-          <p style="font-size:13px;">아직 PRD가 없습니다.</p>
-          <a href="{% url 'ideas:prd_new' %}" style="font-size:13px;color:#4F46E5;">새 PRD 만들기</a>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card">
+        <div class="idea-stat-label">평균 완성도</div>
+        <div class="idea-stat-value" style="color:#7C3AED;">{{ stats.avg_score }}%</div>
+        <div class="idea-stat-sub">전체 PRD 기준</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card">
+        <div class="idea-stat-label">완료됨</div>
+        <div class="idea-stat-value" style="color:#059669;">{{ stats.completed }}</div>
+        <div class="idea-stat-sub">개 완료</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card">
+        <div class="idea-stat-label">AI 코칭</div>
+        <div class="idea-stat-value" style="color:#7C3AED;">{{ stats.ai_sessions }}</div>
+        <div class="idea-stat-sub">회 진행</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="idea-stat-card"><div class="idea-stat-label">이번 주 마감</div><div class="idea-stat-value {% if stats.soon_deadline > 0 %}text-danger{% endif %}">{{ stats.soon_deadline }}</div><div class="idea-stat-sub">7일 이내</div></div>
+    </div>
+  </div>
+  <div class="d-flex gap-4 flex-column flex-lg-row">
+    <div class="flex-grow-1" style="min-width:0;">
+      <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
+        <div class="idea-filter-bar" id="typeFilter">
+          <button class="idea-filter-btn active"
+                  data-filter="all"
+                  onclick="ideaFilterPRDs(this)">전체</button>
+          <button class="idea-filter-btn"
+                  data-filter="new-product"
+                  onclick="ideaFilterPRDs(this)">신규 프로젝트</button>
+          <button class="idea-filter-btn"
+                  data-filter="new-feature"
+                  onclick="ideaFilterPRDs(this)">신규 기능</button>
+          <button class="idea-filter-btn"
+                  data-filter="improvement"
+                  onclick="ideaFilterPRDs(this)">개선</button>
         </div>
+        <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm btn-ax-primary">+ 새 PRD 만들기</a>
       </div>
-      {% endfor %}
+      <div class="row g-3" id="prdGrid">
+        {% for prd in prds %}
+          <div class="col-12 col-md-6 col-xl-4 idea-prd-item"
+               data-type="{{ prd.project_type }}">
+            <a href="{% url 'ideas:prd_write' prd.pk %}"
+               class="idea-prd-card d-flex flex-column gap-3">
+              <div class="d-flex align-items-start justify-content-between gap-2">
+                <div class="flex-grow-1" style="min-width:0;">
+                  <div class="d-flex flex-wrap gap-1 mb-1">
+                    <span class="idea-badge-type idea-badge-type-{{ prd.project_type }}">{{ prd.get_project_type_display }}</span>
+                    <span class="idea-badge-status idea-badge-status-{% if prd.status == '완료' %}done{% elif prd.status == '홀딩' %}hold{% elif prd.status == '드랍' %}drop{% else %}writing{% endif %}">{{ prd.status }}</span>
+                  </div>
+                  <h3 class="fw-semibold mb-1 text-truncate" style="font-size:13px;">{{ prd.title }}</h3>
+                  <p class="text-secondary mb-0"
+                     style="font-size:11px;
+                            display:-webkit-box;
+                            -webkit-line-clamp:2;
+                            -webkit-box-orient:vertical;
+                            overflow:hidden">{{ prd.description }}</p>
+                </div>
+              </div>
+              <div>
+                <div class="d-flex justify-content-between mb-1" style="font-size:11px;">
+                  <span class="text-secondary">완성도</span>
+                  <span class="fw-semibold">{{ prd.completion_score }}%</span>
+                </div>
+                <div class="progress" style="height:6px;border-radius:99px;">
+                  <div class="progress-bar"
+                       style="width:{{ prd.completion_score }}%;
+                              background:#4F46E5"></div>
+                </div>
+              </div>
+              <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex">
+                  {% for member in prd.members.all|slice:":4" %}
+                    <div class="idea-member-dot"
+                         style="background:#4F46E5"
+                         title="{{ member.get_full_name }}">{{ member.first_name|slice:":1" }}</div>
+                  {% endfor %}
+                </div>
+                <div class="d-flex align-items-center gap-2" style="font-size:11px;">
+                  {% with days_left=prd.days_left %}
+                    {% if days_left != None %}
+                      {% if days_left > 0 %}<span class="{% if days_left <= 7 %}text-danger{% endif %} fw-medium">D-{{ days_left }}일</span>
+                    {% elif days_left == 0 %}<span class="text-danger fw-medium">D-Day</span>
+                  {% else %}<span class="text-secondary">완료</span>{% endif %}
+                {% endif %}
+        {% endwith %}
+        <span class="text-secondary">·</span>
+        <span class="text-secondary">{{ prd.updated_at|date:"m/d" }} 수정</span>
+      </div>
+    </div>
+  </a>
+  </div>
+{% empty %}
+  <div class="col-12">
+    <div class="text-center py-5 text-secondary">
+      <div style="font-size:40px;" class="mb-3">📄</div>
+      <p style="font-size:13px;">아직 PRD가 없습니다.</p>
+      <a href="{% url 'ideas:prd_new' %}"
+         style="font-size:13px;
+                color:#4F46E5">새 PRD 만들기</a>
     </div>
   </div>
-
-  <div class="flex-shrink-0 d-flex flex-column gap-3" style="width:100%;max-width:256px;">
-    <div class="idea-sidebar-card">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <span class="fw-semibold" style="font-size:13px;">이번 주 활동</span>
-      </div>
-      <div class="d-flex align-items-end gap-1" style="height:64px;">
-        {% for pct in weekly_activity %}
+{% endfor %}
+</div>
+</div>
+<div class="flex-shrink-0 d-flex flex-column gap-3"
+     style="width:100%;
+            max-width:256px">
+  <div class="idea-sidebar-card">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <span class="fw-semibold" style="font-size:13px;">이번 주 활동</span>
+    </div>
+    <div class="d-flex align-items-end gap-1" style="height:64px;">
+      {% for pct in weekly_activity %}
         <div class="flex-fill d-flex flex-column align-items-center gap-1">
-          <div style="width:100%;background:#EEF2FF;border-radius:3px;height:48px;position:relative;overflow:hidden;">
-            <div style="position:absolute;bottom:0;left:0;right:0;background:#4F46E5;border-radius:3px;height:{{ pct }}%;"></div>
+          <div style="width:100%;
+                      background:#EEF2FF;
+                      border-radius:3px;
+                      height:48px;
+                      position:relative;
+                      overflow:hidden">
+            <div style="position:absolute;
+                        bottom:0;
+                        left:0;
+                        right:0;
+                        background:#4F46E5;
+                        border-radius:3px;
+                        height:{{ pct }}%"></div>
           </div>
           <span style="font-size:10px;color:var(--bs-secondary-color);">{% cycle "월" "화" "수" "목" "금" "토" "일" %}</span>
         </div>
-        {% endfor %}
-      </div>
+      {% endfor %}
     </div>
-
-    <div class="idea-sidebar-card">
-      <span class="fw-semibold d-block mb-3" style="font-size:13px;">최근 활동</span>
-      <div class="d-flex flex-column gap-3">
-        {% for a in recent_activities %}
+  </div>
+  <div class="idea-sidebar-card">
+    <span class="fw-semibold d-block mb-3" style="font-size:13px;">최근 활동</span>
+    <div class="d-flex flex-column gap-3">
+      {% for a in recent_activities %}
         <div class="d-flex gap-2 align-items-start">
-          <div style="width:28px;height:28px;border-radius:50%;background:{{ a.color }};color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ a.who|slice:":1" }}</div>
+          <div style="width:28px;
+                      height:28px;
+                      border-radius:50%;
+                      background:{{ a.color }};
+                      color:#fff;
+                      font-size:10px;
+                      font-weight:600;
+                      display:flex;
+                      align-items:center;
+                      justify-content:center;
+                      flex-shrink:0">{{ a.who|slice:":1" }}</div>
           <div class="flex-grow-1" style="min-width:0;">
             <p class="mb-0" style="font-size:11px;line-height:1.5;">
               <span class="fw-medium">{{ a.who }}</span>님이
@@ -158,23 +214,25 @@
             <span style="font-size:10px;color:var(--bs-secondary-color);">{{ a.time }}</span>
           </div>
         </div>
-        {% empty %}
+      {% empty %}
         <p class="text-secondary" style="font-size:12px;">아직 활동 내역이 없습니다.</p>
-        {% endfor %}
-      </div>
-    </div>
-
-    <div class="idea-quick-create">
-      <p class="fw-semibold mb-1" style="font-size:13px;">새 PRD 시작하기</p>
-      <p style="font-size:12px;color:#C7D2FE;margin-bottom:16px;">3가지 템플릿 중 하나를 골라 바로 작성을 시작해 보세요.</p>
-      <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm w-100 fw-semibold" style="background:#fff;color:#4F46E5;border-radius:8px;">+ 새 PRD 만들기</a>
+      {% endfor %}
     </div>
   </div>
+  <div class="idea-quick-create">
+    <p class="fw-semibold mb-1" style="font-size:13px;">새 PRD 시작하기</p>
+    <p style="font-size:12px;color:#C7D2FE;margin-bottom:16px;">3가지 템플릿 중 하나를 골라 바로 작성을 시작해 보세요.</p>
+    <a href="{% url 'ideas:prd_new' %}"
+       class="btn btn-sm w-100 fw-semibold"
+       style="background:#fff;
+              color:#4F46E5;
+              border-radius:8px">+ 새 PRD 만들기</a>
+  </div>
+</div>
 </div>
 {% endblock %}
-
 {% block extra_js %}
-<script>
+  <script>
 function ideaFilterPRDs(btn) {
   document.querySelectorAll('.idea-filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -183,5 +241,5 @@ function ideaFilterPRDs(btn) {
     item.style.display = (filter === 'all' || item.dataset.type === filter) ? '' : 'none';
   });
 }
-</script>
+  </script>
 {% endblock %}

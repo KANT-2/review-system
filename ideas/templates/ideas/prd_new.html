@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block title %}새 PRD 만들기 — 아이디어 디벨로퍼{% endblock %}
 {% block breadcrumb %}새 PRD 만들기{% endblock %}
-
 {% block extra_head %}
-<style>
+  <style>
   .wizard-card { text-align: left; padding: 24px; border-radius: 16px; border: 2px solid var(--bs-border-color); background: var(--bs-body-bg); transition: all .15s; cursor: pointer; width: 100%; }
   .wizard-card:hover { border-color: #C7D2FE; box-shadow: 0 2px 8px rgba(79,70,229,.08); }
   .wizard-card.selected-indigo { border-color: transparent; box-shadow: 0 0 0 2px #818CF8; background: #EEF2FF; color:#1E293B; }
@@ -14,86 +12,109 @@
   .variant-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; }
   .step-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
   .form-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 16px; padding: 32px; max-width: 480px; }
-</style>
+  </style>
 {% endblock %}
-
 {% block content %}
-<div class="container py-3" style="max-width:900px;">
-
-  <div id="step-type">
-    <h2 class="fw-bold mb-2" style="font-size:22px;">어떤 PRD를 만들 건가요?</h2>
-    <p class="text-secondary mb-5" style="font-size:13px;">시작 유형을 선택하면 그에 맞는 템플릿과 가이드를 제공합니다.</p>
-    <div class="row g-3">
-      {% for t in template_types %}
-      <div class="col-12 col-md-4">
-        <button type="button" class="wizard-card" data-type-id="{{ t.id }}" data-color="{{ t.color }}" onclick="selectType(this)">
-          <div style="font-size:30px;margin-bottom:12px;">{{ t.icon }}</div>
-          <h3 class="fw-bold mb-2" style="font-size:15px;">{{ t.label }}</h3>
-          <p class="text-secondary mb-0" style="font-size:12px;line-height:1.6;">{{ t.description }}</p>
-        </button>
+  <div class="container py-3" style="max-width:900px;">
+    <div id="step-type">
+      <h2 class="fw-bold mb-2" style="font-size:22px;">어떤 PRD를 만들 건가요?</h2>
+      <p class="text-secondary mb-5" style="font-size:13px;">시작 유형을 선택하면 그에 맞는 템플릿과 가이드를 제공합니다.</p>
+      <div class="row g-3">
+        {% for t in template_types %}
+          <div class="col-12 col-md-4">
+            <button type="button"
+                    class="wizard-card"
+                    data-type-id="{{ t.id }}"
+                    data-color="{{ t.color }}"
+                    onclick="selectType(this)">
+              <div style="font-size:30px;margin-bottom:12px;">{{ t.icon }}</div>
+              <h3 class="fw-bold mb-2" style="font-size:15px;">{{ t.label }}</h3>
+              <p class="text-secondary mb-0" style="font-size:12px;line-height:1.6;">{{ t.description }}</p>
+            </button>
+          </div>
+        {% endfor %}
       </div>
-      {% endfor %}
+    </div>
+    <div id="step-variant" style="display:none;">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span id="variantIcon" style="font-size:22px;"></span>
+        <h2 class="fw-bold mb-0" style="font-size:22px;" id="variantTitle"></h2>
+      </div>
+      <p class="text-secondary mb-5" style="font-size:13px;">상황에 맞는 세부 유형을 선택하세요.</p>
+      <div class="row g-3" id="variantGrid"></div>
+    </div>
+    <div id="step-info" style="display:none;">
+      <h2 class="fw-bold mb-2" style="font-size:22px;">기본 정보를 입력해주세요</h2>
+      <p class="text-secondary mb-5" style="font-size:13px;">나중에 언제든 수정할 수 있습니다.</p>
+      <div class="form-card">
+        <form method="post" action="{% url 'ideas:prd_new' %}">
+          {% csrf_token %}
+          <input type="hidden" name="project_type" id="hiddenType" />
+          <input type="hidden" name="template_variant" id="hiddenVariant" />
+          <div class="mb-4">
+            <label class="fw-semibold d-block mb-1" style="font-size:13px;">프로젝트명 <span class="text-danger">*</span></label>
+            <input type="text"
+                   name="title"
+                   class="form-control"
+                   style="font-size:13px"
+                   placeholder="예: 알림 커스터마이징 기능"
+                   required />
+          </div>
+          <div class="mb-4">
+            <label class="fw-semibold d-block mb-1" style="font-size:13px;">한 줄 소개</label>
+            <input type="text"
+                   name="description"
+                   class="form-control"
+                   style="font-size:13px"
+                   placeholder="어떤 문제를 해결하는 서비스인가요?" />
+          </div>
+          <div class="mb-4">
+            <label class="fw-semibold d-block mb-1" style="font-size:13px;">목표 마감일 <span class="text-danger">*</span></label>
+            <input type="date"
+                   name="deadline"
+                   id="deadlineInput"
+                   class="form-control"
+                   style="font-size:13px"
+                   required />
+          </div>
+          <div class="mb-2">
+            <label class="fw-semibold d-block mb-2" style="font-size:13px;">PRD 작성자 선택</label>
+            <div class="d-flex align-items-center gap-2 flex-wrap" id="authorAvatars"></div>
+            <div id="authorHiddenInputs"></div>
+          </div>
+          <button type="submit" id="infoSubmitBtn" style="display:none;"></button>
+        </form>
+      </div>
+    </div>
+    <div class="d-flex align-items-center justify-content-between mt-5">
+      <button type="button"
+              class="btn d-flex align-items-center gap-2 text-secondary"
+              style="font-size:13px;
+                     border:none;
+                     background:transparent"
+              onclick="goBack()">
+        <i class="bi bi-arrow-left"></i> 이전
+      </button>
+      <button type="button"
+              class="btn fw-semibold d-flex align-items-center gap-2"
+              id="nextBtn"
+              style="font-size:13px;
+                     padding:10px 24px;
+                     border-radius:10px;
+                     background:#4F46E5;
+                     color:#fff;
+                     opacity:0.4;
+                     cursor:not-allowed"
+              onclick="goNext()"
+              disabled>
+        <span id="nextLabel">다음</span>
+        <i class="bi bi-arrow-right" id="nextIcon"></i>
+      </button>
     </div>
   </div>
-
-  <div id="step-variant" style="display:none;">
-    <div class="d-flex align-items-center gap-2 mb-1">
-      <span id="variantIcon" style="font-size:22px;"></span>
-      <h2 class="fw-bold mb-0" style="font-size:22px;" id="variantTitle"></h2>
-    </div>
-    <p class="text-secondary mb-5" style="font-size:13px;">상황에 맞는 세부 유형을 선택하세요.</p>
-    <div class="row g-3" id="variantGrid"></div>
-  </div>
-
-  <div id="step-info" style="display:none;">
-    <h2 class="fw-bold mb-2" style="font-size:22px;">기본 정보를 입력해주세요</h2>
-    <p class="text-secondary mb-5" style="font-size:13px;">나중에 언제든 수정할 수 있습니다.</p>
-    <div class="form-card">
-      <form method="post" action="{% url 'ideas:prd_new' %}">
-        {% csrf_token %}
-        <input type="hidden" name="project_type" id="hiddenType" />
-        <input type="hidden" name="template_variant" id="hiddenVariant" />
-
-        <div class="mb-4">
-          <label class="fw-semibold d-block mb-1" style="font-size:13px;">프로젝트명 <span class="text-danger">*</span></label>
-          <input type="text" name="title" class="form-control" style="font-size:13px;" placeholder="예: 알림 커스터마이징 기능" required />
-        </div>
-        <div class="mb-4">
-          <label class="fw-semibold d-block mb-1" style="font-size:13px;">한 줄 소개</label>
-          <input type="text" name="description" class="form-control" style="font-size:13px;" placeholder="어떤 문제를 해결하는 서비스인가요?" />
-        </div>
-        <div class="mb-4">
-          <label class="fw-semibold d-block mb-1" style="font-size:13px;">목표 마감일 <span class="text-danger">*</span></label>
-          <input type="date" name="deadline" id="deadlineInput" class="form-control" style="font-size:13px;" required />
-        </div>
-
-        <div class="mb-2">
-          <label class="fw-semibold d-block mb-2" style="font-size:13px;">PRD 작성자 선택</label>
-          <div class="d-flex align-items-center gap-2 flex-wrap" id="authorAvatars"></div>
-          <div id="authorHiddenInputs"></div>
-        </div>
-
-        <button type="submit" id="infoSubmitBtn" style="display:none;"></button>
-      </form>
-    </div>
-  </div>
-
-  <div class="d-flex align-items-center justify-content-between mt-5">
-    <button type="button" class="btn d-flex align-items-center gap-2 text-secondary" style="font-size:13px;border:none;background:transparent;" onclick="goBack()">
-      <i class="bi bi-arrow-left"></i> 이전
-    </button>
-    <button type="button" class="btn fw-semibold d-flex align-items-center gap-2" id="nextBtn"
-            style="font-size:13px;padding:10px 24px;border-radius:10px;background:#4F46E5;color:#fff;opacity:0.4;cursor:not-allowed;"
-            onclick="goNext()" disabled>
-      <span id="nextLabel">다음</span>
-      <i class="bi bi-arrow-right" id="nextIcon"></i>
-    </button>
-  </div>
-</div>
 {% endblock %}
-
 {% block extra_js %}
-<script>
+  <script>
 const TEMPLATE_TYPES = {{ template_types_json|safe }};
 const CURRENT_USER_MEMBER = {{ current_user_member|safe }};
 const OTHER_MEMBERS = {{ other_members_json|safe }};
@@ -115,9 +136,7 @@ function renderAuthors() {
     const isMe = a.id === CURRENT_USER_MEMBER.id;
     return `
       <div class="position-relative">
-        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold"
-             style="width:36px;height:36px;font-size:12px;background:${a.color};border:2px solid var(--bs-body-bg);box-shadow:0 0 0 1px var(--bs-border-color);"
-             title="${a.name}">${a.initials}</div>
+        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold" style="width:36px;height:36px;font-size:12px;background:${a.color};border:2px solid var(--bs-body-bg);box-shadow:0 0 0 1px var(--bs-border-color);" title="${a.name}">${a.initials}</div>
         ${isMe
           ? `<span class="position-absolute translate-middle-x badge rounded-pill bg-primary" style="left:50%;bottom:-6px;font-size:8px;">본인</span>`
           : `<button type="button" class="position-absolute rounded-circle border-0 d-flex align-items-center justify-content-center"
@@ -126,9 +145,7 @@ function renderAuthors() {
       </div>`;
   }).join('') + `
     <div class="dropdown">
-      <button type="button" class="rounded-circle d-flex align-items-center justify-content-center"
-              style="width:36px;height:36px;border:2px dashed var(--bs-border-color);background:transparent;color:var(--bs-secondary-color);font-size:18px;"
-              data-bs-toggle="dropdown">+</button>
+      <button type="button" class="rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;border:2px dashed var(--bs-border-color);background:transparent;color:var(--bs-secondary-color);font-size:18px;" data-bs-toggle="dropdown">+</button>
       <div class="dropdown-menu p-2" style="width:280px;max-height:320px;overflow-y:auto;">
         ${COLLABORATOR_GROUPS.length ? `
           <p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">내가 협업했던 프로젝트</p>
@@ -263,5 +280,5 @@ function goBack() {
 }
 
 showStep('type');
-</script>
+  </script>
 {% endblock %}

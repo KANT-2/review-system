@@ -1,21 +1,22 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>브레인스토밍 — {{ project.title }} — 아이디어 디벨로퍼</title>
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>브레인스토밍 — {{ project.title }} — 아이디어 디벨로퍼</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
     tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'ui-sans-serif', 'system-ui'] } } } };
-  </script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <style>
+    </script>
+    <script crossorigin
+            src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin
+            src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
     * { font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif; box-sizing: border-box; }
     body { margin: 0; overflow: hidden; background: #F7F6F3; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -32,13 +33,14 @@
     .held-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); }
     .held-card:hover .held-restore { opacity: 1; }
     .held-restore { opacity: 0; transition: opacity .15s; position: absolute; top: 4px; right: 6px; font-size: 10px; color: #4F46E5; font-weight: 700; }
-  </style>
-</head>
-<body>
-{% csrf_token %}
-<div id="brainstorm-root" data-project-id="{{ project.pk }}" style="height:100vh"></div>
-
-<script>
+    </style>
+  </head>
+  <body>
+    {% csrf_token %}
+    <div id="brainstorm-root"
+         data-project-id="{{ project.pk }}"
+         style="height:100vh"></div>
+    <script>
 window.__IDEAS_DATA__ = {
   members: {{ members_json|safe }},
   initialPostits: {{ initial_postits_json|safe }},
@@ -48,9 +50,9 @@ window.__IDEAS_DATA__ = {
   backUrl: "{% url 'ideas:prd_write' project.pk %}",
   projectTitle: "{{ project.title|escapejs }}",
 };
-</script>
-{% verbatim %}
-<script type="text/babel">
+    </script>
+    {% verbatim %}
+      <script type="text/babel">
 const CANVAS_W = 2400;
 const CANVAS_H = 1600;
 const PW = 190;

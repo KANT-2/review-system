@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block title %}{{ project.title }} — 아이디어 디벨로퍼{% endblock %}
 {% block breadcrumb %}{{ project.title }}{% endblock %}
-
 {% block extra_head %}
-<style>
+  <style>
   /* ── Header ── */
   .pw-header { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--bs-border-color); margin-bottom: 0; flex-wrap: wrap; }
   .pw-back-btn { border: none; background: transparent; color: var(--bs-secondary-color); font-size: 16px; line-height: 1; padding: 4px; }
@@ -115,285 +113,445 @@
   .pwr-draft-box { border: 1px solid var(--bs-border-color); border-radius: 10px; overflow: hidden; margin-top: 16px; }
   .pwr-draft-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bs-tertiary-bg); border: none; font-size: 12px; font-weight: 600; }
   .pwr-incomplete-banner { padding: 10px 16px; border-top: 1px solid #FDE68A; background: #FFFBEB; color: #92400E; font-size: 11px; }
-</style>
+  </style>
 {% endblock %}
-
 {% block content %}
-
-<!-- Save feedback toast -->
-<div class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index:1080;">
-  <div id="saveToast" class="toast align-items-center border-0 bg-success text-white" role="alert">
-    <div class="d-flex"><div class="toast-body fw-medium" style="font-size:13px;">✓ 저장되었습니다</div></div>
+  <!-- Save feedback toast -->
+  <div class="position-fixed top-0 start-50 translate-middle-x mt-3"
+       style="z-index:1080">
+    <div id="saveToast"
+         class="toast align-items-center border-0 bg-success text-white"
+         role="alert">
+      <div class="d-flex">
+        <div class="toast-body fw-medium" style="font-size:13px;">✓ 저장되었습니다</div>
+      </div>
+    </div>
   </div>
-</div>
-
-<!-- Header: back | logo+title | status | deadline | avatars | ... actions -->
-<div class="pw-header">
-  <a href="{% url 'ideas:home' %}" class="pw-back-btn" title="홈으로"><i class="bi bi-arrow-left"></i></a>
-  <div class="pw-logo-box">아</div>
-  <span class="pw-title">{{ project.title }}</span>
-
-  <div class="dropdown">
-    <button type="button" class="pw-pill" id="statusDropdownBtn" data-bs-toggle="dropdown">
-      <span class="pw-status-dot" id="statusDot"></span>
-      <span id="statusDropdownLabel">{{ project.status }}</span>
-      <i class="bi bi-chevron-down" style="font-size:9px;"></i>
-    </button>
-    <ul class="dropdown-menu">
-      {% for value, label in status_choices %}
-      <li><button type="button" class="dropdown-item small" onclick="setProjectStatus('{{ value|escapejs }}')">{{ label }}</button></li>
+  <!-- Header: back | logo+title | status | deadline | avatars | ... actions -->
+  <div class="pw-header">
+    <a href="{% url 'ideas:home' %}" class="pw-back-btn" title="홈으로"><i class="bi bi-arrow-left"></i></a>
+    <div class="pw-logo-box">아</div>
+    <span class="pw-title">{{ project.title }}</span>
+    <div class="dropdown">
+      <button type="button"
+              class="pw-pill"
+              id="statusDropdownBtn"
+              data-bs-toggle="dropdown">
+        <span class="pw-status-dot" id="statusDot"></span>
+        <span id="statusDropdownLabel">{{ project.status }}</span>
+        <i class="bi bi-chevron-down" style="font-size:9px;"></i>
+      </button>
+      <ul class="dropdown-menu">
+        {% for value, label in status_choices %}
+          <li>
+            <button type="button"
+                    class="dropdown-item small"
+                    onclick="setProjectStatus('{{ value|escapejs }}')">{{ label }}</button>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <label class="pw-pill mb-0" style="cursor:pointer;">
+      <i class="bi bi-calendar3"></i>
+      <span id="deadlineLabel">{{ project.deadline|date:"Y-m-d"|default:"마감일 없음" }}</span>
+      <input type="date"
+             id="deadlineInput"
+             value="{{ project.deadline|date:'Y-m-d' }}"
+             style="position:absolute;
+                    width:1px;
+                    height:1px;
+                    opacity:0"
+             onchange="setProjectDeadline(this.value)">
+    </label>
+    <div class="pw-avatars">
+      {% for m in members %}
+        <div class="pw-avatar"
+             style="background:{{ m.color }}"
+             title="{{ m.name }}">{{ m.initials|slice:":1" }}</div>
       {% endfor %}
-    </ul>
+    </div>
+    <div class="pw-header-actions">
+      <a href="{% url 'ideas:brainstorm' project.pk %}" class="pw-action-btn">💡 브레인스토밍</a>
+      <button type="button"
+              class="pw-action-btn"
+              id="aiChatToggleBtn"
+              onclick="toggleAIChat()">✦ AI 코치</button>
+      <button type="button"
+              class="pw-action-btn"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#teamOffcanvas">👥 팀 기여도</button>
+      <button type="button" class="pw-action-primary" onclick="openGenerateModal()">+ PRD 생성</button>
+    </div>
   </div>
-
-  <label class="pw-pill mb-0" style="cursor:pointer;">
-    <i class="bi bi-calendar3"></i>
-    <span id="deadlineLabel">{{ project.deadline|date:"Y-m-d"|default:"마감일 없음" }}</span>
-    <input type="date" id="deadlineInput" value="{{ project.deadline|date:'Y-m-d' }}" style="position:absolute;width:1px;height:1px;opacity:0;" onchange="setProjectDeadline(this.value)">
-  </label>
-
-  <div class="pw-avatars">
-    {% for m in members %}
-    <div class="pw-avatar" style="background:{{ m.color }};" title="{{ m.name }}">{{ m.initials|slice:":1" }}</div>
+  <!-- Horizontal stepper -->
+  <div class="pw-stepper" id="stepperRail">
+    {% for section in sections %}
+      <button type="button"
+              class="pw-step-btn {% if forloop.first %}current{% endif %}"
+              id="step-{{ section.id }}"
+              onclick="scrollToSection('{{ section.id }}')">
+        <span class="pw-step-dot" id="dot-{{ section.id }}">{{ forloop.counter }}</span>
+        <span id="steplabel-{{ section.id }}">{{ section.title|truncatechars:8 }}</span>
+      </button>
+      {% if not forloop.last %}<span class="pw-step-sep" id="sep-{{ section.id }}"></span>{% endif %}
     {% endfor %}
-  </div>
-
-  <div class="pw-header-actions">
-    <a href="{% url 'ideas:brainstorm' project.pk %}" class="pw-action-btn">💡 브레인스토밍</a>
-    <button type="button" class="pw-action-btn" id="aiChatToggleBtn" onclick="toggleAIChat()">✦ AI 코치</button>
-    <button type="button" class="pw-action-btn" data-bs-toggle="offcanvas" data-bs-target="#teamOffcanvas">👥 팀 기여도</button>
-    <button type="button" class="pw-action-primary" onclick="openGenerateModal()">+ PRD 생성</button>
-  </div>
-</div>
-
-<!-- Horizontal stepper -->
-<div class="pw-stepper" id="stepperRail">
-  {% for section in sections %}
-  <button type="button" class="pw-step-btn {% if forloop.first %}current{% endif %}" id="step-{{ section.id }}" onclick="scrollToSection('{{ section.id }}')">
-    <span class="pw-step-dot" id="dot-{{ section.id }}">{{ forloop.counter }}</span>
-    <span id="steplabel-{{ section.id }}">{{ section.title|truncatechars:8 }}</span>
-  </button>
-  {% if not forloop.last %}<span class="pw-step-sep" id="sep-{{ section.id }}"></span>{% endif %}
-  {% endfor %}
-  <span class="pw-step-sep"></span>
-  <button type="button" class="pw-step-btn" onclick="openGenerateModal()">
-    <span class="pw-step-dot">⚡</span> PRD 생성
-  </button>
-  <div class="pw-stepper-progress">
-    <span style="font-size:11px;color:var(--bs-secondary-color);">진행률</span>
-    <div style="width:96px;height:6px;background:var(--bs-tertiary-bg);border-radius:99px;overflow:hidden;">
-      <div id="stepperProgressFill" style="height:100%;background:#4F46E5;width:0%;transition:width .4s;"></div>
-    </div>
-    <span id="stepperProgressPct" style="font-size:11px;font-weight:600;color:#4F46E5;">0%</span>
-  </div>
-</div>
-
-<div class="pw-main" id="writingMain">
-  <!-- Left panel: PRD structure -->
-  <div class="pw-left">
-    <div class="pw-left-toolbar">
-      <div class="d-flex align-items-center gap-2">
-        <span class="fw-bold" style="font-size:13px;">PRD 구조</span>
-        <span class="badge rounded-pill" style="background:#EEF2FF;color:#4338CA;font-size:10px;font-weight:600;">{{ sections|length }}개 활성 섹션</span>
+    <span class="pw-step-sep"></span>
+    <button type="button" class="pw-step-btn" onclick="openGenerateModal()">
+      <span class="pw-step-dot">⚡</span> PRD 생성
+    </button>
+    <div class="pw-stepper-progress">
+      <span style="font-size:11px;color:var(--bs-secondary-color);">진행률</span>
+      <div style="width:96px;
+                  height:6px;
+                  background:var(--bs-tertiary-bg);
+                  border-radius:99px;
+                  overflow:hidden">
+        <div id="stepperProgressFill"
+             style="height:100%;
+                    background:#4F46E5;
+                    width:0%;
+                    transition:width .4s"></div>
       </div>
-      <button type="button" class="btn btn-sm" id="ideaMapToggleBtn" style="font-size:11px;" onclick="toggleIdeaMap()">🗺 아이디어 맵</button>
+      <span id="stepperProgressPct"
+            style="font-size:11px;
+                   font-weight:600;
+                   color:#4F46E5">0%</span>
     </div>
-
-    <div class="pw-view-toggle" id="viewToggle">
-      <button type="button" class="active" id="viewStructureBtn" onclick="setLeftView('structure')">구조 보기</button>
-      <button type="button" id="viewQuestionsBtn" onclick="setLeftView('questions')">질문 리스트로 보기</button>
-    </div>
-
-    <div class="pw-left-content">
-      <div id="ideaMapView" style="display:none;">
-        <p class="text-secondary mb-3" style="font-size:11px;">섹션별 작성 현황입니다. 항목을 클릭하면 해당 섹션으로 이동합니다.</p>
-        <div id="ideaMapCards"></div>
+  </div>
+  <div class="pw-main" id="writingMain">
+    <!-- Left panel: PRD structure -->
+    <div class="pw-left">
+      <div class="pw-left-toolbar">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-bold" style="font-size:13px;">PRD 구조</span>
+          <span class="badge rounded-pill"
+                style="background:#EEF2FF;
+                       color:#4338CA;
+                       font-size:10px;
+                       font-weight:600">{{ sections|length }}개 활성 섹션</span>
+        </div>
+        <button type="button"
+                class="btn btn-sm"
+                id="ideaMapToggleBtn"
+                style="font-size:11px"
+                onclick="toggleIdeaMap()">🗺 아이디어 맵</button>
       </div>
-
-      <div id="sectionPanel">
-        {% for section in sections %}
-        <div class="section-card mb-2" id="sec-{{ section.id }}" data-section-id="{{ section.id }}">
-          <div class="section-header {% if forloop.first %}open{% endif %}" id="sh-{{ section.id }}">
-            <div class="flex-grow-1" onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')" style="cursor:pointer;">
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <span style="font-size:12px;font-weight:500;color:var(--bs-secondary-color);">{{ forloop.counter }}.</span>
-                <span class="section-title-wrap" onclick="event.stopPropagation();">
-                  <span class="section-title-text" id="title-text-{{ section.id }}" style="font-size:13px;font-weight:600;cursor:text;" onclick="startEditTitle('{{ section.id }}')">{{ section.title }}</span>
-                  <input type="text" class="section-title-input d-none" id="title-input-{{ section.id }}" value="{{ section.title }}"
-                         onblur="commitEditTitle('{{ section.id }}')" onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditTitle('{{ section.id }}');}">
-                  <i class="bi bi-pencil section-title-edit-icon" onclick="startEditTitle('{{ section.id }}')"></i>
-                </span>
-                <span class="diagnosis-badge" id="diag-{{ section.id }}"></span>
-                <span class="ms-auto" style="font-size:11px;font-weight:600;color:#4F46E5;" id="secpct-{{ section.id }}">0%</span>
-              </div>
-              <div class="section-pct-bar"><div class="section-pct-fill" id="fill-{{ section.id }}" style="width:0%;"></div></div>
-            </div>
-            <i class="bi bi-chevron-down" id="chevron-{{ section.id }}" onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')" style="cursor:pointer;font-size:13px;color:var(--bs-secondary-color);transition:transform .2s;flex-shrink:0;{% if forloop.first %}transform:rotate(180deg);{% endif %}"></i>
-          </div>
-          <div class="section-body" id="sb-{{ section.id }}" {% if not forloop.first %}style="display:none;"{% endif %}>
-            <p class="diagnosis-hint mb-0" id="diag-hint-{{ section.id }}"></p>
-            {% for q in section.questions %}
-            <div class="q-item {% if q.is_held %}held{% endif %}" id="qi-{{ q.id }}" data-section="{{ section.id }}" data-qid="{{ q.id }}">
-              <div class="d-flex justify-content-between align-items-start mb-1">
-                <span class="question-text-wrap flex-grow-1" style="min-width:0;">
-                  <label class="fw-semibold mb-0 question-text" id="q-text-{{ q.id }}" style="font-size:12px;cursor:text;" onclick="startEditQuestion('{{ q.id }}')">{{ q.question }}</label>
-                  <input type="text" class="question-text-input d-none" id="q-input-{{ q.id }}" value="{{ q.question }}"
-                         onblur="commitEditQuestion('{{ q.id }}')" onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditQuestion('{{ q.id }}');}">
-                  <i class="bi bi-pencil question-edit-icon" onclick="startEditQuestion('{{ q.id }}')"></i>
-                </span>
-                <div class="q-actions">
-                  {% if q.is_held %}
-                  <button type="button" class="q-action-btn" onclick="restoreQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-arrow-counterclockwise"></i> 복원</button>
-                  {% else %}
-                  <button type="button" class="q-action-btn" onclick="holdQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-pause-circle"></i> 보류</button>
-                  {% endif %}
+      <div class="pw-view-toggle" id="viewToggle">
+        <button type="button"
+                class="active"
+                id="viewStructureBtn"
+                onclick="setLeftView('structure')">구조 보기</button>
+        <button type="button"
+                id="viewQuestionsBtn"
+                onclick="setLeftView('questions')">질문 리스트로 보기</button>
+      </div>
+      <div class="pw-left-content">
+        <div id="ideaMapView" style="display:none;">
+          <p class="text-secondary mb-3" style="font-size:11px;">섹션별 작성 현황입니다. 항목을 클릭하면 해당 섹션으로 이동합니다.</p>
+          <div id="ideaMapCards"></div>
+        </div>
+        <div id="sectionPanel">
+          {% for section in sections %}
+            <div class="section-card mb-2"
+                 id="sec-{{ section.id }}"
+                 data-section-id="{{ section.id }}">
+              <div class="section-header {% if forloop.first %}open{% endif %}"
+                   id="sh-{{ section.id }}">
+                <div class="flex-grow-1"
+                     onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')"
+                     style="cursor:pointer">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span style="font-size:12px;
+                                 font-weight:500;
+                                 color:var(--bs-secondary-color)">{{ forloop.counter }}.</span>
+                    <span class="section-title-wrap" onclick="event.stopPropagation();">
+                      <span class="section-title-text"
+                            id="title-text-{{ section.id }}"
+                            style="font-size:13px;
+                                   font-weight:600;
+                                   cursor:text"
+                            onclick="startEditTitle('{{ section.id }}')">{{ section.title }}</span>
+                      <input type="text"
+                             class="section-title-input d-none"
+                             id="title-input-{{ section.id }}"
+                             value="{{ section.title }}"
+                             onblur="commitEditTitle('{{ section.id }}')"
+                             onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditTitle('{{ section.id }}');}">
+                      <i class="bi bi-pencil section-title-edit-icon"
+                         onclick="startEditTitle('{{ section.id }}')"></i>
+                    </span>
+                    <span class="diagnosis-badge" id="diag-{{ section.id }}"></span>
+                    <span class="ms-auto"
+                          style="font-size:11px;
+                                 font-weight:600;
+                                 color:#4F46E5"
+                          id="secpct-{{ section.id }}">0%</span>
+                  </div>
+                  <div class="section-pct-bar">
+                    <div class="section-pct-fill" id="fill-{{ section.id }}" style="width:0%;"></div>
+                  </div>
                 </div>
+                <i class="bi bi-chevron-down"
+                   id="chevron-{{ section.id }}"
+                   onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')"
+                   style="cursor:pointer;
+                          font-size:13px;
+                          color:var(--bs-secondary-color);
+                          transition:transform .2s;
+                          flex-shrink:0;
+                          {% if forloop.first %}transform:rotate(180deg);
+                          {% endif %}"></i>
               </div>
-              {% if q.hint %}<p class="mb-2" style="font-size:11px;color:var(--bs-secondary-color);">{{ q.hint }}</p>{% endif %}
-              <textarea class="form-control q-textarea" data-section="{{ section.id }}" data-qid="{{ q.id }}" rows="3"
-                style="font-size:12px;resize:none;" placeholder="내용을 입력하세요…" {% if q.is_held %}disabled{% endif %}
-                oninput="onAnswerChange(this)">{{ q.answer }}</textarea>
+              <div class="section-body"
+                   id="sb-{{ section.id }}"
+                   {% if not forloop.first %}style="display:none;"{% endif %}>
+                <p class="diagnosis-hint mb-0" id="diag-hint-{{ section.id }}"></p>
+                {% for q in section.questions %}
+                  <div class="q-item {% if q.is_held %}held{% endif %}"
+                       id="qi-{{ q.id }}"
+                       data-section="{{ section.id }}"
+                       data-qid="{{ q.id }}">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <span class="question-text-wrap flex-grow-1" style="min-width:0;">
+                        <label class="fw-semibold mb-0 question-text"
+                               id="q-text-{{ q.id }}"
+                               style="font-size:12px;
+                                      cursor:text"
+                               onclick="startEditQuestion('{{ q.id }}')">{{ q.question }}</label>
+                        <input type="text"
+                               class="question-text-input d-none"
+                               id="q-input-{{ q.id }}"
+                               value="{{ q.question }}"
+                               onblur="commitEditQuestion('{{ q.id }}')"
+                               onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditQuestion('{{ q.id }}');}">
+                        <i class="bi bi-pencil question-edit-icon"
+                           onclick="startEditQuestion('{{ q.id }}')"></i>
+                      </span>
+                      <div class="q-actions">
+                        {% if q.is_held %}
+                          <button type="button"
+                                  class="q-action-btn"
+                                  onclick="restoreQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-arrow-counterclockwise"></i> 복원</button>
+                        {% else %}
+                          <button type="button"
+                                  class="q-action-btn"
+                                  onclick="holdQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-pause-circle"></i> 보류</button>
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% if q.hint %}<p class="mb-2" style="font-size:11px;color:var(--bs-secondary-color);">{{ q.hint }}</p>{% endif %}
+                    <textarea class="form-control q-textarea"
+                              data-section="{{ section.id }}"
+                              data-qid="{{ q.id }}"
+                              rows="3"
+                              style="font-size:12px;
+                                     resize:none"
+                              placeholder="내용을 입력하세요…"
+                              {% if q.is_held %}disabled{% endif %}
+                              oninput="onAnswerChange(this)">{{ q.answer }}</textarea>
+                  </div>
+                {% endfor %}
+              </div>
             </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <!-- Right panel: AI score panel -->
+    <div class="pw-right">
+      <div class="pwr-header">PRD 완성도</div>
+      <div class="pwr-body">
+        <div class="d-flex flex-column align-items-center">
+          <div class="score-ring-wrap mb-2">
+            <svg width="96" height="96" viewBox="0 0 96 96">
+              <circle cx="48" cy="48" r="38" fill="none" stroke="#F1F5F9" stroke-width="8" />
+              <circle id="scoreRingPath" cx="48" cy="48" r="38" fill="none" stroke="#4F46E5" stroke-width="8" stroke-dasharray="238.76" stroke-dashoffset="238.76" stroke-linecap="round" class="progress-ring" />
+            </svg>
+            <div style="position:absolute;
+                        inset:0;
+                        display:flex;
+                        flex-direction:column;
+                        align-items:center;
+                        justify-content:center">
+              <span id="totalScoreNum" style="font-size:22px;font-weight:700;">0</span>
+              <span style="font-size:10px;color:var(--bs-secondary-color);">점</span>
+            </div>
+          </div>
+          <span style="font-size:11px;color:var(--bs-secondary-color);">PRD 완성도 점수</span>
+          <div class="pwr-segbar" id="pwrSegbar">
+            {% for section in sections %}
+              <div id="seg-{{ section.id }}" style="background:var(--bs-tertiary-bg);"></div>
             {% endfor %}
           </div>
+          <div class="pwr-legend">
+            <span><span class="pwr-legend-dot" style="background:#10B981;"></span>완료</span>
+            <span><span class="pwr-legend-dot" style="background:#4F46E5;"></span>작성 중</span>
+            <span><span class="pwr-legend-dot" style="background:var(--bs-tertiary-bg);"></span>시작 전</span>
+          </div>
+          <div class="pwr-status-badges" id="pwrStatusBadges"></div>
+          <button type="button"
+                  class="pwr-diag-toggle"
+                  id="pwrDiagToggle"
+                  onclick="toggleDiagnosisAccordion()">📋 진단 펼치기 ↓</button>
+          <div id="pwrDiagAccordion" style="display:none;width:100%;margin-top:8px;"></div>
         </div>
-        {% endfor %}
+        <div class="pwr-tabs" id="pwrTabs"></div>
+        <div id="pwrSectionDetail" class="py-3"></div>
+        <div class="pwr-draft-box">
+          <button type="button" class="pwr-draft-toggle" onclick="toggleDraftBox()">
+            <span>AI가 정리한 섹션 초안</span>
+            <span id="draftToggleIcon"
+                  style="font-size:10px;
+                         color:var(--bs-secondary-color)">▾</span>
+          </button>
+          <div id="draftPanel" style="display:none;padding:12px;">
+            <p class="text-secondary mb-2"
+               style="font-size:10px"
+               id="draftQuestionLabel"></p>
+            <textarea id="draftTextarea"
+                      rows="6"
+                      class="form-control"
+                      style="font-size:11px"></textarea>
+            <div class="d-flex gap-2 mt-2">
+              <button type="button"
+                      class="q-action-btn"
+                      id="draftApplyBtn"
+                      onclick="applyDraft()">PRD에 반영하기</button>
+              <button type="button"
+                      class="q-action-btn"
+                      id="draftRegenBtn"
+                      onclick="regenDraft()">다시 생성</button>
+            </div>
+            <p class="text-secondary mt-2 mb-0"
+               style="font-size:10px"
+               id="draftStatus"></p>
+          </div>
+        </div>
+        <hr style="margin:16px 0;" />
+        <button type="button"
+                onclick="openGenerateModal()"
+                class="w-100 btn btn-sm"
+                style="background:#fff;
+                       color:#4F46E5;
+                       border:1.5px solid #C7D2FE;
+                       border-radius:10px;
+                       padding:10px;
+                       font-size:13px;
+                       font-weight:600">
+          <i class="bi bi-file-earmark-text"></i> PRD 생성하기
+        </button>
+      </div>
+      <div class="pwr-incomplete-banner"
+           id="pwrIncompleteBanner"
+           style="display:none">
+        ⚠ <span id="pwrIncompleteText"></span> AI는 빈 내용을 추정하지 않아요 — 질문에 답하면 채워져요.
       </div>
     </div>
   </div>
-
-  <!-- Right panel: AI score panel -->
-  <div class="pw-right">
-    <div class="pwr-header">PRD 완성도</div>
-    <div class="pwr-body">
-      <div class="d-flex flex-column align-items-center">
-        <div class="score-ring-wrap mb-2">
-          <svg width="96" height="96" viewBox="0 0 96 96">
-            <circle cx="48" cy="48" r="38" fill="none" stroke="#F1F5F9" stroke-width="8" />
-            <circle id="scoreRingPath" cx="48" cy="48" r="38" fill="none" stroke="#4F46E5" stroke-width="8"
-                    stroke-dasharray="238.76" stroke-dashoffset="238.76" stroke-linecap="round" class="progress-ring" />
-          </svg>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span id="totalScoreNum" style="font-size:22px;font-weight:700;">0</span>
-            <span style="font-size:10px;color:var(--bs-secondary-color);">점</span>
-          </div>
-        </div>
-        <span style="font-size:11px;color:var(--bs-secondary-color);">PRD 완성도 점수</span>
-
-        <div class="pwr-segbar" id="pwrSegbar">
-          {% for section in sections %}<div id="seg-{{ section.id }}" style="background:var(--bs-tertiary-bg);"></div>{% endfor %}
-        </div>
-        <div class="pwr-legend">
-          <span><span class="pwr-legend-dot" style="background:#10B981;"></span>완료</span>
-          <span><span class="pwr-legend-dot" style="background:#4F46E5;"></span>작성 중</span>
-          <span><span class="pwr-legend-dot" style="background:var(--bs-tertiary-bg);"></span>시작 전</span>
-        </div>
-
-        <div class="pwr-status-badges" id="pwrStatusBadges"></div>
-
-        <button type="button" class="pwr-diag-toggle" id="pwrDiagToggle" onclick="toggleDiagnosisAccordion()">📋 진단 펼치기 ↓</button>
-        <div id="pwrDiagAccordion" style="display:none;width:100%;margin-top:8px;"></div>
+  <!-- AI Chat Sidebar (push layout) -->
+  <div class="ai-chat-panel" id="aiChatPanel">
+    <div class="d-flex align-items-center justify-content-between p-3"
+         style="background:linear-gradient(135deg,#7C3AED,#4F46E5);
+                flex-shrink:0">
+      <div class="d-flex align-items-center gap-2">
+        <div class="rounded-circle d-flex align-items-center justify-content-center"
+             style="width:30px;
+                    height:30px;
+                    background:rgba(255,255,255,.2);
+                    color:#fff">✦</div>
+        <span class="fw-bold text-white" style="font-size:13px;">AI 코치</span>
       </div>
-
-      <div class="pwr-tabs" id="pwrTabs"></div>
-      <div id="pwrSectionDetail" class="py-3"></div>
-
-      <div class="pwr-draft-box">
-        <button type="button" class="pwr-draft-toggle" onclick="toggleDraftBox()">
-          <span>AI가 정리한 섹션 초안</span>
-          <span id="draftToggleIcon" style="font-size:10px;color:var(--bs-secondary-color);">▾</span>
-        </button>
-        <div id="draftPanel" style="display:none;padding:12px;">
-          <p class="text-secondary mb-2" style="font-size:10px;" id="draftQuestionLabel"></p>
-          <textarea id="draftTextarea" rows="6" class="form-control" style="font-size:11px;"></textarea>
-          <div class="d-flex gap-2 mt-2">
-            <button type="button" class="q-action-btn" id="draftApplyBtn" onclick="applyDraft()">PRD에 반영하기</button>
-            <button type="button" class="q-action-btn" id="draftRegenBtn" onclick="regenDraft()">다시 생성</button>
-          </div>
-          <p class="text-secondary mt-2 mb-0" style="font-size:10px;" id="draftStatus"></p>
-        </div>
-      </div>
-
-      <hr style="margin:16px 0;" />
-      <button type="button" onclick="openGenerateModal()" class="w-100 btn btn-sm" style="background:#fff;color:#4F46E5;border:1.5px solid #C7D2FE;border-radius:10px;padding:10px;font-size:13px;font-weight:600;">
-        <i class="bi bi-file-earmark-text"></i> PRD 생성하기
+      <button type="button"
+              class="btn-close btn-close-white"
+              onclick="toggleAIChat()"></button>
+    </div>
+    <div id="aiChatMessages"
+         class="flex-grow-1 d-flex flex-column gap-2 p-3"
+         style="overflow-y:auto">
+      <div class="chat-bubble-ai">안녕하세요! PRD 작성을 도와드릴게요. 어떤 부분이 막히시나요? 😊</div>
+    </div>
+    <div class="p-2 border-top d-flex gap-2">
+      <input type="text"
+             id="aiChatInput"
+             class="form-control form-control-sm"
+             placeholder="질문하거나 피드백 요청하기…"
+             onkeydown="if(event.key==='Enter'){sendAIChat();}">
+      <button type="button"
+              class="btn btn-sm btn-ax-primary"
+              id="aiChatSendBtn"
+              onclick="sendAIChat()">
+        <i class="bi bi-send-fill"></i>
       </button>
     </div>
-    <div class="pwr-incomplete-banner" id="pwrIncompleteBanner" style="display:none;">
-      ⚠ <span id="pwrIncompleteText"></span> AI는 빈 내용을 추정하지 않아요 — 질문에 답하면 채워져요.
+  </div>
+  <!-- Team Offcanvas -->
+  <div class="offcanvas offcanvas-end"
+       id="teamOffcanvas"
+       style="width:320px">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" style="font-size:15px;font-weight:700;">팀 기여도</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
     </div>
-  </div>
-</div>
-
-<!-- AI Chat Sidebar (push layout) -->
-<div class="ai-chat-panel" id="aiChatPanel">
-  <div class="d-flex align-items-center justify-content-between p-3" style="background:linear-gradient(135deg,#7C3AED,#4F46E5);flex-shrink:0;">
-    <div class="d-flex align-items-center gap-2">
-      <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:30px;height:30px;background:rgba(255,255,255,.2);color:#fff;">✦</div>
-      <span class="fw-bold text-white" style="font-size:13px;">AI 코치</span>
-    </div>
-    <button type="button" class="btn-close btn-close-white" onclick="toggleAIChat()"></button>
-  </div>
-  <div id="aiChatMessages" class="flex-grow-1 d-flex flex-column gap-2 p-3" style="overflow-y:auto;">
-    <div class="chat-bubble-ai">안녕하세요! PRD 작성을 도와드릴게요. 어떤 부분이 막히시나요? 😊</div>
-  </div>
-  <div class="p-2 border-top d-flex gap-2">
-    <input type="text" id="aiChatInput" class="form-control form-control-sm" placeholder="질문하거나 피드백 요청하기…"
-           onkeydown="if(event.key==='Enter'){sendAIChat();}">
-    <button type="button" class="btn btn-sm btn-ax-primary" id="aiChatSendBtn" onclick="sendAIChat()"><i class="bi bi-send-fill"></i></button>
-  </div>
-</div>
-
-<!-- Team Offcanvas -->
-<div class="offcanvas offcanvas-end" id="teamOffcanvas" style="width:320px;">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title" style="font-size:15px;font-weight:700;">팀 기여도</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-  </div>
-  <div class="offcanvas-body">
-    {% for m in members %}
-    <div class="team-member-row" style="border-bottom:1px solid var(--bs-border-color);padding-bottom:12px;margin-bottom:12px;">
-      <div class="team-avatar" style="background:{{ m.color }};">{{ m.initials|slice:":1" }}</div>
-      <div style="flex:1;">
-        <div style="font-size:13px;font-weight:600;">{{ m.name }}</div>
-        <div style="font-size:11px;color:var(--bs-secondary-color);">{{ m.role }}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- Generate modal -->
-<div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">PRD 완성도 점검 및 생성 — {{ project.title }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <ul class="nav nav-tabs px-3 pt-2">
-        <li class="nav-item"><button type="button" class="nav-link active" id="tabCheckBtn" onclick="switchModalTab('check')">✓ 완성도 점검</button></li>
-        <li class="nav-item"><button type="button" class="nav-link" id="tabPreviewBtn" onclick="switchModalTab('preview')">📄 PRD 미리보기</button></li>
-      </ul>
-      <div class="modal-body">
-        <div id="tabCheckContent">
-          <div id="modalSectionList" class="d-flex flex-column gap-2"></div>
+    <div class="offcanvas-body">
+      {% for m in members %}
+        <div class="team-member-row"
+             style="border-bottom:1px solid var(--bs-border-color);
+                    padding-bottom:12px;
+                    margin-bottom:12px">
+          <div class="team-avatar" style="background:{{ m.color }};">{{ m.initials|slice:":1" }}</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">{{ m.name }}</div>
+            <div style="font-size:11px;color:var(--bs-secondary-color);">{{ m.role }}</div>
+          </div>
         </div>
-        <div id="tabPreviewContent" style="display:none;">
-          <pre id="prdPreviewText" style="white-space:pre-wrap;font-size:13px;"></pre>
+      {% endfor %}
+    </div>
+  </div>
+  <!-- Generate modal -->
+  <div class="modal fade"
+       id="generateModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">PRD 완성도 점검 및 생성 — {{ project.title }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-ax-secondary btn-sm" onclick="copyPRD()"><i class="bi bi-clipboard me-1"></i>복사</button>
-        <button type="button" class="btn btn-ax-secondary btn-sm" onclick="downloadPRD()"><i class="bi bi-download me-1"></i>다운로드</button>
+        <ul class="nav nav-tabs px-3 pt-2">
+          <li class="nav-item">
+            <button type="button"
+                    class="nav-link active"
+                    id="tabCheckBtn"
+                    onclick="switchModalTab('check')">✓ 완성도 점검</button>
+          </li>
+          <li class="nav-item">
+            <button type="button"
+                    class="nav-link"
+                    id="tabPreviewBtn"
+                    onclick="switchModalTab('preview')">📄 PRD 미리보기</button>
+          </li>
+        </ul>
+        <div class="modal-body">
+          <div id="tabCheckContent">
+            <div id="modalSectionList" class="d-flex flex-column gap-2"></div>
+          </div>
+          <div id="tabPreviewContent" style="display:none;">
+            <pre id="prdPreviewText" style="white-space:pre-wrap;font-size:13px;"></pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ax-secondary btn-sm" onclick="copyPRD()"><i class="bi bi-clipboard me-1"></i>복사</button>
+          <button type="button"
+                  class="btn btn-ax-secondary btn-sm"
+                  onclick="downloadPRD()"><i class="bi bi-download me-1"></i>다운로드</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 {% endblock %}
-
 {% block extra_js %}
-<script>
+  <script>
 const SECTIONS_DATA = {{ sections_json|safe }};
 const PROJECT_TITLE = "{{ project.title|escapejs }}";
 const PROJECT_ID = {{ project.pk }};
@@ -983,8 +1141,7 @@ function renderModalSectionList() {
     const diag = getSectionDiagnosis(sec);
     return `
       <div class="d-flex align-items-center gap-3 p-2 border rounded-3">
-        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
-             style="width:28px;height:28px;font-size:12px;background:${scoreColor(pct)}22;color:${scoreColor(pct)};">${pct === 100 ? '✓' : i + 1}</div>
+        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width:28px;height:28px;font-size:12px;background:${scoreColor(pct)}22;color:${scoreColor(pct)};">${pct === 100 ? '✓' : i + 1}</div>
         <div class="flex-grow-1" style="min-width:0;">
           <div class="d-flex align-items-center gap-2">
             <span class="fw-medium small text-truncate">${sectionTitles[sec.id] || sec.title}</span>
@@ -1016,5 +1173,5 @@ function downloadPRD() {
 }
 
 updateScores();
-</script>
+  </script>
 {% endblock %}
