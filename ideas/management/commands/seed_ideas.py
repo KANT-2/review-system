@@ -37,10 +37,38 @@ SAMPLE_PROJECTS = [
 ]
 
 SAMPLE_POSTITS = [
-    {"content": "AI가 대신 써주는 것보다 사용자가 생각하도록 돕는 게 핵심", "color": "#FEF9C3", "x": 80, "y": 100, "status": "accepted", "rotation": -1.5},
-    {"content": "PM뿐 아니라 개발자·디자이너도 PRD 작성에 참여", "color": "#DBEAFE", "x": 320, "y": 80, "status": "accepted", "rotation": 1.2},
-    {"content": "브레인스토밍 → PRD 반영률로 팀원 기여도 자동 평가", "color": "#EDE9FE", "x": 560, "y": 120, "status": "accepted", "rotation": -0.8},
-    {"content": "보류함: 확정 전 아이디어를 맥락과 함께 보존", "color": "#D1FAE5", "x": 800, "y": 90, "status": "default", "rotation": 1.8},
+    {
+        "content": "AI가 대신 써주는 것보다 사용자가 생각하도록 돕는 게 핵심",
+        "color": "#FEF9C3",
+        "x": 80,
+        "y": 100,
+        "status": "accepted",
+        "rotation": -1.5,
+    },
+    {
+        "content": "PM뿐 아니라 개발자·디자이너도 PRD 작성에 참여",
+        "color": "#DBEAFE",
+        "x": 320,
+        "y": 80,
+        "status": "accepted",
+        "rotation": 1.2,
+    },
+    {
+        "content": "브레인스토밍 → PRD 반영률로 팀원 기여도 자동 평가",
+        "color": "#EDE9FE",
+        "x": 560,
+        "y": 120,
+        "status": "accepted",
+        "rotation": -0.8,
+    },
+    {
+        "content": "보류함: 확정 전 아이디어를 맥락과 함께 보존",
+        "color": "#D1FAE5",
+        "x": 800,
+        "y": 90,
+        "status": "default",
+        "rotation": 1.8,
+    },
 ]
 
 

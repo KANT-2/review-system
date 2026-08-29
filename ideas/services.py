@@ -49,12 +49,7 @@ def ask_ai_coach(project, *, message, current_section_title=None):
     이 지점에서 하나의 프롬프트로 합쳐진다.
     """
     context = build_prd_context(project, current_section_title=current_section_title)
-    prompt = (
-        "다음은 현재 PRD Context입니다.\n\n"
-        f"{context}\n\n"
-        "---\n\n"
-        f"사용자 질문:\n{message}"
-    )
+    prompt = f"다음은 현재 PRD Context입니다.\n\n{context}\n\n---\n\n사용자 질문:\n{message}"
     return generate_coach_reply(prompt=prompt, feature_type="COACHING")
 
 

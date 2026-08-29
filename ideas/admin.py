@@ -3,11 +3,11 @@ from django.contrib import admin
 from .models import (
     AIPrompt,
     AIUsageLog,
+    PostIt,
+    PostItConnection,
     PRDProject,
     PRDQuestion,
     PRDSection,
-    PostIt,
-    PostItConnection,
 )
 
 

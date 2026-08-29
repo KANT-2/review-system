@@ -20,7 +20,9 @@ class PRDProject(models.Model):
     project_type = models.CharField(max_length=20, choices=ProjectType.choices)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.WRITING)
     deadline = models.DateField(null=True, blank=True)
-    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="prd_projects", blank=True)
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name="prd_projects", blank=True
+    )
     ai_coaching_sessions = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_prd_projects"
@@ -131,6 +133,9 @@ class PostItConnection(models.Model):
             )
         ]
 
+    def __str__(self):
+        return f"{self.from_postit_id} -> {self.to_postit_id}"
+
 
 class AIPrompt(models.Model):
     """팀 공통 ERD의 AI_Prompts 테이블. AI Coach/채팅 기능이 쓰는 system_instruction을
@@ -178,3 +183,6 @@ class AIUsageLog(models.Model):
 
     class Meta:
         db_table = "AI_Usage_Logs"
+
+    def __str__(self):
+        return f"{self.feature_type} log #{self.log_id}"

@@ -6,38 +6,64 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('ideas', '0002_postit_node_type_alter_prdproject_status'),
+        ("ideas", "0002_postit_node_type_alter_prdproject_status"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AIPrompt',
+            name="AIPrompt",
             fields=[
-                ('prompt_id', models.BigAutoField(primary_key=True, serialize=False)),
-                ('feature_type', models.CharField(choices=[('CHAT', '채팅'), ('COACHING', '코칭')], max_length=20)),
-                ('system_instruction', models.TextField()),
-                ('version', models.CharField(default='v1.0', max_length=20)),
-                ('is_active', models.BooleanField(default=True)),
+                ("prompt_id", models.BigAutoField(primary_key=True, serialize=False)),
+                (
+                    "feature_type",
+                    models.CharField(
+                        choices=[("CHAT", "채팅"), ("COACHING", "코칭")], max_length=20
+                    ),
+                ),
+                ("system_instruction", models.TextField()),
+                ("version", models.CharField(default="v1.0", max_length=20)),
+                ("is_active", models.BooleanField(default=True)),
             ],
             options={
-                'db_table': 'AI_Prompts',
+                "db_table": "AI_Prompts",
             },
         ),
         migrations.CreateModel(
-            name='AIUsageLog',
+            name="AIUsageLog",
             fields=[
-                ('log_id', models.BigAutoField(primary_key=True, serialize=False)),
-                ('feature_type', models.CharField(choices=[('CHAT', '채팅'), ('COACHING', '코칭'), ('GENERATE', '생성')], max_length=20)),
-                ('total_tokens', models.IntegerField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('prd', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='ai_usage_logs', to='ideas.prdproject')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='ai_usage_logs', to=settings.AUTH_USER_MODEL)),
+                ("log_id", models.BigAutoField(primary_key=True, serialize=False)),
+                (
+                    "feature_type",
+                    models.CharField(
+                        choices=[("CHAT", "채팅"), ("COACHING", "코칭"), ("GENERATE", "생성")],
+                        max_length=20,
+                    ),
+                ),
+                ("total_tokens", models.IntegerField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "prd",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="ai_usage_logs",
+                        to="ideas.prdproject",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="ai_usage_logs",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'db_table': 'AI_Usage_Logs',
+                "db_table": "AI_Usage_Logs",
             },
         ),
     ]

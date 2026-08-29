@@ -4,20 +4,30 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('ideas', '0001_initial'),
+        ("ideas", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='postit',
-            name='node_type',
-            field=models.CharField(choices=[('note', '메모'), ('title', '제목')], default='note', max_length=5),
+            model_name="postit",
+            name="node_type",
+            field=models.CharField(
+                choices=[("note", "메모"), ("title", "제목")], default="note", max_length=5
+            ),
         ),
         migrations.AlterField(
-            model_name='prdproject',
-            name='status',
-            field=models.CharField(choices=[('작성 중', '작성 중'), ('완료', '완료'), ('홀딩', '홀딩'), ('드랍', '드랍')], default='작성 중', max_length=10),
+            model_name="prdproject",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("작성 중", "작성 중"),
+                    ("완료", "완료"),
+                    ("홀딩", "홀딩"),
+                    ("드랍", "드랍"),
+                ],
+                default="작성 중",
+                max_length=10,
+            ),
         ),
     ]
