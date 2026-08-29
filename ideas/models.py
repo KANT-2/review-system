@@ -186,3 +186,38 @@ class AIUsageLog(models.Model):
 
     def __str__(self):
         return f"{self.feature_type} log #{self.log_id}"
+
+
+class AIChatHistory(models.Model):
+    """팀 공통 ERD의 AI_Chat_Histories 테이블.
+
+    (prd, section, user) 하나당 행 하나 — 메시지마다 새 행을 만들지 않고,
+    chat_data JSON 배열 하나를 통째로 갱신(UPSERT)한다.
+    """
+
+    chat_id = models.BigAutoField(primary_key=True)
+    prd = models.ForeignKey(PRDProject, on_delete=models.CASCADE, related_name="chat_histories")
+    section = models.ForeignKey(
+        PRDSection,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="chat_histories",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ai_chat_histories"
+    )
+    chat_data = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "AI_Chat_Histories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("prd", "section", "user"), name="ideas_chat_history_unique"
+            )
+        ]
+
+    def __str__(self):
+        return f"chat history #{self.chat_id} ({self.user_id}/{self.section_id})"
