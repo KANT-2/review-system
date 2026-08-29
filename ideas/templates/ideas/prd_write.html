@@ -937,19 +937,66 @@ function applyDraft() {
   document.getElementById('draftApplyBtn').disabled = true;
 }
 
-// ── AI Chat (실제 Gemini 기반 AI Coach 호출) ──────────────────
-function toggleAIChat() {
-  document.getElementById('aiChatPanel').classList.toggle('open');
-  document.getElementById('writingMain').classList.toggle('chat-open');
-  document.getElementById('aiChatToggleBtn').classList.toggle('chat-active');
-}
+// ── AI Chat (실제 Gemini 기반 AI Coach 호출 + 대화 이력 복원) ──
+let activeChatSectionId = null;
 
-function currentOpenSectionTitle() {
+function currentOpenSectionId() {
   const openHeader = document.querySelector('.section-header.open');
   if (!openHeader) return null;
   const card = openHeader.closest('.section-card');
-  const sectionId = card ? card.dataset.sectionId : null;
-  return sectionId ? (sectionTitles[sectionId] || null) : null;
+  return card ? card.dataset.sectionId : null;
+}
+
+function renderChatBubble(wrap, role, text) {
+  const cls = role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai';
+  wrap.insertAdjacentHTML('beforeend', `<div class="${cls}">${escapeHtml(text)}</div>`);
+}
+
+function loadChatHistory(sectionId) {
+  const wrap = document.getElementById('aiChatMessages');
+  wrap.innerHTML = '<div class="chat-bubble-ai">불러오는 중…</div>';
+
+  const url = sectionId
+    ? `/ideas/${PROJECT_ID}/ai-coach/history/?section_id=${sectionId}`
+    : `/ideas/${PROJECT_ID}/ai-coach/history/`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      wrap.innerHTML = '';
+      const messages = (data.ok && data.messages) || [];
+      if (messages.length === 0) {
+        renderChatBubble(wrap, 'model', '안녕하세요! PRD 작성을 도와드릴게요. 어떤 부분이 막히시나요? 😊');
+      } else {
+        messages.forEach(m => renderChatBubble(wrap, m.role, m.text));
+      }
+      wrap.scrollTop = wrap.scrollHeight;
+    })
+    .catch(() => {
+      wrap.innerHTML = '';
+      renderChatBubble(wrap, 'model', '안녕하세요! PRD 작성을 도와드릴게요. 어떤 부분이 막히시나요? 😊');
+    });
+}
+
+function toggleAIChat() {
+  const panel = document.getElementById('aiChatPanel');
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open');
+  document.getElementById('writingMain').classList.toggle('chat-open');
+  document.getElementById('aiChatToggleBtn').classList.toggle('chat-active');
+
+  if (opening) {
+    activeChatSectionId = currentOpenSectionId();
+    loadChatHistory(activeChatSectionId);
+  }
+}
+
+// 패널이 열려있는 동안 왼쪽에서 다른 섹션을 펼치면, 그 섹션의 대화로 전환한다.
+function onSectionOpenedWhileChatting(sectionId) {
+  if (!document.getElementById('aiChatPanel').classList.contains('open')) return;
+  if (sectionId === activeChatSectionId) return;
+  activeChatSectionId = sectionId;
+  loadChatHistory(activeChatSectionId);
 }
 
 function sendAIChat() {
@@ -959,7 +1006,7 @@ function sendAIChat() {
   const wrap = document.getElementById('aiChatMessages');
   const sendBtn = document.getElementById('aiChatSendBtn');
 
-  wrap.insertAdjacentHTML('beforeend', `<div class="chat-bubble-user">${escapeHtml(text)}</div>`);
+  renderChatBubble(wrap, 'user', text);
   input.value = '';
   input.disabled = true;
   sendBtn.disabled = true;
@@ -972,7 +1019,7 @@ function sendAIChat() {
   fetch(`/ideas/${PROJECT_ID}/ai-coach/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-    body: JSON.stringify({ message: text, current_section_title: currentOpenSectionTitle() }),
+    body: JSON.stringify({ message: text, section_id: activeChatSectionId }),
   })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
@@ -1096,7 +1143,10 @@ function toggleSection(headerEl, sectionId) {
   const chevron = document.getElementById('chevron-' + sectionId);
   const isOpen = headerEl.classList.contains('open');
   if (isOpen) { body.style.display = 'none'; headerEl.classList.remove('open'); chevron.style.transform = ''; }
-  else { body.style.display = 'flex'; headerEl.classList.add('open'); chevron.style.transform = 'rotate(180deg)'; }
+  else {
+    body.style.display = 'flex'; headerEl.classList.add('open'); chevron.style.transform = 'rotate(180deg)';
+    onSectionOpenedWhileChatting(sectionId);
+  }
 }
 
 function scrollToSection(sectionId) {

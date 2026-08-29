@@ -5,8 +5,20 @@ PRD Context를 실제 DB 데이터로부터 조립하고, Gemini 호출(ai_coach
 """
 
 from .ai_coach import AICoachError, generate_coach_reply
+from .models import AIChatHistory
 
-__all__ = ["AICoachError", "ask_ai_coach", "build_prd_context", "generate_question_draft"]
+__all__ = [
+    "AICoachError",
+    "append_chat_turn",
+    "ask_ai_coach",
+    "build_prd_context",
+    "generate_question_draft",
+    "get_chat_history",
+]
+
+# Gemini에 다시 실어 보낼 최근 대화 턴 수 ("방금 한 말 까먹는 문제" 방지용).
+# chat_data 저장 자체는 항상 전체를 보존하고, 이 값은 프롬프트에 포함할 범위만 제한한다.
+RECENT_TURNS_FOR_PROMPT = 3
 
 
 def build_prd_context(project, *, current_section_title=None):
@@ -41,16 +53,62 @@ def build_prd_context(project, *, current_section_title=None):
     return "\n".join(lines)
 
 
-def ask_ai_coach(project, *, message, current_section_title=None):
-    """사용자 메시지 + PRD Context를 합쳐 Gemini에 보내고 답변 텍스트를 반환한다.
+def get_chat_history(project, *, section, user):
+    """(project, section, user) 하나에 대한 저장된 대화 배열 전체를 그대로 반환한다.
 
-    System Instructions / PRD Context / User Message는 별도 함수(ai_coach.py의
-    시스템 지시문 로드, build_prd_context, 이 함수의 인자)로 분리되어 있다가
-    이 지점에서 하나의 프롬프트로 합쳐진다.
+    프론트는 이 결과를 자르거나 가공하지 않고 그대로 화면에 복원한다.
     """
-    context = build_prd_context(project, current_section_title=current_section_title)
-    prompt = f"다음은 현재 PRD Context입니다.\n\n{context}\n\n---\n\n사용자 질문:\n{message}"
-    return generate_coach_reply(prompt=prompt, feature_type="COACHING")
+    history = AIChatHistory.objects.filter(prd=project, section=section, user=user).first()
+    return history.chat_data if history else []
+
+
+def append_chat_turn(project, *, section, user, user_message, ai_reply):
+    """이번 질문/답변 한 쌍을 저장된 대화 배열 끝에 추가하고 UPSERT 저장한다.
+
+    메시지마다 새 행을 만들지 않고, (prd, section, user) 행 하나의 chat_data를 통째로 갱신한다.
+    """
+    history, _created = AIChatHistory.objects.get_or_create(
+        prd=project, section=section, user=user, defaults={"chat_data": []}
+    )
+    history.chat_data = [
+        *history.chat_data,
+        {"role": "user", "text": user_message},
+        {"role": "model", "text": ai_reply},
+    ]
+    history.save(update_fields=["chat_data"])
+    return history.chat_data
+
+
+def _recent_turns_text(chat_data, *, n_turns=RECENT_TURNS_FOR_PROMPT):
+    """저장된 대화 중 최근 n_turns개 교환(사용자+AI 쌍)만 프롬프트용 텍스트로 만든다."""
+    recent = chat_data[-(n_turns * 2) :]
+    if not recent:
+        return ""
+    lines = []
+    for turn in recent:
+        speaker = "사용자" if turn.get("role") == "user" else "AI"
+        lines.append(f"{speaker}: {turn.get('text', '')}")
+    return "\n".join(lines)
+
+
+def ask_ai_coach(project, *, section, user, message):
+    """사용자 메시지 + PRD Context + 최근 대화를 합쳐 Gemini에 보내고 답변을 반환한다.
+
+    저장된 chat_data 전체가 아니라 최근 RECENT_TURNS_FOR_PROMPT개 교환만 프롬프트에
+    포함한다 (저장은 전체, 재사용은 일부). 성공하면 이번 질문/답변을 chat_data에 추가로 저장한다.
+    """
+    context = build_prd_context(project, current_section_title=section.title if section else None)
+
+    chat_data = get_chat_history(project, section=section, user=user)
+    recent_text = _recent_turns_text(chat_data)
+    history_block = f"\n\n## 최근 대화\n{recent_text}" if recent_text else ""
+
+    prompt = f"다음은 현재 PRD Context입니다.\n\n{context}{history_block}\n\n---\n\n사용자 질문:\n{message}"
+    reply = generate_coach_reply(prompt=prompt, feature_type="COACHING")
+
+    append_chat_turn(project, section=section, user=user, user_message=message, ai_reply=reply.text)
+
+    return reply
 
 
 def generate_question_draft(project, *, section, question):

@@ -15,5 +15,6 @@ urlpatterns = [
     path("<int:pk>/brainstorm/", views.brainstorm, name="brainstorm"),
     path("<int:pk>/brainstorm/sync/", views.brainstorm_sync, name="brainstorm_sync"),
     path("<int:pk>/ai-coach/", views.ai_coach_ask, name="ai_coach_ask"),
+    path("<int:pk>/ai-coach/history/", views.ai_coach_history, name="ai_coach_history"),
     path("<int:pk>/ai-coach/draft/", views.ai_coach_draft, name="ai_coach_draft"),
 ]

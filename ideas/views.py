@@ -8,10 +8,10 @@ from django.db.models import Count
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .models import AIUsageLog, PostIt, PostItConnection, PRDProject, PRDQuestion, PRDSection
-from .services import AICoachError, ask_ai_coach, generate_question_draft
+from .services import AICoachError, ask_ai_coach, generate_question_draft, get_chat_history
 
 User = get_user_model()
 
@@ -537,10 +537,11 @@ def ai_coach_ask(request, pk):
     message = (payload.get("message") or "").strip()
     if not message:
         return HttpResponseBadRequest("메시지를 입력해주세요.")
-    current_section_title = payload.get("current_section_title") or None
+    section_id = payload.get("section_id")
+    section = get_object_or_404(project.sections, pk=section_id) if section_id else None
 
     try:
-        reply = ask_ai_coach(project, message=message, current_section_title=current_section_title)
+        reply = ask_ai_coach(project, section=section, user=request.user, message=message)
     except AICoachError:
         return JsonResponse(
             {
@@ -560,6 +561,21 @@ def ai_coach_ask(request, pk):
     )
 
     return JsonResponse({"ok": True, "reply": reply.text})
+
+
+@login_required
+@require_GET
+def ai_coach_history(request, pk):
+    """(project, section, 현재 유저) 조합으로 저장된 대화 전체를 그대로 돌려준다.
+
+    프론트는 이 배열을 자르거나 가공하지 않고 그대로 화면에 복원한다.
+    """
+    project = get_object_or_404(PRDProject, pk=pk, members=request.user)
+    section_id = request.GET.get("section_id")
+    section = get_object_or_404(project.sections, pk=section_id) if section_id else None
+
+    messages = get_chat_history(project, section=section, user=request.user)
+    return JsonResponse({"ok": True, "messages": messages})
 
 
 @login_required

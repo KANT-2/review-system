@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    AIChatHistory,
     AIPrompt,
     AIUsageLog,
     PostIt,
@@ -55,3 +56,8 @@ class AIPromptAdmin(admin.ModelAdmin):
 class AIUsageLogAdmin(admin.ModelAdmin):
     list_display = ("user", "prd", "feature_type", "total_tokens", "created_at")
     list_filter = ("feature_type",)
+
+
+@admin.register(AIChatHistory)
+class AIChatHistoryAdmin(admin.ModelAdmin):
+    list_display = ("prd", "section", "user", "created_at")
