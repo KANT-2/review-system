@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "audit.apps.AuditConfig",
     "notices.apps.NoticesConfig",
     "notifications.apps.NotificationsConfig",
+    "ideas.apps.IdeasConfig",
 ]
 
 MIDDLEWARE = [
@@ -196,6 +197,10 @@ if KAKAO_OAUTH_ENABLED:
         ]
     }
 SOCIALACCOUNT_REQUESTS_TIMEOUT = env_int("SOCIALACCOUNT_REQUESTS_TIMEOUT", 5)
+
+# ideas 앱의 AI Coach가 사용하는 Gemini API 키. 비어 있으면 AI Coach는 비활성 상태로 응답한다.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
 
 # Development prints messages to the terminal. Production opts into SMTP with
 # DJANGO_EMAIL_BACKEND and the remaining DJANGO_EMAIL_* variables; credentials

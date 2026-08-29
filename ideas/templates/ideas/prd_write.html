@@ -1,0 +1,1177 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ project.title }} — 아이디어 디벨로퍼{% endblock %}
+{% block breadcrumb %}{{ project.title }}{% endblock %}
+{% block extra_head %}
+  <style>
+  /* ── Header ── */
+  .pw-header { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--bs-border-color); margin-bottom: 0; flex-wrap: wrap; }
+  .pw-back-btn { border: none; background: transparent; color: var(--bs-secondary-color); font-size: 16px; line-height: 1; padding: 4px; }
+  .pw-logo-box { width: 24px; height: 24px; background: #4F46E5; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .pw-title { font-size: 13px; font-weight: 600; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pw-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; border: 1px solid var(--bs-border-color); border-radius: 99px; padding: 3px 12px; background: var(--bs-body-bg); cursor: pointer; color: var(--bs-body-color); }
+  .pw-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .pw-avatars { display: flex; }
+  .pw-avatar { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--bs-body-bg); font-size: 10px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; margin-left: -6px; }
+  .pw-avatar:first-child { margin-left: 0; }
+  .pw-header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pw-action-btn { font-size: 11px; font-weight: 500; border: 1px solid var(--bs-border-color); border-radius: 8px; padding: 5px 12px; background: var(--bs-body-bg); color: var(--bs-body-color); text-decoration: none; }
+  .pw-action-btn.chat-active { border-color: #C4B5FD; background: #F5F3FF; color: #6D28D9; }
+  .pw-action-primary { font-size: 11px; font-weight: 600; border: none; border-radius: 8px; padding: 5px 16px; background: #4F46E5; color: #fff; }
+
+  /* ── Horizontal stepper ── */
+  .pw-stepper { display: flex; align-items: center; gap: 4px; padding: 10px 4px; overflow-x: auto; border-bottom: 1px solid var(--bs-border-color); margin-bottom: 16px; }
+  .pw-step-btn { display: flex; align-items: center; gap: 6px; border: none; background: transparent; font-size: 11px; font-weight: 500; color: var(--bs-secondary-color); white-space: nowrap; flex-shrink: 0; padding: 2px; }
+  .pw-step-btn.current { color: #4338CA; }
+  .pw-step-btn.done { color: #059669; }
+  .pw-step-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+  .pw-step-btn.current .pw-step-dot { background: #4F46E5; color: #fff; }
+  .pw-step-btn.done .pw-step-dot { background: #10B981; color: #fff; }
+  .pw-step-sep { width: 20px; height: 1px; background: var(--bs-border-color); flex-shrink: 0; }
+  .pw-step-sep.done { background: #6EE7B7; }
+  .pw-stepper-progress { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-left: 12px; }
+
+  /* ── Two-panel main ── */
+  .pw-main { display: flex; gap: 0; transition: margin-right .25s ease; border: 1px solid var(--bs-border-color); border-radius: 12px; overflow: hidden; min-height: 60vh; }
+  .pw-main.chat-open { margin-right: 340px; }
+  .pw-left { flex: 0 0 55%; max-width: 55%; border-right: 1px solid var(--bs-border-color); display: flex; flex-direction: column; min-width: 0; }
+  .pw-right { flex: 1; min-width: 0; padding: 20px; }
+  @media (max-width: 991px) { .pw-left { flex-basis: 100%; max-width: 100%; border-right: none; } .pw-right { border-top: 1px solid var(--bs-border-color); } .pw-main { flex-direction: column; } }
+
+  .pw-left-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--bs-border-color); }
+  .pw-left-content { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .section-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 10px; overflow: hidden; }
+  .section-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid transparent; user-select: none; }
+  .section-header.open { border-bottom-color: var(--bs-border-color); }
+  .section-pct-bar { height: 4px; background: #F1F5F9; border-radius: 99px; margin-top: 4px; overflow: hidden; }
+  .section-pct-fill { height: 100%; background: #4F46E5; border-radius: 99px; transition: width .4s; }
+  .section-body { padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+  .q-item.held { opacity: .45; pointer-events: none; }
+  .q-actions { display: flex; gap: 4px; }
+  .q-action-btn { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--bs-border-color); background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); cursor: pointer; }
+
+  .score-ring-wrap { position: relative; width: 96px; height: 96px; }
+  .progress-ring { transform-origin: center; transform: rotate(-90deg); transition: stroke-dashoffset .6s; }
+  .score-bar-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .score-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--bs-secondary-color); }
+  .score-bar-track { height: 5px; background: #F1F5F9; border-radius: 99px; overflow: hidden; }
+  .score-bar-fill { height: 100%; background: #4F46E5; border-radius: 99px; transition: width .4s; }
+  .team-member-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .team-avatar { width: 28px; height: 28px; border-radius: 50%; font-size: 10px; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  .ai-chat-panel { position: fixed; top: 0; right: -340px; width: 340px; height: 100%; background: var(--bs-body-bg); border-left: 1px solid var(--bs-border-color); z-index: 1050; display: flex; flex-direction: column; transition: right .25s ease; }
+  .ai-chat-panel.open { right: 0; }
+  .chat-bubble-ai { background: var(--bs-tertiary-bg); border-radius: 14px 14px 14px 4px; padding: 10px 14px; font-size: 13px; line-height: 1.6; max-width: 85%; }
+  .chat-bubble-user { background: #4F46E5; color: #fff; border-radius: 14px 14px 4px 14px; padding: 10px 14px; font-size: 13px; line-height: 1.6; max-width: 85%; align-self: flex-end; }
+
+  .diagnosis-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-left: 6px; }
+  .diagnosis-empty { background: #F1F5F9; color: #94A3B8; }
+  .diagnosis-under { background: #FFFBEB; color: #B45309; }
+  .diagnosis-good { background: #ECFDF5; color: #059669; }
+  .diagnosis-hint { font-size: 11px; color: var(--bs-secondary-color); margin-top: 4px; }
+
+  .section-title-input { font-size: 13px; font-weight: 600; border: none; border-bottom: 1px dashed #4F46E5; background: transparent; padding: 0; width: auto; max-width: 220px; }
+  .section-title-edit-icon { opacity: 0; font-size: 11px; color: var(--bs-secondary-color); margin-left: 4px; transition: opacity .15s; }
+  .section-title-wrap:hover .section-title-edit-icon { opacity: .7; }
+
+  .pw-view-toggle { display: flex; background: var(--bs-tertiary-bg); border-radius: 8px; padding: 2px; margin: 10px 16px 0; }
+  .pw-view-toggle button { flex: 1; border: none; background: transparent; font-size: 11px; font-weight: 500; padding: 6px; border-radius: 6px; color: var(--bs-secondary-color); }
+  .pw-view-toggle button.active { background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+  /* ── Idea map (card list) ── */
+  .idea-map-card { display: block; width: 100%; text-align: left; border: 1px solid var(--bs-border-color); border-radius: 10px; padding: 12px 14px; background: var(--bs-body-bg); cursor: pointer; margin-bottom: 8px; }
+  .idea-map-card:hover { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .idea-map-card.done { border-color: #6EE7B7; background: #ECFDF5; }
+  .idea-map-card.started { border-color: #C7D2FE; background: #EEF2FF; }
+  .idea-map-chip { font-size: 10px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--bs-body-bg); color: var(--bs-secondary-color); }
+  .idea-map-chip.filled { background: var(--bs-body-bg); color: var(--bs-body-color); }
+
+  /* ── Question inline edit ── */
+  .question-text-wrap:hover .question-edit-icon { opacity: .7; }
+  .question-edit-icon { opacity: 0; font-size: 10px; color: var(--bs-secondary-color); margin-left: 4px; transition: opacity .15s; }
+  .question-text-input { font-size: 12px; font-weight: 600; border: none; border-bottom: 1px dashed #4F46E5; background: transparent; padding: 0; width: 100%; }
+
+  /* ── Right panel (AI 완성도 패널) ── */
+  .pw-right { display: flex; flex-direction: column; padding: 0; }
+  .pwr-header { padding: 14px 20px; border-bottom: 1px solid var(--bs-border-color); font-weight: 700; font-size: 13px; }
+  .pwr-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .pwr-segbar { display: flex; gap: 2px; height: 8px; border-radius: 99px; overflow: hidden; width: 100%; margin-top: 12px; }
+  .pwr-segbar > div { flex: 1; }
+  .pwr-legend { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 11px; color: var(--bs-secondary-color); margin-top: 8px; }
+  .pwr-legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .pwr-status-badges { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .pwr-status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+  .pwr-diag-toggle { width: 100%; margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--bs-body-color); border: 1px solid var(--bs-border-color); background: var(--bs-tertiary-bg); border-radius: 10px; padding: 8px; }
+  .pwr-diag-item { border: 1px solid var(--bs-border-color); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+  .pwr-diag-item-header { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bs-tertiary-bg); border: none; font-size: 11px; }
+  .pwr-diag-item-body { padding: 8px 10px; font-size: 11px; color: var(--bs-secondary-color); border-top: 1px solid var(--bs-border-color); }
+  .pwr-tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--bs-border-color); margin-top: 16px; }
+  .pwr-tab { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 6px 12px; border: none; background: transparent; border-bottom: 2px solid transparent; color: var(--bs-secondary-color); white-space: nowrap; }
+  .pwr-tab.active { border-bottom-color: #4F46E5; color: #4338CA; background: #EEF2FF; }
+  .pwr-question-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bs-tertiary-bg); margin-bottom: 6px; font-size: 11px; }
+  .pwr-draft-box { border: 1px solid var(--bs-border-color); border-radius: 10px; overflow: hidden; margin-top: 16px; }
+  .pwr-draft-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bs-tertiary-bg); border: none; font-size: 12px; font-weight: 600; }
+  .pwr-incomplete-banner { padding: 10px 16px; border-top: 1px solid #FDE68A; background: #FFFBEB; color: #92400E; font-size: 11px; }
+  </style>
+{% endblock %}
+{% block content %}
+  <!-- Save feedback toast -->
+  <div class="position-fixed top-0 start-50 translate-middle-x mt-3"
+       style="z-index:1080">
+    <div id="saveToast"
+         class="toast align-items-center border-0 bg-success text-white"
+         role="alert">
+      <div class="d-flex">
+        <div class="toast-body fw-medium" style="font-size:13px;">✓ 저장되었습니다</div>
+      </div>
+    </div>
+  </div>
+  <!-- Header: back | logo+title | status | deadline | avatars | ... actions -->
+  <div class="pw-header">
+    <a href="{% url 'ideas:home' %}" class="pw-back-btn" title="홈으로"><i class="bi bi-arrow-left"></i></a>
+    <div class="pw-logo-box">아</div>
+    <span class="pw-title">{{ project.title }}</span>
+    <div class="dropdown">
+      <button type="button"
+              class="pw-pill"
+              id="statusDropdownBtn"
+              data-bs-toggle="dropdown">
+        <span class="pw-status-dot" id="statusDot"></span>
+        <span id="statusDropdownLabel">{{ project.status }}</span>
+        <i class="bi bi-chevron-down" style="font-size:9px;"></i>
+      </button>
+      <ul class="dropdown-menu">
+        {% for value, label in status_choices %}
+          <li>
+            <button type="button"
+                    class="dropdown-item small"
+                    onclick="setProjectStatus('{{ value|escapejs }}')">{{ label }}</button>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <label class="pw-pill mb-0" style="cursor:pointer;">
+      <i class="bi bi-calendar3"></i>
+      <span id="deadlineLabel">{{ project.deadline|date:"Y-m-d"|default:"마감일 없음" }}</span>
+      <input type="date"
+             id="deadlineInput"
+             value="{{ project.deadline|date:'Y-m-d' }}"
+             style="position:absolute;
+                    width:1px;
+                    height:1px;
+                    opacity:0"
+             onchange="setProjectDeadline(this.value)">
+    </label>
+    <div class="pw-avatars">
+      {% for m in members %}
+        <div class="pw-avatar"
+             style="background:{{ m.color }}"
+             title="{{ m.name }}">{{ m.initials|slice:":1" }}</div>
+      {% endfor %}
+    </div>
+    <div class="pw-header-actions">
+      <a href="{% url 'ideas:brainstorm' project.pk %}" class="pw-action-btn">💡 브레인스토밍</a>
+      <button type="button"
+              class="pw-action-btn"
+              id="aiChatToggleBtn"
+              onclick="toggleAIChat()">✦ AI 코치</button>
+      <button type="button"
+              class="pw-action-btn"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#teamOffcanvas">👥 팀 기여도</button>
+      <button type="button" class="pw-action-primary" onclick="openGenerateModal()">+ PRD 생성</button>
+    </div>
+  </div>
+  <!-- Horizontal stepper -->
+  <div class="pw-stepper" id="stepperRail">
+    {% for section in sections %}
+      <button type="button"
+              class="pw-step-btn {% if forloop.first %}current{% endif %}"
+              id="step-{{ section.id }}"
+              onclick="scrollToSection('{{ section.id }}')">
+        <span class="pw-step-dot" id="dot-{{ section.id }}">{{ forloop.counter }}</span>
+        <span id="steplabel-{{ section.id }}">{{ section.title|truncatechars:8 }}</span>
+      </button>
+      {% if not forloop.last %}<span class="pw-step-sep" id="sep-{{ section.id }}"></span>{% endif %}
+    {% endfor %}
+    <span class="pw-step-sep"></span>
+    <button type="button" class="pw-step-btn" onclick="openGenerateModal()">
+      <span class="pw-step-dot">⚡</span> PRD 생성
+    </button>
+    <div class="pw-stepper-progress">
+      <span style="font-size:11px;color:var(--bs-secondary-color);">진행률</span>
+      <div style="width:96px;
+                  height:6px;
+                  background:var(--bs-tertiary-bg);
+                  border-radius:99px;
+                  overflow:hidden">
+        <div id="stepperProgressFill"
+             style="height:100%;
+                    background:#4F46E5;
+                    width:0%;
+                    transition:width .4s"></div>
+      </div>
+      <span id="stepperProgressPct"
+            style="font-size:11px;
+                   font-weight:600;
+                   color:#4F46E5">0%</span>
+    </div>
+  </div>
+  <div class="pw-main" id="writingMain">
+    <!-- Left panel: PRD structure -->
+    <div class="pw-left">
+      <div class="pw-left-toolbar">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-bold" style="font-size:13px;">PRD 구조</span>
+          <span class="badge rounded-pill"
+                style="background:#EEF2FF;
+                       color:#4338CA;
+                       font-size:10px;
+                       font-weight:600">{{ sections|length }}개 활성 섹션</span>
+        </div>
+        <button type="button"
+                class="btn btn-sm"
+                id="ideaMapToggleBtn"
+                style="font-size:11px"
+                onclick="toggleIdeaMap()">🗺 아이디어 맵</button>
+      </div>
+      <div class="pw-view-toggle" id="viewToggle">
+        <button type="button"
+                class="active"
+                id="viewStructureBtn"
+                onclick="setLeftView('structure')">구조 보기</button>
+        <button type="button"
+                id="viewQuestionsBtn"
+                onclick="setLeftView('questions')">질문 리스트로 보기</button>
+      </div>
+      <div class="pw-left-content">
+        <div id="ideaMapView" style="display:none;">
+          <p class="text-secondary mb-3" style="font-size:11px;">섹션별 작성 현황입니다. 항목을 클릭하면 해당 섹션으로 이동합니다.</p>
+          <div id="ideaMapCards"></div>
+        </div>
+        <div id="sectionPanel">
+          {% for section in sections %}
+            <div class="section-card mb-2"
+                 id="sec-{{ section.id }}"
+                 data-section-id="{{ section.id }}">
+              <div class="section-header {% if forloop.first %}open{% endif %}"
+                   id="sh-{{ section.id }}">
+                <div class="flex-grow-1"
+                     onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')"
+                     style="cursor:pointer">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span style="font-size:12px;
+                                 font-weight:500;
+                                 color:var(--bs-secondary-color)">{{ forloop.counter }}.</span>
+                    <span class="section-title-wrap" onclick="event.stopPropagation();">
+                      <span class="section-title-text"
+                            id="title-text-{{ section.id }}"
+                            style="font-size:13px;
+                                   font-weight:600;
+                                   cursor:text"
+                            onclick="startEditTitle('{{ section.id }}')">{{ section.title }}</span>
+                      <input type="text"
+                             class="section-title-input d-none"
+                             id="title-input-{{ section.id }}"
+                             value="{{ section.title }}"
+                             onblur="commitEditTitle('{{ section.id }}')"
+                             onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditTitle('{{ section.id }}');}">
+                      <i class="bi bi-pencil section-title-edit-icon"
+                         onclick="startEditTitle('{{ section.id }}')"></i>
+                    </span>
+                    <span class="diagnosis-badge" id="diag-{{ section.id }}"></span>
+                    <span class="ms-auto"
+                          style="font-size:11px;
+                                 font-weight:600;
+                                 color:#4F46E5"
+                          id="secpct-{{ section.id }}">0%</span>
+                  </div>
+                  <div class="section-pct-bar">
+                    <div class="section-pct-fill" id="fill-{{ section.id }}" style="width:0%;"></div>
+                  </div>
+                </div>
+                <i class="bi bi-chevron-down"
+                   id="chevron-{{ section.id }}"
+                   onclick="toggleSection(this.closest('.section-header'), '{{ section.id }}')"
+                   style="cursor:pointer;
+                          font-size:13px;
+                          color:var(--bs-secondary-color);
+                          transition:transform .2s;
+                          flex-shrink:0;
+                          {% if forloop.first %}transform:rotate(180deg);
+                          {% endif %}"></i>
+              </div>
+              <div class="section-body"
+                   id="sb-{{ section.id }}"
+                   {% if not forloop.first %}style="display:none;"{% endif %}>
+                <p class="diagnosis-hint mb-0" id="diag-hint-{{ section.id }}"></p>
+                {% for q in section.questions %}
+                  <div class="q-item {% if q.is_held %}held{% endif %}"
+                       id="qi-{{ q.id }}"
+                       data-section="{{ section.id }}"
+                       data-qid="{{ q.id }}">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <span class="question-text-wrap flex-grow-1" style="min-width:0;">
+                        <label class="fw-semibold mb-0 question-text"
+                               id="q-text-{{ q.id }}"
+                               style="font-size:12px;
+                                      cursor:text"
+                               onclick="startEditQuestion('{{ q.id }}')">{{ q.question }}</label>
+                        <input type="text"
+                               class="question-text-input d-none"
+                               id="q-input-{{ q.id }}"
+                               value="{{ q.question }}"
+                               onblur="commitEditQuestion('{{ q.id }}')"
+                               onkeydown="if(event.key==='Enter'){this.blur();} if(event.key==='Escape'){cancelEditQuestion('{{ q.id }}');}">
+                        <i class="bi bi-pencil question-edit-icon"
+                           onclick="startEditQuestion('{{ q.id }}')"></i>
+                      </span>
+                      <div class="q-actions">
+                        {% if q.is_held %}
+                          <button type="button"
+                                  class="q-action-btn"
+                                  onclick="restoreQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-arrow-counterclockwise"></i> 복원</button>
+                        {% else %}
+                          <button type="button"
+                                  class="q-action-btn"
+                                  onclick="holdQuestion('{{ section.id }}','{{ q.id }}')"><i class="bi bi-pause-circle"></i> 보류</button>
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% if q.hint %}<p class="mb-2" style="font-size:11px;color:var(--bs-secondary-color);">{{ q.hint }}</p>{% endif %}
+                    <textarea class="form-control q-textarea"
+                              data-section="{{ section.id }}"
+                              data-qid="{{ q.id }}"
+                              rows="3"
+                              style="font-size:12px;
+                                     resize:none"
+                              placeholder="내용을 입력하세요…"
+                              {% if q.is_held %}disabled{% endif %}
+                              oninput="onAnswerChange(this)">{{ q.answer }}</textarea>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <!-- Right panel: AI score panel -->
+    <div class="pw-right">
+      <div class="pwr-header">PRD 완성도</div>
+      <div class="pwr-body">
+        <div class="d-flex flex-column align-items-center">
+          <div class="score-ring-wrap mb-2">
+            <svg width="96" height="96" viewBox="0 0 96 96">
+              <circle cx="48" cy="48" r="38" fill="none" stroke="#F1F5F9" stroke-width="8" />
+              <circle id="scoreRingPath" cx="48" cy="48" r="38" fill="none" stroke="#4F46E5" stroke-width="8" stroke-dasharray="238.76" stroke-dashoffset="238.76" stroke-linecap="round" class="progress-ring" />
+            </svg>
+            <div style="position:absolute;
+                        inset:0;
+                        display:flex;
+                        flex-direction:column;
+                        align-items:center;
+                        justify-content:center">
+              <span id="totalScoreNum" style="font-size:22px;font-weight:700;">0</span>
+              <span style="font-size:10px;color:var(--bs-secondary-color);">점</span>
+            </div>
+          </div>
+          <span style="font-size:11px;color:var(--bs-secondary-color);">PRD 완성도 점수</span>
+          <div class="pwr-segbar" id="pwrSegbar">
+            {% for section in sections %}
+              <div id="seg-{{ section.id }}" style="background:var(--bs-tertiary-bg);"></div>
+            {% endfor %}
+          </div>
+          <div class="pwr-legend">
+            <span><span class="pwr-legend-dot" style="background:#10B981;"></span>완료</span>
+            <span><span class="pwr-legend-dot" style="background:#4F46E5;"></span>작성 중</span>
+            <span><span class="pwr-legend-dot" style="background:var(--bs-tertiary-bg);"></span>시작 전</span>
+          </div>
+          <div class="pwr-status-badges" id="pwrStatusBadges"></div>
+          <button type="button"
+                  class="pwr-diag-toggle"
+                  id="pwrDiagToggle"
+                  onclick="toggleDiagnosisAccordion()">📋 진단 펼치기 ↓</button>
+          <div id="pwrDiagAccordion" style="display:none;width:100%;margin-top:8px;"></div>
+        </div>
+        <div class="pwr-tabs" id="pwrTabs"></div>
+        <div id="pwrSectionDetail" class="py-3"></div>
+        <div class="pwr-draft-box">
+          <button type="button" class="pwr-draft-toggle" onclick="toggleDraftBox()">
+            <span>AI가 정리한 섹션 초안</span>
+            <span id="draftToggleIcon"
+                  style="font-size:10px;
+                         color:var(--bs-secondary-color)">▾</span>
+          </button>
+          <div id="draftPanel" style="display:none;padding:12px;">
+            <p class="text-secondary mb-2"
+               style="font-size:10px"
+               id="draftQuestionLabel"></p>
+            <textarea id="draftTextarea"
+                      rows="6"
+                      class="form-control"
+                      style="font-size:11px"></textarea>
+            <div class="d-flex gap-2 mt-2">
+              <button type="button"
+                      class="q-action-btn"
+                      id="draftApplyBtn"
+                      onclick="applyDraft()">PRD에 반영하기</button>
+              <button type="button"
+                      class="q-action-btn"
+                      id="draftRegenBtn"
+                      onclick="regenDraft()">다시 생성</button>
+            </div>
+            <p class="text-secondary mt-2 mb-0"
+               style="font-size:10px"
+               id="draftStatus"></p>
+          </div>
+        </div>
+        <hr style="margin:16px 0;" />
+        <button type="button"
+                onclick="openGenerateModal()"
+                class="w-100 btn btn-sm"
+                style="background:#fff;
+                       color:#4F46E5;
+                       border:1.5px solid #C7D2FE;
+                       border-radius:10px;
+                       padding:10px;
+                       font-size:13px;
+                       font-weight:600">
+          <i class="bi bi-file-earmark-text"></i> PRD 생성하기
+        </button>
+      </div>
+      <div class="pwr-incomplete-banner"
+           id="pwrIncompleteBanner"
+           style="display:none">
+        ⚠ <span id="pwrIncompleteText"></span> AI는 빈 내용을 추정하지 않아요 — 질문에 답하면 채워져요.
+      </div>
+    </div>
+  </div>
+  <!-- AI Chat Sidebar (push layout) -->
+  <div class="ai-chat-panel" id="aiChatPanel">
+    <div class="d-flex align-items-center justify-content-between p-3"
+         style="background:linear-gradient(135deg,#7C3AED,#4F46E5);
+                flex-shrink:0">
+      <div class="d-flex align-items-center gap-2">
+        <div class="rounded-circle d-flex align-items-center justify-content-center"
+             style="width:30px;
+                    height:30px;
+                    background:rgba(255,255,255,.2);
+                    color:#fff">✦</div>
+        <span class="fw-bold text-white" style="font-size:13px;">AI 코치</span>
+      </div>
+      <button type="button"
+              class="btn-close btn-close-white"
+              onclick="toggleAIChat()"></button>
+    </div>
+    <div id="aiChatMessages"
+         class="flex-grow-1 d-flex flex-column gap-2 p-3"
+         style="overflow-y:auto">
+      <div class="chat-bubble-ai">안녕하세요! PRD 작성을 도와드릴게요. 어떤 부분이 막히시나요? 😊</div>
+    </div>
+    <div class="p-2 border-top d-flex gap-2">
+      <input type="text"
+             id="aiChatInput"
+             class="form-control form-control-sm"
+             placeholder="질문하거나 피드백 요청하기…"
+             onkeydown="if(event.key==='Enter'){sendAIChat();}">
+      <button type="button"
+              class="btn btn-sm btn-ax-primary"
+              id="aiChatSendBtn"
+              onclick="sendAIChat()">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </div>
+  </div>
+  <!-- Team Offcanvas -->
+  <div class="offcanvas offcanvas-end"
+       id="teamOffcanvas"
+       style="width:320px">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" style="font-size:15px;font-weight:700;">팀 기여도</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+      {% for m in members %}
+        <div class="team-member-row"
+             style="border-bottom:1px solid var(--bs-border-color);
+                    padding-bottom:12px;
+                    margin-bottom:12px">
+          <div class="team-avatar" style="background:{{ m.color }};">{{ m.initials|slice:":1" }}</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">{{ m.name }}</div>
+            <div style="font-size:11px;color:var(--bs-secondary-color);">{{ m.role }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  <!-- Generate modal -->
+  <div class="modal fade"
+       id="generateModal"
+       tabindex="-1"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">PRD 완성도 점검 및 생성 — {{ project.title }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <ul class="nav nav-tabs px-3 pt-2">
+          <li class="nav-item">
+            <button type="button"
+                    class="nav-link active"
+                    id="tabCheckBtn"
+                    onclick="switchModalTab('check')">✓ 완성도 점검</button>
+          </li>
+          <li class="nav-item">
+            <button type="button"
+                    class="nav-link"
+                    id="tabPreviewBtn"
+                    onclick="switchModalTab('preview')">📄 PRD 미리보기</button>
+          </li>
+        </ul>
+        <div class="modal-body">
+          <div id="tabCheckContent">
+            <div id="modalSectionList" class="d-flex flex-column gap-2"></div>
+          </div>
+          <div id="tabPreviewContent" style="display:none;">
+            <pre id="prdPreviewText" style="white-space:pre-wrap;font-size:13px;"></pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ax-secondary btn-sm" onclick="copyPRD()"><i class="bi bi-clipboard me-1"></i>복사</button>
+          <button type="button"
+                  class="btn btn-ax-secondary btn-sm"
+                  onclick="downloadPRD()"><i class="bi bi-download me-1"></i>다운로드</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <script>
+const SECTIONS_DATA = {{ sections_json|safe }};
+const PROJECT_TITLE = "{{ project.title|escapejs }}";
+const PROJECT_ID = {{ project.pk }};
+const answers = {};
+const heldSet = new Set();
+const sectionTitles = {};
+const questionTexts = {};
+SECTIONS_DATA.forEach(sec => {
+  sectionTitles[sec.id] = sec.title;
+  sec.questions.forEach(q => { questionTexts[q.id] = q.question; });
+});
+let selectedRightTab = SECTIONS_DATA[0] ? SECTIONS_DATA[0].id : null;
+let currentDraft = null; // { sectionId, questionId }
+
+SECTIONS_DATA.forEach(sec => {
+  sec.questions.forEach(q => {
+    answers[q.id] = q.answer || '';
+    if (q.is_held) heldSet.add(q.id);
+  });
+});
+
+function calcSectionScore(sectionId) {
+  const sec = SECTIONS_DATA.find(s => s.id === sectionId);
+  if (!sec) return 0;
+  const active = sec.questions.filter(q => !heldSet.has(q.id));
+  if (active.length === 0) return 0;
+  const answered = active.filter(q => (answers[q.id] || '').trim().length > 5).length;
+  return Math.round((answered / active.length) * 100);
+}
+
+function calcTotalScore() {
+  if (SECTIONS_DATA.length === 0) return 0;
+  const sum = SECTIONS_DATA.reduce((acc, s) => acc + calcSectionScore(s.id), 0);
+  return Math.round(sum / SECTIONS_DATA.length);
+}
+
+function gradeLabel(score) {
+  if (score >= 90) return '매우 우수한 PRD입니다 🎉';
+  if (score >= 70) return '잘 작성되고 있어요 👍';
+  if (score >= 40) return '조금 더 작성해볼까요?';
+  return '작성을 시작해보세요';
+}
+
+function scoreColor(score) {
+  if (score >= 80) return '#10B981';
+  if (score >= 50) return '#4F46E5';
+  return '#F59E0B';
+}
+
+function getSectionDiagnosis(sec) {
+  const totalLen = sec.questions
+    .filter(q => !heldSet.has(q.id))
+    .reduce((sum, q) => sum + (answers[q.id] || '').trim().length, 0);
+  if (totalLen === 0) return { status: 'empty', label: '미작성', message: '아직 작성이 시작되지 않았어요. 핵심 키워드부터 채워보세요.' };
+  if (totalLen < 50) return { status: 'under', label: '보완 필요', message: '내용이 조금 더 필요해요. 구체적인 사례나 수치를 추가해보세요.' };
+  return { status: 'good', label: '양호', message: '잘 작성됐어요! 더 구체적인 데이터나 근거를 추가하면 더욱 좋아집니다.' };
+}
+
+function updateScores() {
+  const total = calcTotalScore();
+  const circumference = 238.76;
+  const ring = document.getElementById('scoreRingPath');
+  if (ring) { ring.setAttribute('stroke-dashoffset', circumference * (1 - total / 100)); ring.setAttribute('stroke', scoreColor(total)); }
+  const numEl = document.getElementById('totalScoreNum'); if (numEl) numEl.textContent = total;
+  const stepperFill = document.getElementById('stepperProgressFill'); if (stepperFill) stepperFill.style.width = total + '%';
+  const stepperPct = document.getElementById('stepperProgressPct'); if (stepperPct) stepperPct.textContent = total + '%';
+
+  let goodCount = 0, underCount = 0, emptyCount = 0, incompleteCount = 0;
+
+  SECTIONS_DATA.forEach((sec, i) => {
+    const pct = calcSectionScore(sec.id);
+    const pctEl = document.getElementById('secpct-' + sec.id);
+    const fillEl = document.getElementById('fill-' + sec.id);
+    const dot = document.getElementById('dot-' + sec.id);
+    const stepBtn = document.getElementById('step-' + sec.id);
+    const sep = document.getElementById('sep-' + sec.id);
+    const seg = document.getElementById('seg-' + sec.id);
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (fillEl) fillEl.style.width = pct + '%';
+    const done = pct === 100;
+    if (!done) incompleteCount++;
+    if (dot) dot.innerHTML = done ? '✓' : (i + 1);
+    if (stepBtn) stepBtn.classList.toggle('done', done);
+    if (sep) sep.classList.toggle('done', done);
+    if (seg) seg.style.background = done ? '#10B981' : pct > 0 ? '#4F46E5' : 'var(--bs-tertiary-bg)';
+
+    const diag = getSectionDiagnosis(sec);
+    if (diag.status === 'good') goodCount++;
+    else if (diag.status === 'under') underCount++;
+    else emptyCount++;
+    const diagEl = document.getElementById('diag-' + sec.id);
+    if (diagEl) { diagEl.textContent = diag.label; diagEl.className = 'diagnosis-badge diagnosis-' + diag.status; }
+    const hintEl = document.getElementById('diag-hint-' + sec.id);
+    if (hintEl) hintEl.textContent = diag.message;
+  });
+
+  const badgesEl = document.getElementById('pwrStatusBadges');
+  if (badgesEl) {
+    let html = '';
+    if (goodCount) html += `<span class="pwr-status-badge" style="background:#ECFDF5;color:#059669;">양호 ${goodCount}</span>`;
+    if (underCount) html += `<span class="pwr-status-badge" style="background:#FFFBEB;color:#B45309;">미달 ${underCount}</span>`;
+    if (emptyCount) html += `<span class="pwr-status-badge" style="background:var(--bs-tertiary-bg);color:var(--bs-secondary-color);">미작성 ${emptyCount}</span>`;
+    badgesEl.innerHTML = html;
+  }
+
+  const banner = document.getElementById('pwrIncompleteBanner');
+  if (banner) {
+    if (incompleteCount > 0) {
+      banner.style.display = '';
+      document.getElementById('pwrIncompleteText').textContent = `미완성 섹션이 ${incompleteCount}개 있어요.`;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  if (document.getElementById('pwrDiagAccordion').style.display !== 'none') renderDiagnosisAccordion();
+  renderRightTabs();
+  renderSectionDetail(selectedRightTab);
+  if (document.getElementById('ideaMapView').style.display !== 'none') renderIdeaMapCards();
+}
+
+// ── Status dropdown ──────────────────────────────────────────
+const STATUS_COLORS = { '작성 중': '#F59E0B', '완료': '#10B981', '홀딩': '#94A3B8', '드랍': '#EF4444' };
+
+function paintStatusDot(status) {
+  const dot = document.getElementById('statusDot');
+  if (dot) dot.style.background = STATUS_COLORS[status] || '#94A3B8';
+}
+
+function setProjectStatus(status) {
+  document.getElementById('statusDropdownLabel').textContent = status;
+  paintStatusDot(status);
+  fetch(`/ideas/${PROJECT_ID}/status/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ status }),
+  }).then(r => r.ok && showSaveToast()).catch(() => {});
+}
+
+paintStatusDot(document.getElementById('statusDropdownLabel').textContent.trim());
+
+// ── Deadline pill ─────────────────────────────────────────────
+function setProjectDeadline(value) {
+  document.getElementById('deadlineLabel').textContent = value || '마감일 없음';
+  fetch(`/ideas/${PROJECT_ID}/status/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ status: "{{ project.status|escapejs }}", deadline: value }),
+  }).catch(() => {});
+}
+
+// ── Left panel view toggle (구조 보기 / 질문 리스트로 보기 / 아이디어맵) ──
+function setLeftView(view) {
+  document.getElementById('viewStructureBtn').classList.toggle('active', view === 'structure');
+  document.getElementById('viewQuestionsBtn').classList.toggle('active', view === 'questions');
+  document.getElementById('ideaMapView').style.display = 'none';
+  document.getElementById('viewToggle').style.display = '';
+  document.getElementById('sectionPanel').style.display = '';
+  if (view === 'questions') {
+    document.querySelectorAll('.section-body').forEach(el => { el.style.display = 'flex'; });
+    document.querySelectorAll('.section-header').forEach(el => el.classList.add('open'));
+  } else {
+    document.querySelectorAll('.section-body').forEach((el, i) => { el.style.display = i === 0 ? 'flex' : 'none'; });
+    document.querySelectorAll('.section-header').forEach((el, i) => el.classList.toggle('open', i === 0));
+  }
+}
+
+function toggleIdeaMap() {
+  const mapView = document.getElementById('ideaMapView');
+  const showing = mapView.style.display !== 'none';
+  if (showing) {
+    mapView.style.display = 'none';
+    document.getElementById('viewToggle').style.display = '';
+    document.getElementById('sectionPanel').style.display = '';
+  } else {
+    mapView.style.display = 'block';
+    document.getElementById('viewToggle').style.display = 'none';
+    document.getElementById('sectionPanel').style.display = 'none';
+    renderIdeaMapCards();
+  }
+}
+
+// ── Inline section title edit ────────────────────────────────
+function startEditTitle(sectionId) {
+  document.getElementById('title-text-' + sectionId).classList.add('d-none');
+  const input = document.getElementById('title-input-' + sectionId);
+  input.classList.remove('d-none');
+  input.focus();
+  input.select();
+}
+
+function cancelEditTitle(sectionId) {
+  const input = document.getElementById('title-input-' + sectionId);
+  input.value = sectionTitles[sectionId];
+  input.classList.add('d-none');
+  document.getElementById('title-text-' + sectionId).classList.remove('d-none');
+}
+
+function commitEditTitle(sectionId) {
+  const input = document.getElementById('title-input-' + sectionId);
+  const newTitle = input.value.trim();
+  if (!newTitle || newTitle === sectionTitles[sectionId]) { cancelEditTitle(sectionId); return; }
+  sectionTitles[sectionId] = newTitle;
+  const sec = SECTIONS_DATA.find(s => s.id === sectionId);
+  if (sec) sec.title = newTitle;
+  document.getElementById('title-text-' + sectionId).textContent = newTitle;
+  input.classList.add('d-none');
+  document.getElementById('title-text-' + sectionId).classList.remove('d-none');
+  const stepLabel = document.getElementById('steplabel-' + sectionId); if (stepLabel) stepLabel.textContent = newTitle.slice(0, 8);
+  renderRightTabs();
+  if (selectedRightTab === sectionId) renderSectionDetail(sectionId);
+  if (document.getElementById('ideaMapView').style.display !== 'none') renderIdeaMapCards();
+
+  fetch("{% url 'ideas:prd_save_section_title' %}", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ section_id: sectionId, title: newTitle }),
+  }).then(r => r.ok && showSaveToast()).catch(() => {});
+}
+
+// ── Inline question text edit ────────────────────────────────
+function startEditQuestion(qid) {
+  document.getElementById('q-text-' + qid).classList.add('d-none');
+  const input = document.getElementById('q-input-' + qid);
+  input.classList.remove('d-none');
+  input.focus();
+  input.select();
+}
+
+function cancelEditQuestion(qid) {
+  const input = document.getElementById('q-input-' + qid);
+  input.value = questionTexts[qid];
+  input.classList.add('d-none');
+  document.getElementById('q-text-' + qid).classList.remove('d-none');
+}
+
+function commitEditQuestion(qid) {
+  const input = document.getElementById('q-input-' + qid);
+  const newText = input.value.trim();
+  if (!newText || newText === questionTexts[qid]) { cancelEditQuestion(qid); return; }
+  questionTexts[qid] = newText;
+  SECTIONS_DATA.forEach(sec => {
+    const q = sec.questions.find(qq => qq.id === qid);
+    if (q) q.question = newText;
+  });
+  document.getElementById('q-text-' + qid).textContent = newText;
+  input.classList.add('d-none');
+  document.getElementById('q-text-' + qid).classList.remove('d-none');
+  renderSectionDetail(selectedRightTab);
+  if (document.getElementById('ideaMapView').style.display !== 'none') renderIdeaMapCards();
+
+  fetch("{% url 'ideas:prd_save_question_text' %}", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ question_id: qid, question: newText }),
+  }).then(r => r.ok && showSaveToast()).catch(() => {});
+}
+
+// ── Right panel: 진단 아코디언 ─────────────────────────────────
+function toggleDiagnosisAccordion() {
+  const acc = document.getElementById('pwrDiagAccordion');
+  const btn = document.getElementById('pwrDiagToggle');
+  const showing = acc.style.display !== 'none';
+  if (showing) { acc.style.display = 'none'; btn.textContent = '📋 진단 펼치기 ↓'; }
+  else { acc.style.display = ''; btn.textContent = '📋 진단 접기 ↑'; renderDiagnosisAccordion(); }
+}
+
+function renderDiagnosisAccordion() {
+  const acc = document.getElementById('pwrDiagAccordion');
+  acc.innerHTML = SECTIONS_DATA.map(sec => {
+    const diag = getSectionDiagnosis(sec);
+    return `
+      <div class="pwr-diag-item">
+        <button type="button" class="pwr-diag-item-header" onclick="this.nextElementSibling.classList.toggle('d-none')">
+          <span class="diagnosis-badge diagnosis-${diag.status}" style="margin-left:0;">${diag.label}</span>
+          <span class="flex-grow-1 text-truncate">${sectionTitles[sec.id] || sec.title}</span>
+        </button>
+        <div class="pwr-diag-item-body d-none">${diag.message}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Right panel: 섹션 탭 + 질문 체크리스트 ──────────────────────
+function renderRightTabs() {
+  const tabs = document.getElementById('pwrTabs');
+  if (!SECTIONS_DATA.find(s => s.id === selectedRightTab)) selectedRightTab = SECTIONS_DATA[0] ? SECTIONS_DATA[0].id : null;
+  tabs.innerHTML = SECTIONS_DATA.map(sec => `
+    <button type="button" class="pwr-tab ${sec.id === selectedRightTab ? 'active' : ''}" onclick="selectRightTab('${sec.id}')">${(sectionTitles[sec.id] || sec.title).slice(0, 8)}</button>
+  `).join('');
+}
+
+function selectRightTab(sectionId) {
+  selectedRightTab = sectionId;
+  renderRightTabs();
+  renderSectionDetail(sectionId);
+}
+
+function renderSectionDetail(sectionId) {
+  const wrap = document.getElementById('pwrSectionDetail');
+  const sec = SECTIONS_DATA.find(s => s.id === sectionId);
+  if (!sec) { wrap.innerHTML = ''; return; }
+  const diag = getSectionDiagnosis(sec);
+  wrap.innerHTML = `
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="fw-semibold flex-grow-1 text-truncate" style="font-size:12px;">${sectionTitles[sec.id] || sec.title}</span>
+      <span class="diagnosis-badge diagnosis-${diag.status}" style="margin-left:0;">${diag.label}</span>
+    </div>
+    ${sec.questions.filter(q => !heldSet.has(q.id)).map(q => {
+      const filled = (answers[q.id] || '').trim().length > 5;
+      return `<div class="pwr-question-row"><span style="color:${filled ? '#10B981' : '#CBD5E1'};">${filled ? '✓' : '○'}</span><span>${questionTexts[q.id] || q.question}</span></div>`;
+    }).join('')}
+  `;
+}
+
+// ── Right panel: AI 초안 (실제 Gemini 호출) ─────────────────────
+function toggleDraftBox() {
+  const panel = document.getElementById('draftPanel');
+  const icon = document.getElementById('draftToggleIcon');
+  const showing = panel.style.display !== 'none';
+  if (showing) { panel.style.display = 'none'; icon.textContent = '▾'; }
+  else {
+    panel.style.display = '';
+    icon.textContent = '▴';
+    if (!currentDraft) regenDraft();
+  }
+}
+
+function regenDraft() {
+  const sectionId = selectedRightTab;
+  if (!sectionId) return;
+  const statusEl = document.getElementById('draftStatus');
+  const textarea = document.getElementById('draftTextarea');
+  const applyBtn = document.getElementById('draftApplyBtn');
+  const regenBtn = document.getElementById('draftRegenBtn');
+  statusEl.textContent = '초안을 생성하는 중…';
+  textarea.value = '';
+  applyBtn.disabled = true;
+  regenBtn.disabled = true;
+
+  fetch(`/ideas/${PROJECT_ID}/ai-coach/draft/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ section_id: sectionId }),
+  })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.ok) {
+        currentDraft = { sectionId, questionId: data.question_id };
+        textarea.value = data.draft;
+        document.getElementById('draftQuestionLabel').textContent = `질문: ${data.question_text}`;
+        statusEl.textContent = '이 내용은 아직 저장되지 않았습니다. 검토 후 "PRD에 반영하기"를 눌러야 저장됩니다.';
+      } else {
+        currentDraft = null;
+        statusEl.textContent = data.error || 'AI 초안을 가져오는 중 문제가 발생했습니다.';
+      }
+    })
+    .catch(() => {
+      currentDraft = null;
+      statusEl.textContent = 'AI 초안을 가져오는 중 문제가 발생했습니다.';
+    })
+    .finally(() => {
+      applyBtn.disabled = !currentDraft;
+      regenBtn.disabled = false;
+    });
+}
+
+function applyDraft() {
+  if (!currentDraft) return;
+  const textarea = document.getElementById('draftTextarea');
+  const value = textarea.value;
+  const qid = currentDraft.questionId;
+
+  answers[qid] = value;
+  const el = document.getElementById('qi-' + qid);
+  if (el) {
+    const ta = el.querySelector('textarea');
+    if (ta) ta.value = value;
+  }
+  updateScores();
+  saveAnswer(qid, value);
+  document.getElementById('draftStatus').textContent = 'PRD에 반영했습니다.';
+  currentDraft = null;
+  document.getElementById('draftApplyBtn').disabled = true;
+}
+
+// ── AI Chat (실제 Gemini 기반 AI Coach 호출) ──────────────────
+function toggleAIChat() {
+  document.getElementById('aiChatPanel').classList.toggle('open');
+  document.getElementById('writingMain').classList.toggle('chat-open');
+  document.getElementById('aiChatToggleBtn').classList.toggle('chat-active');
+}
+
+function currentOpenSectionTitle() {
+  const openHeader = document.querySelector('.section-header.open');
+  if (!openHeader) return null;
+  const card = openHeader.closest('.section-card');
+  const sectionId = card ? card.dataset.sectionId : null;
+  return sectionId ? (sectionTitles[sectionId] || null) : null;
+}
+
+function sendAIChat() {
+  const input = document.getElementById('aiChatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const wrap = document.getElementById('aiChatMessages');
+  const sendBtn = document.getElementById('aiChatSendBtn');
+
+  wrap.insertAdjacentHTML('beforeend', `<div class="chat-bubble-user">${escapeHtml(text)}</div>`);
+  input.value = '';
+  input.disabled = true;
+  sendBtn.disabled = true;
+  wrap.scrollTop = wrap.scrollHeight;
+
+  const loadingId = 'ai-loading-' + Date.now();
+  wrap.insertAdjacentHTML('beforeend', `<div class="chat-bubble-ai" id="${loadingId}">생각하는 중…</div>`);
+  wrap.scrollTop = wrap.scrollHeight;
+
+  fetch(`/ideas/${PROJECT_ID}/ai-coach/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ message: text, current_section_title: currentOpenSectionTitle() }),
+  })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      const loadingEl = document.getElementById(loadingId);
+      if (ok && data.ok) {
+        loadingEl.textContent = data.reply;
+      } else {
+        loadingEl.textContent = data.error || 'AI Coach 응답을 가져오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      }
+    })
+    .catch(() => {
+      const loadingEl = document.getElementById(loadingId);
+      if (loadingEl) loadingEl.textContent = 'AI Coach 응답을 가져오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    })
+    .finally(() => {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+      wrap.scrollTop = wrap.scrollHeight;
+    });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Idea map (섹션별 작성 현황 카드 리스트) ──────────────────
+function renderIdeaMapCards() {
+  const wrap = document.getElementById('ideaMapCards');
+  wrap.innerHTML = SECTIONS_DATA.map((sec, i) => {
+    const pct = calcSectionScore(sec.id);
+    const cls = pct === 100 ? 'done' : pct > 0 ? 'started' : '';
+    const visibleQs = sec.questions.filter(q => !heldSet.has(q.id));
+    const chips = visibleQs.slice(0, 3).map(q => {
+      const filled = (answers[q.id] || '').trim().length > 0;
+      const label = (questionTexts[q.id] || q.question).slice(0, 18);
+      return `<span class="idea-map-chip ${filled ? 'filled' : ''}">${filled ? '✓' : '○'} ${label}…</span>`;
+    }).join('');
+    const more = visibleQs.length > 3 ? `<span class="idea-map-chip">+${visibleQs.length - 3}개</span>` : '';
+    return `
+      <button type="button" class="idea-map-card ${cls}" onclick="goToSectionFromMap('${sec.id}')">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary fw-bold" style="font-size:11px;width:16px;">${i + 1}</span>
+            <span class="fw-semibold" style="font-size:12px;">${sectionTitles[sec.id] || sec.title}</span>
+          </div>
+          <span class="fw-bold text-secondary" style="font-size:11px;">${pct}%</span>
+        </div>
+        <div class="section-pct-bar mb-2"><div class="section-pct-fill" style="width:${pct}%;background:${pct === 100 ? '#10B981' : '#4F46E5'};"></div></div>
+        <div class="d-flex flex-wrap gap-1">${chips}${more}</div>
+      </button>`;
+  }).join('');
+}
+
+function goToSectionFromMap(sectionId) {
+  toggleIdeaMap();
+  scrollToSection(sectionId);
+}
+
+let saveTimer = null;
+function onAnswerChange(textarea) {
+  const qid = textarea.dataset.qid;
+  answers[qid] = textarea.value;
+  updateScores();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveAnswer(qid, textarea.value), 800);
+}
+
+function saveAnswer(qid, value) {
+  fetch("{% url 'ideas:prd_save_answer' %}", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ question_id: qid, answer: value }),
+  }).then(r => r.ok && showSaveToast()).catch(() => {});
+}
+
+function showSaveToast() {
+  const el = document.getElementById('saveToast');
+  new bootstrap.Toast(el, { delay: 1800 }).show();
+}
+
+function getCookie(name) {
+  const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  return input ? input.value : null;
+}
+
+function holdQuestion(sectionId, qid) {
+  heldSet.add(qid);
+  const el = document.getElementById('qi-' + qid);
+  if (el) {
+    el.classList.add('held');
+    el.querySelector('textarea').disabled = true;
+  }
+  updateScores();
+  saveHoldState(qid, true);
+}
+
+function restoreQuestion(sectionId, qid) {
+  heldSet.delete(qid);
+  const el = document.getElementById('qi-' + qid);
+  if (el) {
+    el.classList.remove('held');
+    el.querySelector('textarea').disabled = false;
+  }
+  updateScores();
+  saveHoldState(qid, false);
+}
+
+function saveHoldState(qid, held) {
+  fetch("{% url 'ideas:prd_save_answer' %}", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ question_id: qid, is_held: held }),
+  }).then(() => location.reload()).catch(() => {});
+}
+
+function toggleSection(headerEl, sectionId) {
+  const body = document.getElementById('sb-' + sectionId);
+  const chevron = document.getElementById('chevron-' + sectionId);
+  const isOpen = headerEl.classList.contains('open');
+  if (isOpen) { body.style.display = 'none'; headerEl.classList.remove('open'); chevron.style.transform = ''; }
+  else { body.style.display = 'flex'; headerEl.classList.add('open'); chevron.style.transform = 'rotate(180deg)'; }
+}
+
+function scrollToSection(sectionId) {
+  document.querySelectorAll('.pw-step-btn').forEach(b => b.classList.remove('current'));
+  const stepBtn = document.getElementById('step-' + sectionId);
+  if (stepBtn) stepBtn.classList.add('current');
+  const card = document.getElementById('sec-' + sectionId);
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const header = document.getElementById('sh-' + sectionId);
+    if (header && !header.classList.contains('open')) toggleSection(header, sectionId);
+  }
+}
+
+function generatePRDMarkdown() {
+  const date = new Date().toLocaleDateString('ko-KR');
+  let md = `# ${PROJECT_TITLE}\n\n> 작성일: ${date}\n\n---\n\n`;
+  SECTIONS_DATA.forEach((sec, i) => {
+    const activeQs = sec.questions.filter(q => !heldSet.has(q.id) && (answers[q.id] || '').trim());
+    if (activeQs.length === 0) { md += `## ${i + 1}. ${sec.title}\n\n> ⚠ 미작성\n\n---\n\n`; }
+    else {
+      md += `## ${i + 1}. ${sec.title}\n\n`;
+      activeQs.forEach(q => { md += `${answers[q.id]}\n\n`; });
+      md += `---\n\n`;
+    }
+  });
+  return md;
+}
+
+function switchModalTab(tab) {
+  const isCheck = tab === 'check';
+  document.getElementById('tabCheckContent').style.display = isCheck ? '' : 'none';
+  document.getElementById('tabPreviewContent').style.display = isCheck ? 'none' : '';
+  document.getElementById('tabCheckBtn').classList.toggle('active', isCheck);
+  document.getElementById('tabPreviewBtn').classList.toggle('active', !isCheck);
+}
+
+function renderModalSectionList() {
+  const list = document.getElementById('modalSectionList');
+  list.innerHTML = SECTIONS_DATA.map((sec, i) => {
+    const pct = calcSectionScore(sec.id);
+    const diag = getSectionDiagnosis(sec);
+    return `
+      <div class="d-flex align-items-center gap-3 p-2 border rounded-3">
+        <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width:28px;height:28px;font-size:12px;background:${scoreColor(pct)}22;color:${scoreColor(pct)};">${pct === 100 ? '✓' : i + 1}</div>
+        <div class="flex-grow-1" style="min-width:0;">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-medium small text-truncate">${sectionTitles[sec.id] || sec.title}</span>
+            <span class="diagnosis-badge diagnosis-${diag.status}">${diag.label}</span>
+          </div>
+          <div class="section-pct-bar mt-1"><div class="section-pct-fill" style="width:${pct}%;background:${scoreColor(pct)};"></div></div>
+        </div>
+        <span class="fw-semibold small flex-shrink-0">${pct}%</span>
+      </div>`;
+  }).join('');
+}
+
+function openGenerateModal() {
+  updateScores();
+  renderModalSectionList();
+  document.getElementById('prdPreviewText').textContent = generatePRDMarkdown();
+  switchModalTab('check');
+  new bootstrap.Modal(document.getElementById('generateModal')).show();
+}
+
+function copyPRD() { navigator.clipboard.writeText(generatePRDMarkdown()).then(() => showSaveToast()); }
+
+function downloadPRD() {
+  const blob = new Blob([generatePRDMarkdown()], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${PROJECT_TITLE}.md`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+updateScores();
+  </script>
+{% endblock %}
