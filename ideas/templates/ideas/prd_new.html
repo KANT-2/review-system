@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}새 PRD 만들기 — 아이디어 디벨로퍼{% endblock %}
+{% block breadcrumb %}새 PRD 만들기{% endblock %}
+
+{% block extra_head %}
+<style>
+  .wizard-card { text-align: left; padding: 24px; border-radius: 16px; border: 2px solid var(--bs-border-color); background: var(--bs-body-bg); transition: all .15s; cursor: pointer; width: 100%; }
+  .wizard-card:hover { border-color: #C7D2FE; box-shadow: 0 2px 8px rgba(79,70,229,.08); }
+  .wizard-card.selected-indigo { border-color: transparent; box-shadow: 0 0 0 2px #818CF8; background: #EEF2FF; color:#1E293B; }
+  .wizard-card.selected-violet { border-color: transparent; box-shadow: 0 0 0 2px #A78BFA; background: #F5F3FF; color:#1E293B; }
+  .wizard-card.selected-emerald { border-color: transparent; box-shadow: 0 0 0 2px #34D399; background: #ECFDF5; color:#1E293B; }
+  .variant-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; }
+  .step-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+  .form-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 16px; padding: 32px; max-width: 480px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width:900px;">
+
+  <div id="step-type">
+    <h2 class="fw-bold mb-2" style="font-size:22px;">어떤 PRD를 만들 건가요?</h2>
+    <p class="text-secondary mb-5" style="font-size:13px;">시작 유형을 선택하면 그에 맞는 템플릿과 가이드를 제공합니다.</p>
+    <div class="row g-3">
+      {% for t in template_types %}
+      <div class="col-12 col-md-4">
+        <button type="button" class="wizard-card" data-type-id="{{ t.id }}" data-color="{{ t.color }}" onclick="selectType(this)">
+          <div style="font-size:30px;margin-bottom:12px;">{{ t.icon }}</div>
+          <h3 class="fw-bold mb-2" style="font-size:15px;">{{ t.label }}</h3>
+          <p class="text-secondary mb-0" style="font-size:12px;line-height:1.6;">{{ t.description }}</p>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="step-variant" style="display:none;">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span id="variantIcon" style="font-size:22px;"></span>
+      <h2 class="fw-bold mb-0" style="font-size:22px;" id="variantTitle"></h2>
+    </div>
+    <p class="text-secondary mb-5" style="font-size:13px;">상황에 맞는 세부 유형을 선택하세요.</p>
+    <div class="row g-3" id="variantGrid"></div>
+  </div>
+
+  <div id="step-info" style="display:none;">
+    <h2 class="fw-bold mb-2" style="font-size:22px;">기본 정보를 입력해주세요</h2>
+    <p class="text-secondary mb-5" style="font-size:13px;">나중에 언제든 수정할 수 있습니다.</p>
+    <div class="form-card">
+      <form method="post" action="{% url 'ideas:prd_new' %}">
+        {% csrf_token %}
+        <input type="hidden" name="project_type" id="hiddenType" />
+        <input type="hidden" name="template_variant" id="hiddenVariant" />
+
+        <div class="mb-4">
+          <label class="fw-semibold d-block mb-1" style="font-size:13px;">프로젝트명 <span class="text-danger">*</span></label>
+          <input type="text" name="title" class="form-control" style="font-size:13px;" placeholder="예: 알림 커스터마이징 기능" required />
+        </div>
+        <div class="mb-4">
+          <label class="fw-semibold d-block mb-1" style="font-size:13px;">한 줄 소개</label>
+          <input type="text" name="description" class="form-control" style="font-size:13px;" placeholder="어떤 문제를 해결하는 서비스인가요?" />
+        </div>
+        <div class="mb-4">
+          <label class="fw-semibold d-block mb-1" style="font-size:13px;">목표 마감일 <span class="text-danger">*</span></label>
+          <input type="date" name="deadline" id="deadlineInput" class="form-control" style="font-size:13px;" required />
+        </div>
+
+        <div class="mb-2">
+          <label class="fw-semibold d-block mb-2" style="font-size:13px;">PRD 작성자 선택</label>
+          <div class="d-flex align-items-center gap-2 flex-wrap" id="authorAvatars"></div>
+          <div id="authorHiddenInputs"></div>
+        </div>
+
+        <button type="submit" id="infoSubmitBtn" style="display:none;"></button>
+      </form>
+    </div>
+  </div>
+
+  <div class="d-flex align-items-center justify-content-between mt-5">
+    <button type="button" class="btn d-flex align-items-center gap-2 text-secondary" style="font-size:13px;border:none;background:transparent;" onclick="goBack()">
+      <i class="bi bi-arrow-left"></i> 이전
+    </button>
+    <button type="button" class="btn fw-semibold d-flex align-items-center gap-2" id="nextBtn"
+            style="font-size:13px;padding:10px 24px;border-radius:10px;background:#4F46E5;color:#fff;opacity:0.4;cursor:not-allowed;"
+            onclick="goNext()" disabled>
+      <span id="nextLabel">다음</span>
+      <i class="bi bi-arrow-right" id="nextIcon"></i>
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TEMPLATE_TYPES = {{ template_types_json|safe }};
+const CURRENT_USER_MEMBER = {{ current_user_member|safe }};
+const OTHER_MEMBERS = {{ other_members_json|safe }};
+const COLLABORATOR_GROUPS = {{ collaborator_groups_json|safe }};
+let authors = [CURRENT_USER_MEMBER];
+
+function renderAuthors() {
+  const wrap = document.getElementById('authorAvatars');
+  const hidden = document.getElementById('authorHiddenInputs');
+  hidden.innerHTML = authors
+    .filter(a => a.id !== CURRENT_USER_MEMBER.id)
+    .map(a => `<input type="hidden" name="author_ids" value="${a.id}">`)
+    .join('');
+
+  const otherIds = new Set(authors.map(a => a.id));
+  const otherAvailable = OTHER_MEMBERS.filter(m => !otherIds.has(m.id));
+
+  wrap.innerHTML = authors.map(a => {
+    const isMe = a.id === CURRENT_USER_MEMBER.id;
+    return `
+      <div class="position-relative">
+        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold"
+             style="width:36px;height:36px;font-size:12px;background:${a.color};border:2px solid var(--bs-body-bg);box-shadow:0 0 0 1px var(--bs-border-color);"
+             title="${a.name}">${a.initials}</div>
+        ${isMe
+          ? `<span class="position-absolute translate-middle-x badge rounded-pill bg-primary" style="left:50%;bottom:-6px;font-size:8px;">본인</span>`
+          : `<button type="button" class="position-absolute rounded-circle border-0 d-flex align-items-center justify-content-center"
+                     style="top:-4px;right:-4px;width:16px;height:16px;font-size:10px;background:#64748B;color:#fff;line-height:1;"
+                     onclick="removeAuthor(${a.id})" title="${a.name} 제거">−</button>`}
+      </div>`;
+  }).join('') + `
+    <div class="dropdown">
+      <button type="button" class="rounded-circle d-flex align-items-center justify-content-center"
+              style="width:36px;height:36px;border:2px dashed var(--bs-border-color);background:transparent;color:var(--bs-secondary-color);font-size:18px;"
+              data-bs-toggle="dropdown">+</button>
+      <div class="dropdown-menu p-2" style="width:280px;max-height:320px;overflow-y:auto;">
+        ${COLLABORATOR_GROUPS.length ? `
+          <p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">내가 협업했던 프로젝트</p>
+          ${COLLABORATOR_GROUPS.map(g => {
+            const allAdded = g.member_ids.every(id => otherIds.has(id));
+            return `<button type="button" class="dropdown-item d-flex justify-content-between align-items-center small"
+                       ${allAdded ? 'disabled' : ''} onclick="addGroup(${JSON.stringify(g.member_ids).replace(/"/g, '&quot;')})">
+                       <span>${g.name}</span>
+                       <span class="text-secondary" style="font-size:11px;">${allAdded ? '전원 추가됨' : g.member_ids.length + '명 추가'}</span>
+                     </button>`;
+          }).join('')}
+          <hr class="my-2">
+        ` : ''}
+        <p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">개별 추가</p>
+        ${otherAvailable.length ? otherAvailable.map(m => `
+          <button type="button" class="dropdown-item d-flex align-items-center gap-2 small" onclick="addAuthor(${m.id})">
+            <span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold flex-shrink-0"
+                  style="width:24px;height:24px;font-size:10px;background:${m.color};">${m.initials}</span>
+            <span class="flex-grow-1 text-truncate">${m.name}</span>
+            <span class="text-secondary" style="font-size:10px;">${m.role}</span>
+          </button>
+        `).join('') : '<p class="text-secondary small px-2 mb-0">추가할 사용자가 없습니다.</p>'}
+      </div>
+    </div>
+  `;
+}
+
+function addAuthor(id) {
+  const member = OTHER_MEMBERS.find(m => m.id === id);
+  if (member && !authors.find(a => a.id === id)) authors.push(member);
+  renderAuthors();
+}
+
+function removeAuthor(id) {
+  if (id === CURRENT_USER_MEMBER.id) return;
+  authors = authors.filter(a => a.id !== id);
+  renderAuthors();
+}
+
+function addGroup(memberIds) {
+  memberIds.forEach(id => {
+    if (id !== CURRENT_USER_MEMBER.id && !authors.find(a => a.id === id)) {
+      const member = OTHER_MEMBERS.find(m => m.id === id);
+      if (member) authors.push(member);
+    }
+  });
+  renderAuthors();
+}
+
+renderAuthors();
+
+const COLOR = {
+  indigo:  { badge: '#4F46E5', badgeText: '#fff', bg: '#EEF2FF', text: '#4338CA' },
+  violet:  { badge: '#7C3AED', badgeText: '#fff', bg: '#F5F3FF', text: '#6D28D9' },
+  emerald: { badge: '#059669', badgeText: '#fff', bg: '#ECFDF5', text: '#065F46' },
+};
+
+let step = 'type';
+let selectedTypeId = null;
+let selectedVariantId = null;
+let selectedColor = 'indigo';
+const STEPS = ['type', 'variant', 'info'];
+
+function showStep(s) {
+  step = s;
+  STEPS.forEach(name => { document.getElementById('step-' + name).style.display = name === s ? '' : 'none'; });
+  updateNextBtn();
+  updateNextLabel();
+}
+
+function updateNextLabel() {
+  document.getElementById('nextLabel').textContent = step === 'info' ? 'PRD 작성 시작하기' : '다음';
+  document.getElementById('nextIcon').style.display = step === 'info' ? 'none' : '';
+}
+
+function updateNextBtn() {
+  const btn = document.getElementById('nextBtn');
+  let enabled = false;
+  if (step === 'type') enabled = !!selectedTypeId;
+  if (step === 'variant') enabled = !!selectedVariantId;
+  if (step === 'info') enabled = true;
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? '1' : '0.4';
+  btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+}
+
+function selectType(btn) {
+  document.querySelectorAll('[data-type-id]').forEach(b => b.classList.remove('selected-' + b.dataset.color));
+  selectedTypeId = btn.dataset.typeId;
+  selectedColor = btn.dataset.color;
+  btn.classList.add('selected-' + selectedColor);
+  updateNextBtn();
+}
+
+function selectVariant(btn) {
+  document.querySelectorAll('[data-variant-id]').forEach(b => b.classList.remove('selected-' + selectedColor));
+  selectedVariantId = btn.dataset.variantId;
+  btn.classList.add('selected-' + selectedColor);
+  updateNextBtn();
+}
+
+function renderVariants() {
+  const tmpl = TEMPLATE_TYPES.find(t => t.id === selectedTypeId);
+  if (!tmpl) return;
+  document.getElementById('variantIcon').textContent = tmpl.icon;
+  document.getElementById('variantTitle').textContent = tmpl.label;
+  const grid = document.getElementById('variantGrid');
+  grid.innerHTML = tmpl.variants.map(v => `
+    <div class="col-12 col-md-4">
+      <button type="button" class="wizard-card" data-variant-id="${v.id}" onclick="selectVariant(this)">
+        <div class="variant-badge" style="background:#F1F5F9;color:#475569;">${v.label}</div>
+        <h3 class="fw-bold mb-2" style="font-size:13px;">${v.description}</h3>
+        <p class="text-secondary mb-0" style="font-size:11px;line-height:1.6;">${v.example}</p>
+      </button>
+    </div>
+  `).join('');
+}
+
+function goNext() {
+  if (step === 'type' && selectedTypeId) { renderVariants(); showStep('variant'); }
+  else if (step === 'variant' && selectedVariantId) {
+    document.getElementById('hiddenType').value = selectedTypeId;
+    document.getElementById('hiddenVariant').value = selectedVariantId;
+    showStep('info');
+  } else if (step === 'info') { document.getElementById('infoSubmitBtn').click(); }
+}
+
+function goBack() {
+  if (step === 'variant') showStep('type');
+  else if (step === 'info') showStep('variant');
+  else window.location.href = "{% url 'ideas:home' %}";
+}
+
+showStep('type');
+</script>
+{% endblock %}

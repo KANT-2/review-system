@@ -1,0 +1,580 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>브레인스토밍 — {{ project.title }} — 아이디어 디벨로퍼</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Pretendard', 'ui-sans-serif', 'system-ui'] } } } };
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { font-family: 'Pretendard', ui-sans-serif, system-ui, sans-serif; box-sizing: border-box; }
+    body { margin: 0; overflow: hidden; background: #F7F6F3; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+    textarea { resize: none; font-family: inherit; }
+    .canvas-bg { background-color: #FAFAF8; background-image: radial-gradient(circle, #D1D5DB 1px, transparent 1px); background-size: 28px 28px; }
+    .postit-shadow { box-shadow: 2px 3px 12px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08); }
+    .conn-line { stroke: #94A3B8; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
+    .conn-delete-btn { opacity: 0; transition: opacity .15s; pointer-events: all; }
+    .conn-group:hover .conn-delete-btn { opacity: 1; }
+    .postit-animated { transition: left .45s cubic-bezier(.4,0,.2,1), top .45s cubic-bezier(.4,0,.2,1); }
+    .held-card { background: #fff; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 8px 10px; min-width: 150px; max-width: 170px; flex-shrink: 0; cursor: pointer; transition: box-shadow .15s; position: relative; }
+    .held-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+    .held-card:hover .held-restore { opacity: 1; }
+    .held-restore { opacity: 0; transition: opacity .15s; position: absolute; top: 4px; right: 6px; font-size: 10px; color: #4F46E5; font-weight: 700; }
+  </style>
+</head>
+<body>
+{% csrf_token %}
+<div id="brainstorm-root" data-project-id="{{ project.pk }}" style="height:100vh"></div>
+
+<script>
+window.__IDEAS_DATA__ = {
+  members: {{ members_json|safe }},
+  initialPostits: {{ initial_postits_json|safe }},
+  initialConnections: {{ initial_connections_json|safe }},
+  currentUserId: "{{ request.user.pk }}",
+  syncUrl: "{% url 'ideas:brainstorm_sync' project.pk %}",
+  backUrl: "{% url 'ideas:prd_write' project.pk %}",
+  projectTitle: "{{ project.title|escapejs }}",
+};
+</script>
+{% verbatim %}
+<script type="text/babel">
+const CANVAS_W = 2400;
+const CANVAS_H = 1600;
+const PW = 190;
+const PH = 130;
+
+const COLORS = [
+  { value: '#FEF9C3', border: '#FDE047' },
+  { value: '#DBEAFE', border: '#93C5FD' },
+  { value: '#FCE7F3', border: '#F9A8D4' },
+  { value: '#D1FAE5', border: '#6EE7B7' },
+  { value: '#FEE2E2', border: '#FCA5A5' },
+  { value: '#EDE9FE', border: '#C4B5FD' },
+];
+
+const MEMBERS = window.__IDEAS_DATA__.members;
+const INITIAL_POSTITS = window.__IDEAS_DATA__.initialPostits;
+const INITIAL_CONNECTIONS = window.__IDEAS_DATA__.initialConnections;
+const CURRENT_USER_ID = window.__IDEAS_DATA__.currentUserId;
+const SYNC_URL = window.__IDEAS_DATA__.syncUrl;
+const BACK_URL = window.__IDEAS_DATA__.backUrl;
+const PROJECT_TITLE = window.__IDEAS_DATA__.projectTitle;
+
+function getCsrfToken() {
+  const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  return input ? input.value : null;
+}
+
+function syncToServer(postits, connections) {
+  fetch(SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+    body: JSON.stringify({ postits, connections }),
+  }).catch(() => {});
+}
+
+function getCenter(p) { return { x: p.x + PW / 2, y: p.y + PH / 2 }; }
+
+function getEdgePoint(postit, tx, ty) {
+  const cx = postit.x + PW / 2, cy = postit.y + PH / 2;
+  const dx = tx - cx, dy = ty - cy;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return { x: cx, y: cy };
+  const hw = PW / 2 - 5, hh = PH / 2 - 5;
+  const sx = Math.abs(dx) > .01 ? hw / Math.abs(dx) : Infinity;
+  const sy = Math.abs(dy) > .01 ? hh / Math.abs(dy) : Infinity;
+  const t = Math.min(sx, sy);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
+function computeAutoLayout(postits, connections) {
+  const active = postits.filter(p => p.status !== 'held');
+  const idSet = new Set(active.map(p => p.id));
+  const validConns = connections.filter(c => idSet.has(c.fromId) && idSet.has(c.toId));
+  const adj = {};
+  active.forEach(p => { adj[p.id] = []; });
+  validConns.forEach(c => { adj[c.fromId].push(c.toId); adj[c.toId].push(c.fromId); });
+  const visited = new Set();
+  const components = [];
+  active.forEach(p => {
+    if (visited.has(p.id)) return;
+    const comp = [], q = [p.id];
+    while (q.length) {
+      const cur = q.shift();
+      if (visited.has(cur)) continue;
+      visited.add(cur); comp.push(cur);
+      (adj[cur] || []).forEach(n => { if (!visited.has(n)) q.push(n); });
+    }
+    components.push(comp);
+  });
+  const result = {};
+  const GX = 68, GY = 52, PAD = 80;
+  let curX = PAD;
+  const connectedComps = components.filter(c => c.length > 1);
+  const singles = components.filter(c => c.length === 1).map(c => c[0]);
+  connectedComps.forEach(comp => {
+    const root = comp.reduce((best, id) =>
+      (adj[id] || []).filter(n => comp.includes(n)).length >= (adj[best] || []).filter(n => comp.includes(n)).length ? id : best);
+    const bfsVis = new Set([root]);
+    const levels = [[root]];
+    let frontier = [root];
+    while (frontier.length) {
+      const next = [];
+      frontier.forEach(id => {
+        (adj[id] || []).filter(n => comp.includes(n) && !bfsVis.has(n)).forEach(n => { bfsVis.add(n); next.push(n); });
+      });
+      if (next.length) levels.push(next);
+      frontier = next;
+    }
+    const maxPerLevel = Math.max(...levels.map(l => l.length));
+    const compH = maxPerLevel * (PH + GY) - GY;
+    levels.forEach((level, depth) => {
+      const levelH = level.length * (PH + GY) - GY;
+      const startY = PAD + (compH - levelH) / 2;
+      level.forEach((id, i) => { result[id] = { x: curX + depth * (PW + GX), y: startY + i * (PH + GY) }; });
+    });
+    curX += levels.length * (PW + GX) + 110;
+  });
+  const COLS = Math.max(1, Math.ceil(Math.sqrt(singles.length)));
+  singles.forEach((id, i) => { result[id] = { x: curX + (i % COLS) * (PW + GX), y: PAD + Math.floor(i / COLS) * (PH + GY) }; });
+  return result;
+}
+
+function PostItCard({ postit, isSelected, isConnectSrc, isAnimated, onMouseDown, onDoubleClick, onStatusChange, onAssigneeChange, onDelete }) {
+  const { useState: us, useRef: ur, useEffect: ue } = React;
+  const [menuStyle, setMenuStyle] = us(null);
+  const btnRef = ur(null);
+  const colorCfg = COLORS.find(c => c.value === postit.color) || COLORS[0];
+  const author = MEMBERS.find(m => m.id === postit.authorId);
+  const assignee = postit.assigneeId ? MEMBERS.find(m => m.id === postit.assigneeId) : null;
+
+  function openMenu(e) {
+    e.stopPropagation();
+    if (menuStyle) { setMenuStyle(null); return; }
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const W = 178, APPROX_H = 320;
+    const above = r.bottom + APPROX_H > window.innerHeight - 12;
+    const left = Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8));
+    setMenuStyle({ position: 'fixed', left, width: W, zIndex: 99999, ...(above ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) });
+  }
+
+  ue(() => {
+    if (!menuStyle) return;
+    const close = () => setMenuStyle(null);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [menuStyle]);
+
+  const badge = postit.status === 'accepted' ? { label: '채택됨', cls: 'bg-emerald-100 text-emerald-700', icon: '✓' } : null;
+
+  return (
+    <div className={isAnimated ? 'absolute select-none postit-animated' : 'absolute select-none'}
+      style={{ left: postit.x, top: postit.y, width: PW, height: PH, transform: `rotate(${postit.rotation}deg)`, zIndex: isSelected ? 20 : isConnectSrc ? 15 : 10 }}
+      onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
+      <div className={['w-full h-full rounded-xl flex flex-col p-3 postit-shadow cursor-grab active:cursor-grabbing',
+        isSelected ? 'ring-2 ring-indigo-400 ring-offset-1' : '', isConnectSrc ? 'ring-2 ring-violet-500 ring-offset-1' : ''].join(' ')}
+        style={{ backgroundColor: postit.color, borderLeft: `3px solid ${colorCfg.border}` }}>
+        <div className="flex items-center justify-between mb-1.5 gap-1">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+            {author && <div className="w-5 h-5 rounded-full text-white text-[8px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: author.color }} title={author.name}>{author.initials[0]}</div>}
+            {assignee && assignee.id !== postit.authorId && (
+              <>
+                <span className="text-[8px] text-slate-400 shrink-0">→</span>
+                <div className="w-4 h-4 rounded-full text-white text-[7px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: assignee.color }}>{assignee.initials[0]}</div>
+              </>
+            )}
+            {badge && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${badge.cls}`}>{badge.icon} {badge.label}</span>}
+          </div>
+          <button ref={btnRef} onMouseDown={e => e.stopPropagation()} onClick={openMenu} className="w-6 h-6 rounded-lg hover:bg-black/10 flex items-center justify-center text-slate-500 text-sm leading-none shrink-0 transition-colors">⋯</button>
+        </div>
+        <p className="flex-1 text-xs text-slate-800 leading-relaxed overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{postit.content}</p>
+      </div>
+
+      {menuStyle && ReactDOM.createPortal(
+        <div style={menuStyle} className="bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 pt-1.5 pb-1">상태</p>
+          {[{ s: 'default', label: '기본', icon: '○' }, { s: 'accepted', label: '채택됨', icon: '✓' }, { s: 'held', label: '보류로 이동', icon: '⏸' }].map(({ s, label, icon }) => (
+            <button key={s} onClick={() => { onStatusChange(s); setMenuStyle(null); }} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex items-center gap-2 transition-colors ${postit.status === s ? 'text-indigo-700 font-semibold bg-indigo-50/60' : 'text-slate-700'}`}>
+              <span className="w-4 text-center text-slate-400 shrink-0">{icon}</span><span className="flex-1">{label}</span>
+              {postit.status === s && <span className="text-indigo-400 text-[10px]">◉</span>}
+            </button>
+          ))}
+          <div className="my-1 h-px bg-slate-100 mx-2" />
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 py-1">담당자</p>
+          <button onClick={() => { onAssigneeChange(null); setMenuStyle(null); }} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 transition-colors flex items-center gap-2 ${!postit.assigneeId ? 'text-indigo-700 font-semibold' : 'text-slate-500'}`}>
+            <span className="w-4 text-center text-slate-300 text-xs">—</span><span>담당자 없음</span>
+          </button>
+          {MEMBERS.map(m => (
+            <button key={m.id} onClick={() => { onAssigneeChange(m.id); setMenuStyle(null); }} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex items-center gap-2 transition-colors ${postit.assigneeId === m.id ? 'text-indigo-700 font-semibold' : 'text-slate-700'}`}>
+              <div className="w-4 h-4 rounded-full text-white text-[7px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: m.color }}>{m.initials[0]}</div>
+              <span className="flex-1 truncate">{m.name}</span><span className="text-[9px] text-slate-400 shrink-0">{m.role}</span>
+            </button>
+          ))}
+          <div className="my-1 h-px bg-slate-100 mx-2" />
+          <button onClick={() => { onDelete(); setMenuStyle(null); }} className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
+            <span className="w-4 text-center shrink-0">🗑</span> 삭제
+          </button>
+        </div>, document.body
+      )}
+    </div>
+  );
+}
+
+function AddModal({ onAdd, onClose }) {
+  const { useState: us } = React;
+  const [content, setContent] = us('');
+  const [color, setColor] = us(COLORS[0].value);
+  const [author, setAuthor] = us(MEMBERS[0] ? MEMBERS[0].id : CURRENT_USER_ID);
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-800">메모 추가</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {COLORS.map(c => (
+            <button key={c.value} onClick={() => setColor(c.value)} className={`w-7 h-7 rounded-lg transition-all ${color === c.value ? 'ring-2 ring-offset-1 ring-indigo-400 scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c.value, border: `2px solid ${c.border}` }} />
+          ))}
+        </div>
+        <textarea autoFocus value={content} onChange={e => setContent(e.target.value)} placeholder="아이디어를 자유롭게 적어보세요…" rows={4} className="border border-slate-200 rounded-xl p-3 text-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 leading-relaxed" style={{ backgroundColor: color }} />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-600">작성자</label>
+          <select value={author} onChange={e => setAuthor(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            {MEMBERS.map(m => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
+          </select>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-slate-200 rounded-xl py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors">취소</button>
+          <button onClick={() => { if (content.trim()) { onAdd(content, color, author); onClose(); } }} disabled={!content.trim()} className="flex-1 bg-indigo-600 text-white text-sm font-semibold rounded-xl py-2 hover:bg-indigo-700 transition-colors disabled:opacity-40">추가하기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TitleCard({ postit, isSelected, isAnimated, onMouseDown, onDoubleClick, onDelete }) {
+  return (
+    <div className={isAnimated ? 'absolute select-none postit-animated' : 'absolute select-none'}
+      style={{ left: postit.x, top: postit.y, width: PW * 1.4, zIndex: isSelected ? 20 : 8 }}
+      onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
+      <div className={`rounded-lg px-4 py-2.5 postit-shadow cursor-grab active:cursor-grabbing flex items-center justify-between gap-2 ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}
+        style={{ background: '#1E293B' }}>
+        <span className="text-white font-bold text-sm truncate">{postit.content}</span>
+        <button onMouseDown={e => e.stopPropagation()} onClick={onDelete} className="text-white/50 hover:text-white text-xs shrink-0">✕</button>
+      </div>
+    </div>
+  );
+}
+
+function AddTitleModal({ onAdd, onClose }) {
+  const { useState: us } = React;
+  const [content, setContent] = us('');
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-800">제목 카드 추가</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <input autoFocus value={content} onChange={e => setContent(e.target.value)} placeholder="예: 1. 문제 정의"
+          onKeyDown={e => { if (e.key === 'Enter' && content.trim()) { onAdd(content); onClose(); } }}
+          className="border border-slate-200 rounded-xl p-3 text-sm placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-slate-200 rounded-xl py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors">취소</button>
+          <button onClick={() => { if (content.trim()) { onAdd(content); onClose(); } }} disabled={!content.trim()} className="flex-1 bg-slate-800 text-white text-sm font-semibold rounded-xl py-2 hover:bg-slate-900 transition-colors disabled:opacity-40">추가하기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContributionPanel({ postits }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {MEMBERS.map(m => {
+        const authored = postits.filter(p => p.authorId === m.id);
+        const accepted = authored.filter(p => p.status === 'accepted');
+        const rate = authored.length > 0 ? Math.round(accepted.length / authored.length * 100) : 0;
+        return (
+          <div key={m.id} className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: m.color }}>{m.initials[0]}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between text-xs mb-1"><span className="font-medium text-slate-700">{m.name}</span><span className="text-slate-400">{accepted.length}/{authored.length}개 채택</span></div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${rate}%` }} /></div>
+            </div>
+            <span className="text-xs font-bold text-emerald-600 w-8 text-right">{rate}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BrainstormBoard() {
+  const { useState, useRef, useCallback, useEffect } = React;
+  const [postits, setPostits] = useState(INITIAL_POSTITS);
+  const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
+  const [selectedId, setSelectedId] = useState(null);
+  const [tool, setTool] = useState('select');
+  const [connSrc, setConnSrc] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showAddTitle, setShowAddTitle] = useState(false);
+  const [showContrib, setShowContrib] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [isAnimated, setIsAnimated] = useState(false);
+  const [hoveredConn, setHoveredConn] = useState(null);
+
+  const canvasRef = useRef(null);
+  const dragRef = useRef(null);
+  const syncTimer = useRef(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => syncToServer(postits, connections), 900);
+  }, [postits, connections]);
+
+  const heldPostits = postits.filter(p => p.status === 'held');
+  const activePostits = postits.filter(p => p.status !== 'held');
+  const visiblePostits = filter === 'all' ? activePostits : activePostits.filter(p => p.status === filter);
+  const acceptedCount = postits.filter(p => p.status === 'accepted').length;
+  const heldCount = heldPostits.length;
+  const heldIds = new Set(heldPostits.map(p => p.id));
+  const activeConns = connections.filter(c => !heldIds.has(c.fromId) && !heldIds.has(c.toId));
+  const showArrangeBtn = activeConns.length >= 2;
+
+  const handlePostitMouseDown = useCallback((e, id) => {
+    if (tool === 'connect') {
+      e.stopPropagation();
+      if (!connSrc) { setConnSrc(id); return; }
+      if (connSrc !== id) {
+        const exists = connections.some(c => (c.fromId === connSrc && c.toId === id) || (c.fromId === id && c.toId === connSrc));
+        if (!exists) setConnections(prev => [...prev, { id: Date.now().toString(), fromId: connSrc, toId: id }]);
+        setConnSrc(null); setTool('select');
+      }
+      return;
+    }
+    if (tool !== 'select') return;
+    e.stopPropagation();
+    setSelectedId(id);
+    const p = postits.find(x => x.id === id);
+    if (!p) return;
+    dragRef.current = { id, startX: e.clientX, startY: e.clientY, origX: p.x, origY: p.y };
+  }, [tool, connSrc, connections, postits]);
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!dragRef.current) return;
+      const { id, startX, startY, origX, origY } = dragRef.current;
+      setPostits(prev => prev.map(p => p.id === id ? { ...p, x: Math.max(0, Math.min(CANVAS_W - PW, origX + e.clientX - startX)), y: Math.max(0, Math.min(CANVAS_H - PH, origY + e.clientY - startY)) } : p));
+    }
+    function onUp() { dragRef.current = null; }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  function handleStatusChange(id, status) {
+    setPostits(prev => {
+      if (status === 'held') {
+        setConnections(c => c.filter(x => x.fromId !== id && x.toId !== id));
+        return prev.map(p => p.id === id ? { ...p, status, rotation: 0 } : p);
+      }
+      return prev.map(p => p.id === id ? { ...p, status } : p);
+    });
+  }
+
+  function handleAssigneeChange(id, assigneeId) { setPostits(prev => prev.map(p => p.id === id ? { ...p, assigneeId } : p)); }
+
+  function handleDelete(id) {
+    setPostits(prev => prev.filter(p => p.id !== id));
+    setConnections(prev => prev.filter(c => c.fromId !== id && c.toId !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  function handleDoubleClick(id) {
+    const p = postits.find(x => x.id === id);
+    if (!p) return;
+    setEditingId(id); setEditingText(p.content);
+  }
+
+  function handleEditDone() {
+    if (editingId && editingText.trim()) setPostits(prev => prev.map(p => p.id === editingId ? { ...p, content: editingText } : p));
+    setEditingId(null);
+  }
+
+  function handleAdd(content, color, authorId) {
+    const el = canvasRef.current;
+    const sl = el?.parentElement?.scrollLeft ?? 0;
+    const st = el?.parentElement?.scrollTop ?? 0;
+    setPostits(prev => [...prev, { id: 'tmp' + Date.now(), content, color, nodeType: 'note', x: sl + 140 + Math.random() * 380, y: st + 130 + Math.random() * 280, authorId, assigneeId: null, status: 'default', rotation: (Math.random() - 0.5) * 5 }]);
+  }
+
+  function handleAddTitle(content) {
+    const el = canvasRef.current;
+    const sl = el?.parentElement?.scrollLeft ?? 0;
+    const st = el?.parentElement?.scrollTop ?? 0;
+    setPostits(prev => [...prev, { id: 'tmp' + Date.now(), content, color: '#1E293B', nodeType: 'title', x: sl + 140 + Math.random() * 300, y: st + 100, authorId: CURRENT_USER_ID, assigneeId: null, status: 'default', rotation: 0 }]);
+  }
+
+  function handleAutoArrange() {
+    const layout = computeAutoLayout(postits, connections);
+    setIsAnimated(true);
+    setPostits(prev => prev.map(p => layout[p.id] ? { ...p, x: layout[p.id].x, y: layout[p.id].y, rotation: 0 } : p));
+    setTimeout(() => setIsAnimated(false), 500);
+  }
+
+  function renderConnections() {
+    return activeConns.map(conn => {
+      const fromP = postits.find(p => p.id === conn.fromId);
+      const toP = postits.find(p => p.id === conn.toId);
+      if (!fromP || !toP) return null;
+      const fc = getCenter(fromP), tc = getCenter(toP);
+      const fe = getEdgePoint(fromP, tc.x, tc.y);
+      const te = getEdgePoint(toP, fc.x, fc.y);
+      const dx = te.x - fe.x, dy = te.y - fe.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const curve = Math.min(dist * 0.08, 44);
+      const cpx = (fe.x + te.x) / 2 - (dy / dist) * curve;
+      const cpy = (fe.y + te.y) / 2 + (dx / dist) * curve;
+      const d = `M ${fe.x} ${fe.y} Q ${cpx} ${cpy} ${te.x} ${te.y}`;
+      const mx = 0.25 * fe.x + 0.5 * cpx + 0.25 * te.x;
+      const my = 0.25 * fe.y + 0.5 * cpy + 0.25 * te.y;
+      return (
+        <g key={conn.id} className="conn-group" onMouseEnter={() => setHoveredConn(conn.id)} onMouseLeave={() => setHoveredConn(null)}>
+          <path d={d} className="conn-line" />
+          <path d={d} stroke="transparent" strokeWidth={18} fill="none" style={{ pointerEvents: 'stroke', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); setConnections(prev => prev.filter(c => c.id !== conn.id)); }} />
+          <g transform={`translate(${mx},${my})`} className="conn-delete-btn" onClick={e => { e.stopPropagation(); setConnections(prev => prev.filter(c => c.id !== conn.id)); }} style={{ cursor: 'pointer' }}>
+            <circle r="9" fill="white" stroke="#CBD5E1" strokeWidth="1.5" />
+            <text textAnchor="middle" dominantBaseline="middle" fontSize="11" fill="#94A3B8" fontWeight="600">×</text>
+          </g>
+        </g>
+      );
+    });
+  }
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="bg-white border-b border-slate-200 flex items-center px-4 gap-3" style={{ height: 56, flexShrink: 0, zIndex: 10 }}>
+        <a href={BACK_URL} style={{ textDecoration: 'none', color: '#64748B', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginRight: 4 }}>← PRD 작성</a>
+        <div style={{ width: 1, height: 18, background: '#E2E8F0', flexShrink: 0 }} />
+        <div className="flex items-center gap-1.5"><span className="text-sm font-bold text-slate-800">브레인스토밍 — {PROJECT_TITLE}</span></div>
+        <div className="flex items-center gap-2 ml-2">
+          <span className="text-xs bg-slate-100 px-2.5 py-1 rounded-full text-slate-600 font-medium">{postits.length}개 메모</span>
+          <span className="text-xs bg-emerald-50 px-2.5 py-1 rounded-full text-emerald-700 font-medium">✓ {acceptedCount}개 채택</span>
+          <span className="text-xs bg-amber-50 px-2.5 py-1 rounded-full text-amber-700 font-medium">⏸ {heldCount}개 보류</span>
+        </div>
+        <div className="flex items-center gap-1 ml-4 bg-slate-100 rounded-xl p-1">
+          {[{ t: 'select', label: '선택', icon: '↖' }, { t: 'connect', label: '연결', icon: '⤴' }].map(({ t, label, icon }) => (
+            <button key={t} onClick={() => { setTool(t); if (t !== 'connect') setConnSrc(null); }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tool === t ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:bg-white/70 hover:text-slate-800'}`}>{icon} {label}</button>
+          ))}
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-white/70 transition-all">+ 메모 추가</button>
+          <button onClick={() => setShowAddTitle(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-white/70 transition-all">+ 제목 추가</button>
+        </div>
+        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+          {[{ v: 'all', l: '전체' }, { v: 'accepted', l: '채택됨' }, { v: 'default', l: '기본' }].map(f => (
+            <button key={f.v} onClick={() => setFilter(f.v)} className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f.v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{f.l}</button>
+          ))}
+        </div>
+        {showArrangeBtn && <button onClick={handleAutoArrange} className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 border border-violet-200 bg-violet-50 rounded-lg px-3 py-1.5 hover:bg-violet-100 transition-colors">⊞ 자동 정렬</button>}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowContrib(!showContrib)} className={`flex items-center gap-1.5 text-xs border rounded-lg px-3 py-1.5 transition-colors ${showContrib ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>📊 기여도</button>
+        </div>
+      </div>
+
+      {tool === 'connect' && (
+        <div className="bg-violet-600 flex items-center justify-center gap-3 text-xs text-white font-medium" style={{ height: 32, flexShrink: 0 }}>
+          <span>⤴</span>{connSrc ? '두 번째 메모를 클릭해서 연결을 완성하세요' : '연결할 첫 번째 메모를 클릭하세요'}
+          <button onClick={() => { setTool('select'); setConnSrc(null); }} className="text-violet-200 hover:text-white underline ml-2">취소</button>
+        </div>
+      )}
+
+      <div className="overflow-auto" style={{ flex: 1, minHeight: 0 }}>
+        <div ref={canvasRef} className="relative canvas-bg" style={{ width: CANVAS_W, height: CANVAS_H }} onClick={() => { setSelectedId(null); if (tool === 'connect') setConnSrc(null); }}>
+          <svg className="absolute inset-0 pointer-events-none" width={CANVAS_W} height={CANVAS_H} style={{ zIndex: 5 }}>{renderConnections()}</svg>
+          {visiblePostits.map(p => editingId === p.id ? (
+            <div key={p.id} className="absolute" style={{ left: p.x, top: p.y, width: PW, zIndex: 30, transform: `rotate(${p.rotation}deg)` }}>
+              <textarea autoFocus value={editingText} onChange={e => setEditingText(e.target.value)} onBlur={handleEditDone} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleEditDone(); }} className="w-full rounded-xl p-3 text-xs leading-relaxed border-2 border-indigo-400 focus:outline-none postit-shadow" style={{ backgroundColor: p.color, height: PH }} />
+            </div>
+          ) : p.nodeType === 'title' ? (
+            <TitleCard key={p.id} postit={p} isSelected={selectedId === p.id} isAnimated={isAnimated}
+              onMouseDown={e => handlePostitMouseDown(e, p.id)} onDoubleClick={() => handleDoubleClick(p.id)} onDelete={() => handleDelete(p.id)} />
+          ) : (
+            <PostItCard key={p.id} postit={p} isSelected={selectedId === p.id} isConnectSrc={connSrc === p.id} isAnimated={isAnimated}
+              onMouseDown={e => handlePostitMouseDown(e, p.id)} onDoubleClick={() => handleDoubleClick(p.id)}
+              onStatusChange={s => handleStatusChange(p.id, s)} onAssigneeChange={aid => handleAssigneeChange(p.id, aid)} onDelete={() => handleDelete(p.id)} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flexShrink: 0, height: heldPostits.length > 0 ? 164 : 44, transition: 'height .3s ease', borderTop: '2px dashed #FCD34D', background: 'rgba(255,251,235,0.9)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+        <div className="flex items-center gap-2 px-4 py-2 shrink-0">
+          <span className="text-xs font-bold text-amber-600">⏸ 보류 구역</span>
+          <span className="bg-amber-200 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{heldCount}</span>
+          <span className="text-[10px] text-amber-500 ml-1">· 카드에 hover 후 '복원'을 눌러 캔버스로 되돌립니다</span>
+        </div>
+        {heldPostits.length > 0 && (
+          <div className="flex gap-3 px-4 pb-3 overflow-x-auto" style={{ minHeight: 0, alignItems: 'flex-start' }}>
+            {heldPostits.map(p => {
+              const auth = MEMBERS.find(m => m.id === p.authorId);
+              const colorCfg = COLORS.find(c => c.value === p.color) || COLORS[0];
+              return (
+                <div key={p.id} className="held-card" style={{ backgroundColor: p.color, borderColor: colorCfg.border }}>
+                  <span className="held-restore" onClick={() => handleStatusChange(p.id, 'default')}>복원 →</span>
+                  <p className="text-[11px] text-slate-700 leading-relaxed line-clamp-3 pr-10">{p.content}</p>
+                  {auth && <div className="flex items-center gap-1 mt-2"><div className="w-3.5 h-3.5 rounded-full text-white text-[7px] font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: auth.color }}>{auth.initials[0]}</div><span className="text-[10px] text-slate-500">{auth.name}</span></div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showContrib && (
+        <div className="fixed right-0 top-14 bottom-0 w-80 bg-white border-l border-slate-200 z-20 flex flex-col shadow-2xl" style={{ bottom: heldPostits.length > 0 ? 164 : 44 }}>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+            <span className="text-sm font-bold text-slate-800">📊 팀원 기여도</span>
+            <button onClick={() => setShowContrib(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">포스트잇 채택 수 기준으로 기여도를 산정합니다.</p>
+            <ContributionPanel postits={postits} />
+            <div className="mt-5 border-t border-slate-100 pt-4 grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-xl p-3"><p className="text-[10px] text-slate-400">전체 메모</p><p className="text-2xl font-bold text-slate-800">{postits.length}</p></div>
+              <div className="bg-emerald-50 rounded-xl p-3"><p className="text-[10px] text-emerald-600">채택률</p><p className="text-2xl font-bold text-emerald-700">{postits.length > 0 ? Math.round(acceptedCount / postits.length * 100) : 0}%</p></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAdd && <AddModal onAdd={handleAdd} onClose={() => setShowAdd(false)} />}
+      {showAddTitle && <AddTitleModal onAdd={handleAddTitle} onClose={() => setShowAddTitle(false)} />}
+
+      {editingId && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg z-50">Enter로 완료 · 외부 클릭으로 닫기</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('brainstorm-root')).render(<BrainstormBoard />);
+</script>
+{% endverbatim %}
+</body>
+</html>

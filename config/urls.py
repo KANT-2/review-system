@@ -30,6 +30,7 @@ urlpatterns = [
     path("manage/audit/", include("audit.urls")),
     path("manage/notices/", include("notices.urls")),
     path("notifications/", include("notifications.urls")),
+    path("ideas/", include("ideas.urls")),
     path("", account_views.home_view, name="home"),
 ]
 
