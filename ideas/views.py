@@ -247,6 +247,7 @@ def home(request):
         "prds": projects,
         "weekly_activity": weekly_activity,
         "recent_activities": recent_activities,
+        "status_choices": PRDProject.Status.choices,
     }
     return render(request, "ideas/home.html", context)
 
