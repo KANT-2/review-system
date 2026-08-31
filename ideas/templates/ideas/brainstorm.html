@@ -186,7 +186,7 @@ function PostItCard({ postit, isSelected, isConnectSrc, isAnimated, onMouseDown,
   return (
     <div className={isAnimated ? 'absolute select-none postit-animated' : 'absolute select-none'}
       style={{ left: postit.x, top: postit.y, width: PW, height: PH, transform: `rotate(${postit.rotation}deg)`, zIndex: isSelected ? 20 : isConnectSrc ? 15 : 10 }}
-      onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
+      onMouseDown={onMouseDown} onClick={e => e.stopPropagation()} onDoubleClick={onDoubleClick}>
       <div className={['w-full h-full rounded-xl flex flex-col p-3 postit-shadow cursor-grab active:cursor-grabbing',
         isSelected ? 'ring-2 ring-indigo-400 ring-offset-1' : '', isConnectSrc ? 'ring-2 ring-violet-500 ring-offset-1' : ''].join(' ')}
         style={{ backgroundColor: postit.color, borderLeft: `3px solid ${colorCfg.border}` }}>
@@ -274,7 +274,7 @@ function TitleCard({ postit, isSelected, isAnimated, onMouseDown, onDoubleClick,
   return (
     <div className={isAnimated ? 'absolute select-none postit-animated' : 'absolute select-none'}
       style={{ left: postit.x, top: postit.y, width: PW * 1.4, zIndex: isSelected ? 20 : 8 }}
-      onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
+      onMouseDown={onMouseDown} onClick={e => e.stopPropagation()} onDoubleClick={onDoubleClick}>
       <div className={`rounded-lg px-4 py-2.5 postit-shadow cursor-grab active:cursor-grabbing flex items-center justify-between gap-2 ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}
         style={{ background: '#1E293B' }}>
         <span className="text-white font-bold text-sm truncate">{postit.content}</span>
@@ -361,7 +361,9 @@ function BrainstormBoard() {
   const acceptedCount = postits.filter(p => p.status === 'accepted').length;
   const heldCount = heldPostits.length;
   const heldIds = new Set(heldPostits.map(p => p.id));
+  const visibleIds = new Set(visiblePostits.map(p => p.id));
   const activeConns = connections.filter(c => !heldIds.has(c.fromId) && !heldIds.has(c.toId));
+  const renderableConns = activeConns.filter(c => visibleIds.has(c.fromId) && visibleIds.has(c.toId));
   const showArrangeBtn = activeConns.length >= 2;
 
   const handlePostitMouseDown = useCallback((e, id) => {
@@ -446,7 +448,7 @@ function BrainstormBoard() {
   }
 
   function renderConnections() {
-    return activeConns.map(conn => {
+    return renderableConns.map(conn => {
       const fromP = postits.find(p => p.id === conn.fromId);
       const toP = postits.find(p => p.id === conn.toId);
       if (!fromP || !toP) return null;
