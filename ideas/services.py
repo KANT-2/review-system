@@ -4,6 +4,10 @@ PRD Context를 실제 DB 데이터로부터 조립하고, Gemini 호출(ai_coach
 연결한다. 뷰는 이 함수들을 호출하기만 하고 HTTP 요청/응답 처리에만 집중한다.
 """
 
+from datetime import timedelta
+
+from django.utils import timezone
+
 from .ai_coach import AICoachError, generate_coach_reply
 from .models import AIChatHistory
 
@@ -12,6 +16,7 @@ __all__ = [
     "append_chat_turn",
     "ask_ai_coach",
     "build_prd_context",
+    "cleanup_expired_chat_histories",
     "generate_question_draft",
     "get_chat_history",
 ]
@@ -19,6 +24,9 @@ __all__ = [
 # Gemini에 다시 실어 보낼 최근 대화 턴 수 ("방금 한 말 까먹는 문제" 방지용).
 # chat_data 저장 자체는 항상 전체를 보존하고, 이 값은 프롬프트에 포함할 범위만 제한한다.
 RECENT_TURNS_FOR_PROMPT = 3
+
+# 대화 기록 보관 기간 (Q-010: 30일, 저장할 때마다 만료일을 갱신한다).
+CHAT_HISTORY_TTL_DAYS = 30
 
 
 def build_prd_context(project, *, current_section_title=None):
@@ -75,7 +83,8 @@ def append_chat_turn(project, *, section, user, user_message, ai_reply):
         {"role": "user", "text": user_message},
         {"role": "model", "text": ai_reply},
     ]
-    history.save(update_fields=["chat_data"])
+    history.expires_at = timezone.localdate() + timedelta(days=CHAT_HISTORY_TTL_DAYS)
+    history.save(update_fields=["chat_data", "expires_at"])
     return history.chat_data
 
 
@@ -109,6 +118,17 @@ def ask_ai_coach(project, *, section, user, message):
     append_chat_turn(project, section=section, user=user, user_message=message, ai_reply=reply.text)
 
     return reply
+
+
+def cleanup_expired_chat_histories(limit=500):
+    """expires_at이 지난 AI_Chat_Histories 행을 삭제한다 (Q-010: 30일 TTL)."""
+    today = timezone.localdate()
+    ids = list(
+        AIChatHistory.objects.filter(expires_at__lt=today)
+        .order_by("expires_at")
+        .values_list("pk", flat=True)[:limit]
+    )
+    return AIChatHistory.objects.filter(pk__in=ids).delete()[0]
 
 
 def generate_question_draft(project, *, section, question):

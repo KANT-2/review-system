@@ -201,9 +201,12 @@ OAuth secret은 Django admin의 `SocialApp`과 환경변수 양쪽에 중복 등
 python manage.py check --deploy --fail-level WARNING
 python manage.py check_auth_readiness
 python manage.py cleanup_auth_throttles
+python manage.py cleanup_expired_chat_histories
 ```
 
 `cleanup_auth_throttles`는 만료된 rate-limit bucket을 정리합니다. 일일 작업으로 실행하세요.
+`cleanup_expired_chat_histories`는 만료된 AI_Chat_Histories 행(저장 후 30일 경과)을 정리합니다.
+마찬가지로 일일 작업으로 실행하세요.
 저장소 이력에 포함됐던 기존 OAuth credential은 공급자 콘솔에서 폐기하고 새 callback으로
 smoke test해야 합니다.
 
