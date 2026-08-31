@@ -201,6 +201,8 @@ SOCIALACCOUNT_REQUESTS_TIMEOUT = env_int("SOCIALACCOUNT_REQUESTS_TIMEOUT", 5)
 # ideas 앱의 AI Coach가 사용하는 Gemini API 키. 비어 있으면 AI Coach는 비활성 상태로 응답한다.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+# Gemini 응답이 안 올 때 무한정 기다리지 않도록 두는 타임아웃(밀리초).
+GEMINI_TIMEOUT_MS = env_int("GEMINI_TIMEOUT_MS", 30_000)
 
 # Development prints messages to the terminal. Production opts into SMTP with
 # DJANGO_EMAIL_BACKEND and the remaining DJANGO_EMAIL_* variables; credentials

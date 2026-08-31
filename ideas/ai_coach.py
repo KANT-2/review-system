@@ -51,15 +51,26 @@ def generate_coach_reply(*, prompt, feature_type="COACHING"):
     from google.genai import types
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        http_options=types.HttpOptions(timeout=settings.GEMINI_TIMEOUT_MS),
+    )
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=system_instruction),
-        )
-    except Exception as exc:  # Gemini SDK가 던지는 예외 유형이 다양해 광범위하게 잡는다
-        raise AICoachError("Gemini API 호출에 실패했습니다.") from exc
+    # Gemini가 간헐적으로 느려지거나(타임아웃) 일시적으로 응답을 못 주는 경우가 있어,
+    # 한 번 실패하면 바로 포기하지 않고 한 번 더 시도한다. 그래도 안 되면 진짜 실패로 처리한다.
+    last_exc = None
+    response = None
+    for _attempt in range(2):
+        try:
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL, contents=prompt, config=config
+            )
+            break
+        except Exception as exc:  # Gemini SDK가 던지는 예외 유형이 다양해 광범위하게 잡는다
+            last_exc = exc
+
+    if response is None:
+        raise AICoachError("Gemini API 호출에 실패했습니다.") from last_exc
 
     text = getattr(response, "text", None)
     if not text:
