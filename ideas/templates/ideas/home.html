@@ -20,12 +20,17 @@
   .idea-badge-status-done { background: #ECFDF5; color: #065F46; }
   .idea-badge-status-hold { background: #FEF3C7; color: #92400E; }
   .idea-badge-status-drop { background: #FEE2E2; color: #991B1B; }
-  .idea-prd-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 20px; transition: border-color .15s, box-shadow .15s; text-decoration: none; color: inherit; display: block; }
-  .idea-prd-card:hover { border-color: #A5B4FC; box-shadow: 0 1px 6px rgba(79,70,229,.12); color: inherit; }
+  .idea-prd-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 20px; transition: border-color .15s, box-shadow .15s; position: relative; }
+  .idea-prd-card:hover { border-color: #A5B4FC; box-shadow: 0 1px 6px rgba(79,70,229,.12); }
   .idea-member-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--bs-body-bg); font-size: 9px; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: center; margin-left: -6px; }
   .idea-member-dot:first-child { margin-left: 0; }
-  .idea-quick-create { background: #4F46E5; border-radius: 12px; padding: 20px; color: #fff; }
   .idea-sidebar-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; padding: 20px; }
+  .idea-brainstorm-btn { position: relative; z-index: 2; opacity: 0; transition: opacity .15s; font-size: 11px; border: 1px solid #C7D2FE; color: #4F46E5; border-radius: 8px; padding: 3px 10px; text-decoration: none; }
+  .idea-prd-card:hover .idea-brainstorm-btn { opacity: 1; }
+  .idea-filter-dropdown { position: absolute; right: 0; top: 100%; margin-top: 6px; z-index: 20; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.1); padding: 14px; width: 200px; display: none; }
+  .idea-filter-dropdown.open { display: block; }
+  .idea-filter-section-title { font-size: 10px; font-weight: 600; color: var(--bs-secondary-color); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .idea-filter-count { background: #4F46E5; color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
   </style>
 {% endblock %}
 {% block content %}
@@ -80,26 +85,89 @@
       <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
         <div class="idea-filter-bar" id="typeFilter">
           <button class="idea-filter-btn active"
-                  data-filter="all"
-                  onclick="ideaFilterPRDs(this)">전체</button>
+                  data-tab="all"
+                  onclick="ideaSetTab(this)">전체</button>
+          <button class="idea-filter-btn" data-tab="project" onclick="ideaSetTab(this)">프로젝트</button>
+          <button class="idea-filter-btn" data-tab="team" onclick="ideaSetTab(this)">팀</button>
           <button class="idea-filter-btn"
-                  data-filter="new-product"
-                  onclick="ideaFilterPRDs(this)">신규 프로젝트</button>
-          <button class="idea-filter-btn"
-                  data-filter="new-feature"
-                  onclick="ideaFilterPRDs(this)">신규 기능</button>
-          <button class="idea-filter-btn"
-                  data-filter="improvement"
-                  onclick="ideaFilterPRDs(this)">개선</button>
+                  data-tab="personal"
+                  onclick="ideaSetTab(this)">개인</button>
         </div>
-        <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm btn-ax-primary">+ 새 PRD 만들기</a>
+        <div class="d-flex align-items-center gap-2">
+          <div class="position-relative">
+            <button type="button"
+                    class="btn btn-sm btn-ax-secondary d-flex align-items-center gap-1"
+                    id="ideaFilterToggleBtn"
+                    onclick="ideaToggleFilterDropdown()">
+              <i class="bi bi-funnel"></i> 필터
+              <span class="idea-filter-count d-none" id="ideaFilterCount">0</span>
+            </button>
+            <div class="idea-filter-dropdown" id="ideaFilterDropdown">
+              <div class="mb-3">
+                <div class="idea-filter-section-title">상태</div>
+                <div class="d-flex flex-column gap-1">
+                  {% for value, label in status_choices %}
+                    <label class="d-flex align-items-center gap-2"
+                           style="font-size:12px;
+                                  cursor:pointer">
+                      <input type="checkbox"
+                             class="idea-status-check"
+                             value="{{ value }}"
+                             onchange="ideaApplyFilters()">
+                      {{ label }}
+                    </label>
+                  {% endfor %}
+                </div>
+              </div>
+              <div>
+                <div class="idea-filter-section-title">정렬</div>
+                <div class="d-flex flex-column gap-1">
+                  <label class="d-flex align-items-center gap-2"
+                         style="font-size:12px;
+                                cursor:pointer">
+                    <input type="radio"
+                           name="ideaSort"
+                           value="default"
+                           checked
+                           onchange="ideaApplyFilters()">
+                    기본
+                  </label>
+                  <label class="d-flex align-items-center gap-2"
+                         style="font-size:12px;
+                                cursor:pointer">
+                    <input type="radio"
+                           name="ideaSort"
+                           value="deadline"
+                           onchange="ideaApplyFilters()">
+                    마감 임박순
+                  </label>
+                  <label class="d-flex align-items-center gap-2"
+                         style="font-size:12px;
+                                cursor:pointer">
+                    <input type="radio"
+                           name="ideaSort"
+                           value="score"
+                           onchange="ideaApplyFilters()">
+                    완성도순
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm btn-ax-primary">+ 새 PRD 만들기</a>
+        </div>
       </div>
       <div class="row g-3" id="prdGrid">
         {% for prd in prds %}
           <div class="col-12 col-md-6 col-xl-4 idea-prd-item"
-               data-type="{{ prd.project_type }}">
-            <a href="{% url 'ideas:prd_write' prd.pk %}"
-               class="idea-prd-card d-flex flex-column gap-3">
+               data-type="{{ prd.project_type }}"
+               data-members="{{ prd.members.count }}"
+               data-status="{{ prd.status }}"
+               data-days="{{ prd.days_left|default:99999 }}"
+               data-score="{{ prd.completion_score }}"
+               data-modified="{{ prd.updated_at|date:'Y-m-d' }}">
+            <div class="idea-prd-card d-flex flex-column gap-3">
+              <a href="{% url 'ideas:prd_write' prd.pk %}" class="stretched-link"></a>
               <div class="d-flex align-items-start justify-content-between gap-2">
                 <div class="flex-grow-1" style="min-width:0;">
                   <div class="d-flex flex-wrap gap-1 mb-1">
@@ -114,6 +182,8 @@
                             -webkit-box-orient:vertical;
                             overflow:hidden">{{ prd.description }}</p>
                 </div>
+                <a href="{% url 'ideas:brainstorm' prd.pk %}"
+                   class="idea-brainstorm-btn flex-shrink-0">브레인스토밍</a>
               </div>
               <div>
                 <div class="d-flex justify-content-between mb-1" style="font-size:11px;">
@@ -139,14 +209,14 @@
                     {% if days_left != None %}
                       {% if days_left > 0 %}<span class="{% if days_left <= 7 %}text-danger{% endif %} fw-medium">D-{{ days_left }}일</span>
                     {% elif days_left == 0 %}<span class="text-danger fw-medium">D-Day</span>
-                  {% else %}<span class="text-secondary">완료</span>{% endif %}
+                  {% else %}<span class="text-secondary">D+{{ days_left|cut:"-" }}일 (완료)</span>{% endif %}
                 {% endif %}
         {% endwith %}
         <span class="text-secondary">·</span>
         <span class="text-secondary">{{ prd.updated_at|date:"m/d" }} 수정</span>
       </div>
     </div>
-  </a>
+  </div>
   </div>
 {% empty %}
   <div class="col-12">
@@ -219,27 +289,60 @@
       {% endfor %}
     </div>
   </div>
-  <div class="idea-quick-create">
-    <p class="fw-semibold mb-1" style="font-size:13px;">새 PRD 시작하기</p>
-    <p style="font-size:12px;color:#C7D2FE;margin-bottom:16px;">3가지 템플릿 중 하나를 골라 바로 작성을 시작해 보세요.</p>
-    <a href="{% url 'ideas:prd_new' %}"
-       class="btn btn-sm w-100 fw-semibold"
-       style="background:#fff;
-              color:#4F46E5;
-              border-radius:8px">+ 새 PRD 만들기</a>
-  </div>
 </div>
 </div>
 {% endblock %}
 {% block extra_js %}
   <script>
-function ideaFilterPRDs(btn) {
-  document.querySelectorAll('.idea-filter-btn').forEach(b => b.classList.remove('active'));
+let ideaActiveTab = 'all';
+
+function ideaSetTab(btn) {
+  document.querySelectorAll('#typeFilter .idea-filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const filter = btn.dataset.filter;
-  document.querySelectorAll('.idea-prd-item').forEach(item => {
-    item.style.display = (filter === 'all' || item.dataset.type === filter) ? '' : 'none';
+  ideaActiveTab = btn.dataset.tab;
+  ideaApplyFilters();
+}
+
+function ideaToggleFilterDropdown() {
+  document.getElementById('ideaFilterDropdown').classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+  const dropdown = document.getElementById('ideaFilterDropdown');
+  const toggleBtn = document.getElementById('ideaFilterToggleBtn');
+  if (dropdown.classList.contains('open') && !dropdown.contains(e.target) && e.target !== toggleBtn && !toggleBtn.contains(e.target)) {
+    dropdown.classList.remove('open');
+  }
+});
+
+function ideaApplyFilters() {
+  const statusChecks = Array.from(document.querySelectorAll('.idea-status-check:checked')).map(c => c.value);
+  const sortKey = document.querySelector('input[name="ideaSort"]:checked').value;
+
+  const countEl = document.getElementById('ideaFilterCount');
+  const count = statusChecks.length + (sortKey !== 'default' ? 1 : 0);
+  countEl.textContent = count;
+  countEl.classList.toggle('d-none', count === 0);
+
+  const items = Array.from(document.querySelectorAll('.idea-prd-item'));
+
+  const visible = items.filter(item => {
+    if (ideaActiveTab === 'project' && item.dataset.type !== 'new-product') return false;
+    if (ideaActiveTab === 'team' && Number(item.dataset.members) <= 1) return false;
+    if (ideaActiveTab === 'personal' && Number(item.dataset.members) > 1) return false;
+    if (statusChecks.length > 0 && !statusChecks.includes(item.dataset.status)) return false;
+    return true;
   });
+
+  visible.sort((a, b) => {
+    if (sortKey === 'deadline') return Number(a.dataset.days) - Number(b.dataset.days);
+    if (sortKey === 'score') return Number(b.dataset.score) - Number(a.dataset.score);
+    return b.dataset.modified.localeCompare(a.dataset.modified);
+  });
+
+  const grid = document.getElementById('prdGrid');
+  items.forEach(i => { i.style.display = 'none'; });
+  visible.forEach(i => { i.style.display = ''; grid.appendChild(i); });
 }
   </script>
 {% endblock %}
