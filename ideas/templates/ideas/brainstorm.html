@@ -89,13 +89,24 @@ function syncToServer(postits, connections) {
   }).catch(() => {});
 }
 
-function getCenter(p) { return { x: p.x + PW / 2, y: p.y + PH / 2 }; }
+const TITLE_W = PW * 1.4;
+const TITLE_H = 40; // 실제 렌더링된 제목 카드 높이 (px-4 py-2.5 + 한 줄 텍스트) 실측값
+
+function nodeSize(p) {
+  return p.nodeType === 'title' ? { w: TITLE_W, h: TITLE_H } : { w: PW, h: PH };
+}
+
+function getCenter(p) {
+  const { w, h } = nodeSize(p);
+  return { x: p.x + w / 2, y: p.y + h / 2 };
+}
 
 function getEdgePoint(postit, tx, ty) {
-  const cx = postit.x + PW / 2, cy = postit.y + PH / 2;
+  const { w, h } = nodeSize(postit);
+  const cx = postit.x + w / 2, cy = postit.y + h / 2;
   const dx = tx - cx, dy = ty - cy;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return { x: cx, y: cy };
-  const hw = PW / 2 - 5, hh = PH / 2 - 5;
+  const hw = w / 2 - 5, hh = h / 2 - 5;
   const sx = Math.abs(dx) > .01 ? hw / Math.abs(dx) : Infinity;
   const sy = Math.abs(dy) > .01 ? hh / Math.abs(dy) : Infinity;
   const t = Math.min(sx, sy);
