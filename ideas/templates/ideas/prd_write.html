@@ -63,6 +63,14 @@
   .ai-chat-panel { position: fixed; top: 0; right: -340px; width: 340px; height: 100%; background: var(--bs-body-bg); border-left: 1px solid var(--bs-border-color); z-index: 1050; display: flex; flex-direction: column; transition: right .25s ease; }
   .ai-chat-panel.open { right: 0; }
   .chat-bubble-ai { background: var(--bs-tertiary-bg); border-radius: 14px 14px 14px 4px; padding: 10px 14px; font-size: 13px; line-height: 1.6; max-width: 85%; }
+  .chat-bubble-ai > *:first-child { margin-top: 0; }
+  .chat-bubble-ai > *:last-child { margin-bottom: 0; }
+  .chat-bubble-ai p { margin: 0 0 8px; }
+  .chat-bubble-ai ul, .chat-bubble-ai ol { margin: 0 0 8px; padding-left: 18px; }
+  .chat-bubble-ai li { margin-bottom: 2px; }
+  .chat-bubble-ai strong { font-weight: 700; }
+  .chat-bubble-ai hr { border: none; border-top: 1px solid var(--bs-border-color); margin: 10px 0; }
+  .chat-bubble-ai code { background: var(--bs-body-bg); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
   .chat-bubble-user { background: #4F46E5; color: #fff; border-radius: 14px 14px 4px 14px; padding: 10px 14px; font-size: 13px; line-height: 1.6; max-width: 85%; align-self: flex-end; }
 
   .diagnosis-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-left: 6px; }
@@ -551,6 +559,8 @@
   </div>
 {% endblock %}
 {% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <script>
 const SECTIONS_DATA = {{ sections_json|safe }};
 const PROJECT_TITLE = "{{ project.title|escapejs }}";
@@ -947,9 +957,21 @@ function currentOpenSectionId() {
   return card ? card.dataset.sectionId : null;
 }
 
+function renderMarkdownSafe(text) {
+  // AI 답변은 System Instructions가 지시하는 [대괄호 헤더]/**굵게**/목록 서식을 그대로 쓰므로
+  // 마크다운으로 렌더링한다. 사용자 프롬프트로 Gemini가 임의 HTML을 뱉을 가능성에 대비해
+  // DOMPurify로 한 번 더 정제한다.
+  const html = marked.parse(text, { breaks: true });
+  return DOMPurify.sanitize(html);
+}
+
 function renderChatBubble(wrap, role, text) {
   const cls = role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai';
-  wrap.insertAdjacentHTML('beforeend', `<div class="${cls}">${escapeHtml(text)}</div>`);
+  const div = document.createElement('div');
+  div.className = cls;
+  // 사용자 메시지는 서식 없이 그대로(escapeHtml), AI 답변만 마크다운 렌더링한다.
+  div.innerHTML = role === 'user' ? escapeHtml(text) : renderMarkdownSafe(text);
+  wrap.appendChild(div);
 }
 
 function loadChatHistory(sectionId) {
@@ -1025,7 +1047,7 @@ function sendAIChat() {
     .then(({ ok, data }) => {
       const loadingEl = document.getElementById(loadingId);
       if (ok && data.ok) {
-        loadingEl.textContent = data.reply;
+        loadingEl.innerHTML = renderMarkdownSafe(data.reply);
       } else {
         loadingEl.textContent = data.error || 'AI Coach 응답을 가져오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
       }
