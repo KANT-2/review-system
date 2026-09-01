@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from ideas.models import PostIt, PostItConnection, PRDProject, PRDQuestion, PRDSection
-from ideas.views import DEFAULT_SECTIONS
+from ideas.views import get_sections_for_type
 
 User = get_user_model()
 
@@ -100,7 +100,7 @@ class Command(BaseCommand):
             )
             project.members.set(users[:3])
 
-            for order, section_data in enumerate(DEFAULT_SECTIONS):
+            for order, section_data in enumerate(get_sections_for_type(spec["project_type"])):
                 section = PRDSection.objects.create(
                     project=project,
                     title=section_data["title"],

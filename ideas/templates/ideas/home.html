@@ -31,6 +31,14 @@
   .idea-filter-dropdown.open { display: block; }
   .idea-filter-section-title { font-size: 10px; font-weight: 600; color: var(--bs-secondary-color); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
   .idea-filter-count { background: #4F46E5; color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+  .idea-new-badge { font-size: 9px; font-weight: 700; letter-spacing: .04em; background: #4F46E5; color: #fff; border-radius: 99px; padding: 1px 7px; }
+  .idea-stat-card.clickable { cursor: pointer; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+  .idea-stat-card.clickable:hover { border-color: #A5B4FC; }
+  .idea-stat-card.clickable.active { border-color: #A5B4FC; box-shadow: 0 0 0 2px #E0E7FF; }
+  .idea-stat-active-label { font-size: 9px; font-weight: 600; color: #4F46E5; margin-top: 3px; }
+  .idea-filter-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; border: 1px solid; cursor: pointer; background: none; }
+  .idea-filter-reset-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #C7D2FE; background: #EEF2FF; color: #4F46E5; display: flex; align-items: center; justify-content: center; }
+  .idea-filter-reset-btn:hover { background: #E0E7FF; }
   </style>
 {% endblock %}
 {% block content %}
@@ -49,10 +57,13 @@
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="idea-stat-card">
+      <div class="idea-stat-card clickable"
+           id="statCardWriting"
+           onclick="ideaQuickFilterStatus('작성 중')">
         <div class="idea-stat-label">진행 중</div>
         <div class="idea-stat-value" style="color:#4F46E5;">{{ stats.in_progress }}</div>
         <div class="idea-stat-sub">개 진행 중</div>
+        <div class="idea-stat-active-label" style="display:none;">필터 적용됨 ✓</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
@@ -63,10 +74,13 @@
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
-      <div class="idea-stat-card">
+      <div class="idea-stat-card clickable"
+           id="statCardDone"
+           onclick="ideaQuickFilterStatus('완료')">
         <div class="idea-stat-label">완료됨</div>
         <div class="idea-stat-value" style="color:#059669;">{{ stats.completed }}</div>
         <div class="idea-stat-sub">개 완료</div>
+        <div class="idea-stat-active-label" style="display:none;">필터 적용됨 ✓</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
@@ -94,6 +108,13 @@
                   onclick="ideaSetTab(this)">개인</button>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <button type="button"
+                  class="idea-filter-reset-btn d-none"
+                  id="ideaFilterResetBtn"
+                  title="필터 초기화"
+                  onclick="ideaResetFilters()">
+            <i class="bi bi-x-lg" style="font-size:11px;"></i>
+          </button>
           <div class="position-relative">
             <button type="button"
                     class="btn btn-sm btn-ax-secondary d-flex align-items-center gap-1"
@@ -157,6 +178,10 @@
           <a href="{% url 'ideas:prd_new' %}" class="btn btn-sm btn-ax-primary">+ 새 PRD 만들기</a>
         </div>
       </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-3 d-none"
+           id="ideaFilterChips">
+        <span class="text-secondary" style="font-size:11px;">필터:</span>
+      </div>
       <div class="row g-3" id="prdGrid">
         {% for prd in prds %}
           <div class="col-12 col-md-6 col-xl-4 idea-prd-item"
@@ -173,6 +198,7 @@
                   <div class="d-flex flex-wrap gap-1 mb-1">
                     <span class="idea-badge-type idea-badge-type-{{ prd.project_type }}">{{ prd.get_project_type_display }}</span>
                     <span class="idea-badge-status idea-badge-status-{% if prd.status == '완료' %}done{% elif prd.status == '홀딩' %}hold{% elif prd.status == '드랍' %}drop{% else %}writing{% endif %}">{{ prd.status }}</span>
+                    {% if prd.is_new %}<span class="idea-new-badge">N</span>{% endif %}
                   </div>
                   <h3 class="fw-semibold mb-1 text-truncate" style="font-size:13px;">{{ prd.title }}</h3>
                   <p class="text-secondary mb-0"
@@ -209,7 +235,7 @@
                     {% if days_left != None %}
                       {% if days_left > 0 %}<span class="{% if days_left <= 7 %}text-danger{% endif %} fw-medium">D-{{ days_left }}일</span>
                     {% elif days_left == 0 %}<span class="text-danger fw-medium">D-Day</span>
-                  {% else %}<span class="text-secondary">D+{{ days_left|cut:"-" }}일 (완료)</span>{% endif %}
+                  {% else %}<span class="text-secondary">D+{{ days_left|cut:"-" }}일</span>{% endif %}
                 {% endif %}
         {% endwith %}
         <span class="text-secondary">·</span>
@@ -229,6 +255,16 @@
     </div>
   </div>
 {% endfor %}
+<div class="col-12 d-none" id="ideaEmptyState">
+  <div class="text-center py-5 text-secondary">
+    <div style="font-size:40px;" class="mb-3">📄</div>
+    <p style="font-size:13px;">조건에 맞는 PRD가 없어요</p>
+    <p style="font-size:11px;">필터를 변경하거나 새 PRD를 만들어보세요</p>
+    <a href="{% url 'ideas:prd_new' %}"
+       style="font-size:13px;
+              color:#4F46E5">새 PRD 만들기</a>
+  </div>
+</div>
 </div>
 </div>
 <div class="flex-shrink-0 d-flex flex-column gap-3"
@@ -315,14 +351,78 @@ document.addEventListener('click', function(e) {
   }
 });
 
+const IDEA_STATUS_LABELS = ['작성 중', '완료', '홀딩', '드랍'];
+const IDEA_STATUS_COLORS = { '작성 중': '#D97706', '완료': '#059669', '홀딩': '#94A3B8', '드랍': '#DC2626' };
+
+function ideaQuickFilterStatus(status) {
+  const checks = Array.from(document.querySelectorAll('.idea-status-check'));
+  const target = checks.find(c => c.value === status);
+  if (!target) return;
+  const onlyThisChecked = target.checked && checks.filter(c => c.checked).length === 1;
+  checks.forEach(c => { c.checked = false; });
+  if (!onlyThisChecked) target.checked = true;
+  ideaApplyFilters();
+}
+
+function ideaResetFilters() {
+  document.querySelectorAll('.idea-status-check').forEach(c => { c.checked = false; });
+  const defaultSort = document.querySelector('input[name="ideaSort"][value="default"]');
+  if (defaultSort) defaultSort.checked = true;
+  ideaApplyFilters();
+}
+
+function ideaToggleStatus(status) {
+  const target = document.querySelector(`.idea-status-check[value="${status}"]`);
+  if (!target) return;
+  target.checked = !target.checked;
+  ideaApplyFilters();
+}
+
+function ideaSyncQuickFilterCards(statusChecks) {
+  const writingCard = document.getElementById('statCardWriting');
+  const doneCard = document.getElementById('statCardDone');
+  [ [writingCard, '작성 중'], [doneCard, '완료'] ].forEach(([card, status]) => {
+    if (!card) return;
+    const isActive = statusChecks.length === 1 && statusChecks[0] === status;
+    card.classList.toggle('active', isActive);
+    card.querySelector('.idea-stat-active-label').style.display = isActive ? '' : 'none';
+  });
+}
+
+function ideaRenderFilterChips(statusChecks) {
+  const wrap = document.getElementById('ideaFilterChips');
+  if (statusChecks.length === 0) {
+    wrap.classList.add('d-none');
+    wrap.innerHTML = '<span class="text-secondary" style="font-size:11px;">필터:</span>';
+    return;
+  }
+  wrap.classList.remove('d-none');
+  wrap.innerHTML = '<span class="text-secondary" style="font-size:11px;">필터:</span>' +
+    statusChecks.map(s => {
+      const color = IDEA_STATUS_COLORS[s] || '#64748B';
+      return `<button type="button" class="idea-filter-chip" style="color:${color};border-color:${color}55;background:${color}15;" onclick="ideaToggleStatus('${s}')">${s} <span class="text-secondary">×</span></button>`;
+    }).join('');
+}
+
 function ideaApplyFilters() {
-  const statusChecks = Array.from(document.querySelectorAll('.idea-status-check:checked')).map(c => c.value);
+  let statusChecks = Array.from(document.querySelectorAll('.idea-status-check:checked')).map(c => c.value);
+  // 상태 4개 전부 선택되면 "필터 없음"과 동일하니 초기화한다
+  if (statusChecks.length === IDEA_STATUS_LABELS.length) {
+    document.querySelectorAll('.idea-status-check').forEach(c => { c.checked = false; });
+    statusChecks = [];
+  }
   const sortKey = document.querySelector('input[name="ideaSort"]:checked').value;
 
   const countEl = document.getElementById('ideaFilterCount');
   const count = statusChecks.length + (sortKey !== 'default' ? 1 : 0);
   countEl.textContent = count;
   countEl.classList.toggle('d-none', count === 0);
+
+  const resetBtn = document.getElementById('ideaFilterResetBtn');
+  resetBtn.classList.toggle('d-none', count === 0);
+
+  ideaSyncQuickFilterCards(statusChecks);
+  ideaRenderFilterChips(statusChecks);
 
   const items = Array.from(document.querySelectorAll('.idea-prd-item'));
 
@@ -341,8 +441,10 @@ function ideaApplyFilters() {
   });
 
   const grid = document.getElementById('prdGrid');
+  const emptyState = document.getElementById('ideaEmptyState');
   items.forEach(i => { i.style.display = 'none'; });
   visible.forEach(i => { i.style.display = ''; grid.appendChild(i); });
+  if (emptyState) emptyState.classList.toggle('d-none', visible.length > 0 || items.length === 0);
 }
   </script>
 {% endblock %}
