@@ -621,7 +621,9 @@ def prd_save_answer(request):
 
 @login_required
 def brainstorm(request, pk):
-    project = get_object_or_404(PRDProject, pk=pk, members=request.user)
+    project = get_object_or_404(
+        PRDProject.objects.prefetch_related("sections__questions"), pk=pk, members=request.user
+    )
 
     postits = [
         {
@@ -635,6 +637,7 @@ def brainstorm(request, pk):
             "assigneeId": str(p.assignee_id) if p.assignee_id else None,
             "status": p.status,
             "rotation": p.rotation,
+            "columnId": str(p.column_section_id) if p.column_section_id else None,
         }
         for p in project.postits.all()
     ]
@@ -643,12 +646,14 @@ def brainstorm(request, pk):
         for c in project.connections.all()
     ]
     members = [{**_serialize_member(m), "id": str(m.pk)} for m in project.members.all()]
+    columns = [{"id": str(s.id), "title": s.title} for s in project.sections.all()]
 
     context = {
         "project": project,
         "initial_postits_json": json.dumps(postits, ensure_ascii=False),
         "initial_connections_json": json.dumps(connections, ensure_ascii=False),
         "members_json": json.dumps(members, ensure_ascii=False),
+        "columns_json": json.dumps(columns, ensure_ascii=False),
     }
     return render(request, "ideas/brainstorm.html", context)
 
@@ -664,6 +669,7 @@ def brainstorm_sync(request, pk):
 
     postits = payload.get("postits", [])
     connections = payload.get("connections", [])
+    valid_section_ids = set(project.sections.values_list("id", flat=True))
 
     with transaction.atomic():
         project.postits.all().delete()
@@ -671,6 +677,9 @@ def brainstorm_sync(request, pk):
         for p in postits:
             author_id = int(p["authorId"]) if p.get("authorId") else request.user.pk
             assignee_id = int(p["assigneeId"]) if p.get("assigneeId") else None
+            column_id = int(p["columnId"]) if p.get("columnId") else None
+            if column_id not in valid_section_ids:
+                column_id = None
             obj = PostIt.objects.create(
                 project=project,
                 content=p.get("content", ""),
@@ -682,6 +691,7 @@ def brainstorm_sync(request, pk):
                 author_id=author_id,
                 assignee_id=assignee_id,
                 status=p.get("status", PostIt.Status.DEFAULT),
+                column_section_id=column_id,
             )
             id_map[str(p["id"])] = obj.id
 
