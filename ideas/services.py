@@ -150,4 +150,4 @@ def generate_question_draft(project, *, section, question):
         f"섹션: {section.title}\n"
         f"질문: {question.question}"
     )
-    return generate_coach_reply(prompt=prompt, feature_type="COACHING")
+    return generate_coach_reply(prompt=prompt, feature_type="GENERATE")
