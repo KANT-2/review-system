@@ -20,6 +20,14 @@ class CoachReply:
     total_tokens: int | None
 
 
+# 코칭 대화는 [현재 상태]/[제안]/[생각해볼 질문] 등 구조화된 답변이라 다소 길어질 수 있고,
+# 초안 생성은 PRD 답변란에 그대로 들어가는 본문 하나뿐이라 짧아야 한다.
+MAX_OUTPUT_TOKENS = {
+    "COACHING": 1536,
+    "GENERATE": 640,
+}
+
+
 def is_configured():
     return bool(settings.GEMINI_API_KEY)
 
@@ -53,6 +61,7 @@ def generate_coach_reply(*, prompt, feature_type="COACHING"):
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
+        max_output_tokens=MAX_OUTPUT_TOKENS.get(feature_type, MAX_OUTPUT_TOKENS["COACHING"]),
         http_options=types.HttpOptions(timeout=settings.GEMINI_TIMEOUT_MS),
     )
 

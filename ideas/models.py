@@ -144,6 +144,7 @@ class AIPrompt(models.Model):
     class FeatureType(models.TextChoices):
         CHAT = "CHAT", "채팅"
         COACHING = "COACHING", "코칭"
+        GENERATE = "GENERATE", "생성"
 
     prompt_id = models.BigAutoField(primary_key=True)
     feature_type = models.CharField(max_length=20, choices=FeatureType.choices)
