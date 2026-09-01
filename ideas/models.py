@@ -115,6 +115,14 @@ class PostIt(models.Model):
         related_name="assigned_postits",
     )
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DEFAULT)
+    # 브레인스토밍 보드에서 이 메모가 배정된 PRD 섹션 컬럼. null이면 아직 미분류(자유 영역)다.
+    column_section = models.ForeignKey(
+        PRDSection,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="postits",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
