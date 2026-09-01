@@ -164,6 +164,176 @@ DEFAULT_SECTIONS = [
     },
 ]
 
+# 신규 기능(new-feature) 유형 전용 섹션 구성 — 기존 서비스에 기능을 추가하는 상황에 맞춘 질문
+NEW_FEATURE_SECTIONS = [
+    {
+        "title": "기능 요약",
+        "step": 1,
+        "guidance": "어떤 서비스의 어느 흐름에 무엇을 추가하는지 3~5줄로 설명하세요.",
+        "questions": [
+            "서비스명과 신규 기능명은 무엇인가요?",
+            "이 기능을 추가하려는 이유는?",
+            "주요 이용 대상은 누구인가요?",
+            "기존 서비스와 연결되는 지점은 어디인가요?",
+        ],
+    },
+    {
+        "title": "기능 목표 및 서비스 기여",
+        "step": 2,
+        "guidance": "기능 자체의 사용뿐 아니라, 기존 서비스의 어떤 경험과 목표에 기여하는지 설명하세요.",
+        "questions": [
+            "신규 기능의 목표를 한 문장으로 정의해주세요.",
+            "사용자가 추가로 얻는 가치는 무엇인가요?",
+            "기존 서비스 목표와 어떻게 연결되나요?",
+            "기대하는 사용자 행동 변화는?",
+        ],
+    },
+    {
+        "title": "추가 배경 및 필요성",
+        "step": 3,
+        "guidance": "현재 흐름의 한계, 니즈의 반복성, 다른 해결 방식까지 검토하세요.",
+        "questions": [
+            "현재 제공 중인 관련 기능은?",
+            "현재 흐름에서 충족되지 않는 니즈는?",
+            "사용자 요청·행동 데이터·리서치 근거는?",
+            "지금 개발해야 하는 이유는?",
+        ],
+    },
+    {
+        "title": "기능 이용 대상 및 진입 맥락",
+        "step": 4,
+        "guidance": "이 기능이 필요한 사용자와 이용 시점을 구체화하세요.",
+        "questions": [
+            "핵심 이용 대상: 기존 사용자 중 누가 필요한가?",
+            "이용 계기: 어떤 순간에 필요해지는가?",
+            "진입 위치: 어디에서 기능을 발견하는가?",
+            "빈 상태·비대상: 이용할 데이터가 없으면 어떻게?",
+        ],
+    },
+    {
+        "title": "문제 정의 및 기능 가설",
+        "step": 5,
+        "guidance": "기능을 추가하면 어떤 행동이 달라질지 작성하세요.",
+        "questions": [
+            "현재 사용자 행동과 장벽은 무엇인가요?",
+            "핵심 문제를 한 문장으로 정의해주세요.",
+            "기능 가설을 작성해주세요.",
+            "검증 방법은 무엇인가요?",
+        ],
+    },
+    {
+        "title": "신규 기능 범위 및 연계",
+        "step": 6,
+        "guidance": "새로 만드는 기능뿐 아니라, 기존 화면·데이터·권한 중 함께 바뀌는 부분을 명시하세요.",
+        "questions": [
+            "신규 기능 포함 유저 플로우를 작성해주세요.",
+            "Must Have 기능 목록은?",
+            "기존 서비스에 영향받는 화면·데이터는?",
+            "완료 조건 및 주요 정책은?",
+        ],
+    },
+    {
+        "title": "성공 지표 및 출시 후 검증",
+        "step": 7,
+        "guidance": "기능 사용 여부, 사용자가 얻은 결과, 기존 서비스에 생긴 부작용을 함께 확인하세요.",
+        "questions": [
+            "기능 이용 지표(KPI)는 무엇인가요?",
+            "핵심 성과 지표는?",
+            "보호 지표(기존 기능 회귀 체크)는?",
+        ],
+    },
+]
+
+# 개선(improvement) 유형 전용 섹션 구성 — 기존 기능의 문제를 개선하는 상황에 맞춘 질문
+IMPROVEMENT_SECTIONS = [
+    {
+        "title": "개선 프로젝트 요약",
+        "step": 1,
+        "guidance": "어떤 기능의 어떤 문제를 어떤 방향으로 바꾸는지 3~5줄로 설명하세요.",
+        "questions": [
+            "서비스명과 개선 대상 기능은?",
+            "현재 발생하는 문제는 무엇인가요?",
+            "주요 변경 내용은 무엇인가요?",
+            "유지하는 기존 동작은 무엇인가요?",
+        ],
+    },
+    {
+        "title": "개선 목표 및 기대 효과",
+        "step": 2,
+        "guidance": "'UI 개선'이나 '편의성 향상'으로 끝내지 마세요. 어떤 불편을 줄이고 어떤 결과를 만들지 작성하세요.",
+        "questions": [
+            "개선 목표를 한 문장으로 정의해주세요.",
+            "사용자 관점의 기대 효과는?",
+            "서비스 관점의 기대 효과는?",
+            "이번 개선에서 해결하지 않는 문제는?",
+        ],
+    },
+    {
+        "title": "현황 및 개선 근거",
+        "step": 3,
+        "guidance": "관찰된 현상과 추정 원인을 구분하세요. 데이터에는 기간·대상·출처를 함께 적으세요.",
+        "questions": [
+            "현재 기능의 동작 방식은?",
+            "현재 성과 및 기준값은?",
+            "문제 발생 구간·상황은?",
+            "사용자 피드백 및 문의 내용은?",
+        ],
+    },
+    {
+        "title": "영향받는 사용자 및 이용 상황",
+        "step": 4,
+        "guidance": "문제를 실제로 겪는 사용자군을 구체화하세요. 기존 방식에 익숙한 사용자에게도 영향을 주는지 확인하세요.",
+        "questions": [
+            "주요 영향 사용자: 문제가 누구에게 집중되는가?",
+            "문제 발생 상황: 어떤 조건에서 발생하는가?",
+            "현재 대응 행동: 사용자는 지금 어떻게 대처하는가?",
+            "기존 사용자 영향: 익숙한 흐름이 달라지는가?",
+        ],
+    },
+    {
+        "title": "문제 원인 및 개선 가설",
+        "step": 5,
+        "guidance": "현상을 다시 설명하는 데 그치지 말고, 바꾸려는 요소가 왜 문제 해결에 도움이 되는지 연결하세요.",
+        "questions": [
+            "문제 현상과 확인된 원인 또는 원인 가설은?",
+            "검토한 개선 대안과 선택한 방향은?",
+            "개선 가설을 작성해주세요.",
+            "검증 방법과 가설이 틀렸다고 판단할 조건은?",
+        ],
+    },
+    {
+        "title": "개선 범위 및 변경 명세",
+        "step": 6,
+        "guidance": "'화면 개선'처럼 뭉뚱그리지 마세요. 변경 전·후, 유지 항목, 제외 항목을 구분하세요.",
+        "questions": [
+            "변경 전·후 비교 (As-is → To-be)를 작성해주세요.",
+            "유지하는 기능·정책은?",
+            "영향받는 연관 기능은?",
+            "완료 조건 및 회귀 테스트 기준은?",
+        ],
+    },
+    {
+        "title": "개선 성과 및 검증 계획",
+        "step": 7,
+        "guidance": "개선 전 기준값과 개선 후 목표값을 함께 작성하세요.",
+        "questions": [
+            "핵심 성과 지표(현재값 → 목표값)는?",
+            "문제 감소 지표는?",
+            "보호 지표(기존 기능 유지 기준)는?",
+        ],
+    },
+]
+
+
+def get_sections_for_type(project_type):
+    """PRD 유형(project_type)에 맞는 섹션 템플릿을 반환한다."""
+    if project_type == PRDProject.ProjectType.NEW_FEATURE:
+        return NEW_FEATURE_SECTIONS
+    if project_type == PRDProject.ProjectType.IMPROVEMENT:
+        return IMPROVEMENT_SECTIONS
+    return DEFAULT_SECTIONS
+
+
 MEMBER_COLORS = ["#4F46E5", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0891B2"]
 
 
@@ -234,6 +404,10 @@ def home(request):
         for p in projects.order_by("-updated_at")[:5]
     ]
 
+    prds = list(projects)
+    for p in prds:
+        p.is_new = bool(p.created_at) and (today - p.created_at.date()).days <= 3
+
     context = {
         "user_name": request.user.get_full_name() or request.user.first_name or "사용자",
         "stats": {
@@ -244,7 +418,7 @@ def home(request):
             "ai_sessions": ai_sessions,
             "soon_deadline": soon_deadline,
         },
-        "prds": projects,
+        "prds": prds,
         "weekly_activity": weekly_activity,
         "recent_activities": recent_activities,
         "status_choices": PRDProject.Status.choices,
@@ -277,7 +451,7 @@ def prd_new(request):
             valid_author_ids = User.objects.filter(pk__in=author_ids).values_list("pk", flat=True)
             project.members.add(*valid_author_ids)
 
-            for order, section_data in enumerate(DEFAULT_SECTIONS):
+            for order, section_data in enumerate(get_sections_for_type(project_type)):
                 section = PRDSection.objects.create(
                     project=project,
                     title=section_data["title"],

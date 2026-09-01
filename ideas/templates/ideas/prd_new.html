@@ -9,9 +9,32 @@
   .wizard-card.selected-indigo { border-color: transparent; box-shadow: 0 0 0 2px #818CF8; background: #EEF2FF; color:#1E293B; }
   .wizard-card.selected-violet { border-color: transparent; box-shadow: 0 0 0 2px #A78BFA; background: #F5F3FF; color:#1E293B; }
   .wizard-card.selected-emerald { border-color: transparent; box-shadow: 0 0 0 2px #34D399; background: #ECFDF5; color:#1E293B; }
-  .variant-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 12px; }
   .step-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
   .form-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 16px; padding: 32px; max-width: 480px; }
+
+  /* 마감일 캘린더 팝업 */
+  .date-trigger { display:flex; align-items:center; gap:8px; border:1px solid var(--bs-border-color); border-radius:8px; padding:8px 12px; cursor:pointer; transition:all .15s; }
+  .date-trigger.open { border-color:#A5B4FC; box-shadow:0 0 0 2px #E0E7FF; }
+  .date-trigger .clear-btn { border:none; background:transparent; color:var(--bs-secondary-color); font-size:15px; line-height:1; padding:0 2px; }
+  .cal-popup { position:absolute; top:calc(100% + 6px); left:0; z-index:50; background:var(--bs-body-bg); border:1px solid var(--bs-border-color); border-radius:12px; box-shadow:0 8px 28px rgba(0,0,0,.14); padding:12px; width:240px; }
+  .cal-nav-btn { width:26px; height:26px; border:none; background:transparent; border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--bs-secondary-color); font-weight:600; }
+  .cal-nav-btn:hover { background:var(--bs-tertiary-bg); }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .cal-dow { font-size:9px; color:var(--bs-secondary-color); text-align:center; padding:2px 0; font-weight:600; }
+  .cal-day { font-size:11px; height:28px; border:none; background:transparent; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:500; color:var(--bs-body-color); }
+  .cal-day:hover:not(:disabled) { background:#EEF2FF; }
+  .cal-day:disabled { color:var(--bs-secondary-color); opacity:.4; cursor:not-allowed; }
+  .cal-day.today { border:1px solid #A5B4FC; color:#4338CA; }
+  .cal-day.selected { background:#4F46E5; color:#fff; }
+
+  /* 작성자 드롭다운 검색 */
+  .author-search-box { padding:10px; border-bottom:1px solid var(--bs-border-color); }
+  .author-search-box input { width:100%; font-size:12px; border:1px solid var(--bs-border-color); border-radius:8px; padding:6px 10px 6px 28px; background:var(--bs-body-bg); }
+  .author-search-wrap { position:relative; }
+  .author-search-wrap svg { position:absolute; left:9px; top:50%; transform:translateY(-50%); width:13px; height:13px; color:var(--bs-secondary-color); pointer-events:none; }
+  .author-list-scroll { max-height:260px; overflow-y:auto; }
+  .scroll-top-btn { border:none; border-top:1px solid var(--bs-border-color); background:transparent; width:100%; padding:6px; font-size:11px; color:var(--bs-secondary-color); }
+  .scroll-top-btn:hover { background:var(--bs-tertiary-bg); }
   </style>
 {% endblock %}
 {% block content %}
@@ -35,22 +58,16 @@
         {% endfor %}
       </div>
     </div>
-    <div id="step-variant" style="display:none;">
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <span id="variantIcon" style="font-size:22px;"></span>
-        <h2 class="fw-bold mb-0" style="font-size:22px;" id="variantTitle"></h2>
-      </div>
-      <p class="text-secondary mb-5" style="font-size:13px;">상황에 맞는 세부 유형을 선택하세요.</p>
-      <div class="row g-3" id="variantGrid"></div>
-    </div>
     <div id="step-info" style="display:none;">
-      <h2 class="fw-bold mb-2" style="font-size:22px;">기본 정보를 입력해주세요</h2>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span id="infoIcon" style="font-size:20px;"></span>
+        <h2 class="fw-bold mb-0" style="font-size:22px;">기본 정보를 입력해주세요</h2>
+      </div>
       <p class="text-secondary mb-5" style="font-size:13px;">나중에 언제든 수정할 수 있습니다.</p>
       <div class="form-card">
         <form method="post" action="{% url 'ideas:prd_new' %}">
           {% csrf_token %}
           <input type="hidden" name="project_type" id="hiddenType" />
-          <input type="hidden" name="template_variant" id="hiddenVariant" />
           <div class="mb-4">
             <label class="fw-semibold d-block mb-1" style="font-size:13px;">프로젝트명 <span class="text-danger">*</span></label>
             <input type="text"
@@ -70,12 +87,22 @@
           </div>
           <div class="mb-4">
             <label class="fw-semibold d-block mb-1" style="font-size:13px;">목표 마감일 <span class="text-danger">*</span></label>
-            <input type="date"
-                   name="deadline"
-                   id="deadlineInput"
-                   class="form-control"
-                   style="font-size:13px"
-                   required />
+            <div class="position-relative" id="calendarWrap">
+              <div class="date-trigger" id="dateTrigger" onclick="toggleCalendar(event)">
+                <i class="bi bi-calendar3 text-secondary"></i>
+                <span class="flex-grow-1"
+                      id="dateLabel"
+                      style="font-size:13px;
+                             color:var(--bs-secondary-color)">날짜를 선택하세요</span>
+                <button type="button"
+                        class="clear-btn"
+                        id="dateClearBtn"
+                        style="display:none"
+                        onclick="clearDate(event)">×</button>
+              </div>
+              <input type="hidden" name="deadline" id="deadlineInput" required />
+              <div class="cal-popup" id="calPopup" style="display:none;"></div>
+            </div>
           </div>
           <div class="mb-2">
             <label class="fw-semibold d-block mb-2" style="font-size:13px;">PRD 작성자 선택</label>
@@ -120,6 +147,7 @@ const CURRENT_USER_MEMBER = {{ current_user_member|safe }};
 const OTHER_MEMBERS = {{ other_members_json|safe }};
 const COLLABORATOR_GROUPS = {{ collaborator_groups_json|safe }};
 let authors = [CURRENT_USER_MEMBER];
+let authorSearch = '';
 
 function renderAuthors() {
   const wrap = document.getElementById('authorAvatars');
@@ -128,9 +156,6 @@ function renderAuthors() {
     .filter(a => a.id !== CURRENT_USER_MEMBER.id)
     .map(a => `<input type="hidden" name="author_ids" value="${a.id}">`)
     .join('');
-
-  const otherIds = new Set(authors.map(a => a.id));
-  const otherAvailable = OTHER_MEMBERS.filter(m => !otherIds.has(m.id));
 
   wrap.innerHTML = authors.map(a => {
     const isMe = a.id === CURRENT_USER_MEMBER.id;
@@ -145,32 +170,84 @@ function renderAuthors() {
       </div>`;
   }).join('') + `
     <div class="dropdown">
-      <button type="button" class="rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;border:2px dashed var(--bs-border-color);background:transparent;color:var(--bs-secondary-color);font-size:18px;" data-bs-toggle="dropdown">+</button>
-      <div class="dropdown-menu p-2" style="width:280px;max-height:320px;overflow-y:auto;">
-        ${COLLABORATOR_GROUPS.length ? `
-          <p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">내가 협업했던 프로젝트</p>
-          ${COLLABORATOR_GROUPS.map(g => {
-            const allAdded = g.member_ids.every(id => otherIds.has(id));
-            return `<button type="button" class="dropdown-item d-flex justify-content-between align-items-center small"
-                       ${allAdded ? 'disabled' : ''} onclick="addGroup(${JSON.stringify(g.member_ids).replace(/"/g, '&quot;')})">
-                       <span>${g.name}</span>
-                       <span class="text-secondary" style="font-size:11px;">${allAdded ? '전원 추가됨' : g.member_ids.length + '명 추가'}</span>
-                     </button>`;
-          }).join('')}
-          <hr class="my-2">
-        ` : ''}
-        <p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">개별 추가</p>
-        ${otherAvailable.length ? otherAvailable.map(m => `
-          <button type="button" class="dropdown-item d-flex align-items-center gap-2 small" onclick="addAuthor(${m.id})">
-            <span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold flex-shrink-0"
-                  style="width:24px;height:24px;font-size:10px;background:${m.color};">${m.initials}</span>
-            <span class="flex-grow-1 text-truncate">${m.name}</span>
-            <span class="text-secondary" style="font-size:10px;">${m.role}</span>
-          </button>
-        `).join('') : '<p class="text-secondary small px-2 mb-0">추가할 사용자가 없습니다.</p>'}
+      <button type="button" class="rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;border:2px dashed var(--bs-border-color);background:transparent;color:var(--bs-secondary-color);font-size:18px;" data-bs-toggle="dropdown" onclick="openAuthorDropdown()">+</button>
+      <div class="dropdown-menu p-0" style="width:280px;">
+        <div class="author-search-box" onclick="event.stopPropagation()">
+          <div class="author-search-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input type="text" id="authorSearchInput" placeholder="이름 또는 역할로 검색" oninput="authorSearch = this.value; renderAuthorList();" onclick="event.stopPropagation()" />
+          </div>
+        </div>
+        <div class="author-list-scroll p-2" id="authorListScroll" onscroll="handleAuthorScroll()">
+          ${renderAuthorDropdownBody()}
+        </div>
+        <button type="button" class="scroll-top-btn" id="authorScrollTopBtn" style="display:none;" onclick="event.stopPropagation(); document.getElementById('authorListScroll').scrollTo({top:0, behavior:'smooth'});">
+          ↑ 맨 위로
+        </button>
       </div>
     </div>
   `;
+
+  const searchInput = document.getElementById('authorSearchInput');
+  if (searchInput) searchInput.value = authorSearch;
+}
+
+function renderAuthorList() {
+  const listEl = document.getElementById('authorListScroll');
+  if (listEl) listEl.innerHTML = renderAuthorDropdownBody();
+}
+
+function renderAuthorDropdownBody() {
+  const otherIds = new Set(authors.map(a => a.id));
+  const otherAvailable = OTHER_MEMBERS.filter(m => !otherIds.has(m.id));
+  const q = authorSearch.trim();
+  const groups = q ? COLLABORATOR_GROUPS.filter(g => g.name.includes(q)) : COLLABORATOR_GROUPS;
+  const members = q
+    ? otherAvailable.filter(m => m.name.includes(q) || (m.role && m.role.includes(q)))
+    : otherAvailable;
+
+  let html = '';
+  if (!q && groups.length) {
+    html += `<p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">내가 협업했던 프로젝트</p>`;
+    html += groups.map(g => {
+      const allAdded = g.member_ids.every(id => otherIds.has(id));
+      return `<button type="button" class="dropdown-item d-flex justify-content-between align-items-center small"
+                 ${allAdded ? 'disabled' : ''} onclick="addGroup(${JSON.stringify(g.member_ids).replace(/"/g, '&quot;')})">
+                 <span>${g.name}</span>
+                 <span class="text-secondary" style="font-size:11px;">${allAdded ? '전원 추가됨' : g.member_ids.length + '명 추가'}</span>
+               </button>`;
+    }).join('');
+    html += '<hr class="my-2">';
+  }
+  html += `<p class="text-secondary text-uppercase fw-semibold px-2 mb-1" style="font-size:10px;">개별 추가</p>`;
+  html += members.length ? members.map(m => `
+      <button type="button" class="dropdown-item d-flex align-items-center gap-2 small" onclick="addAuthor(${m.id})">
+        <span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-semibold flex-shrink-0"
+              style="width:24px;height:24px;font-size:10px;background:${m.color};">${m.initials}</span>
+        <span class="flex-grow-1 text-truncate">${m.name}</span>
+        <span class="text-secondary" style="font-size:10px;">${m.role}</span>
+      </button>
+    `).join('') : '<p class="text-secondary small px-2 mb-0">검색 결과가 없습니다</p>';
+  return html;
+}
+
+function handleAuthorScroll() {
+  const el = document.getElementById('authorListScroll');
+  const btn = document.getElementById('authorScrollTopBtn');
+  if (el && btn) btn.style.display = el.scrollTop > 20 ? '' : 'none';
+}
+
+function focusAuthorSearch() {
+  const el = document.getElementById('authorSearchInput');
+  if (el) el.focus();
+}
+
+function openAuthorDropdown() {
+  authorSearch = '';
+  const input = document.getElementById('authorSearchInput');
+  if (input) input.value = '';
+  renderAuthorList();
+  setTimeout(focusAuthorSearch, 0);
 }
 
 function addAuthor(id) {
@@ -205,9 +282,8 @@ const COLOR = {
 
 let step = 'type';
 let selectedTypeId = null;
-let selectedVariantId = null;
 let selectedColor = 'indigo';
-const STEPS = ['type', 'variant', 'info'];
+const STEPS = ['type', 'info'];
 
 function showStep(s) {
   step = s;
@@ -225,7 +301,6 @@ function updateNextBtn() {
   const btn = document.getElementById('nextBtn');
   let enabled = false;
   if (step === 'type') enabled = !!selectedTypeId;
-  if (step === 'variant') enabled = !!selectedVariantId;
   if (step === 'info') enabled = true;
   btn.disabled = !enabled;
   btn.style.opacity = enabled ? '1' : '0.4';
@@ -240,44 +315,114 @@ function selectType(btn) {
   updateNextBtn();
 }
 
-function selectVariant(btn) {
-  document.querySelectorAll('[data-variant-id]').forEach(b => b.classList.remove('selected-' + selectedColor));
-  selectedVariantId = btn.dataset.variantId;
-  btn.classList.add('selected-' + selectedColor);
-  updateNextBtn();
-}
-
-function renderVariants() {
-  const tmpl = TEMPLATE_TYPES.find(t => t.id === selectedTypeId);
-  if (!tmpl) return;
-  document.getElementById('variantIcon').textContent = tmpl.icon;
-  document.getElementById('variantTitle').textContent = tmpl.label;
-  const grid = document.getElementById('variantGrid');
-  grid.innerHTML = tmpl.variants.map(v => `
-    <div class="col-12 col-md-4">
-      <button type="button" class="wizard-card" data-variant-id="${v.id}" onclick="selectVariant(this)">
-        <div class="variant-badge" style="background:#F1F5F9;color:#475569;">${v.label}</div>
-        <h3 class="fw-bold mb-2" style="font-size:13px;">${v.description}</h3>
-        <p class="text-secondary mb-0" style="font-size:11px;line-height:1.6;">${v.example}</p>
-      </button>
-    </div>
-  `).join('');
-}
-
 function goNext() {
-  if (step === 'type' && selectedTypeId) { renderVariants(); showStep('variant'); }
-  else if (step === 'variant' && selectedVariantId) {
+  if (step === 'type' && selectedTypeId) {
     document.getElementById('hiddenType').value = selectedTypeId;
-    document.getElementById('hiddenVariant').value = selectedVariantId;
+    const tmpl = TEMPLATE_TYPES.find(t => t.id === selectedTypeId);
+    document.getElementById('infoIcon').textContent = tmpl ? tmpl.icon : '';
     showStep('info');
-  } else if (step === 'info') { document.getElementById('infoSubmitBtn').click(); }
+  } else if (step === 'info') {
+    document.getElementById('infoSubmitBtn').click();
+  }
 }
 
 function goBack() {
-  if (step === 'variant') showStep('type');
-  else if (step === 'info') showStep('variant');
+  if (step === 'info') showStep('type');
   else window.location.href = "{% url 'ideas:home' %}";
 }
+
+// ── 마감일 캘린더 ────────────────────────────────────────────────
+const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const DOW = ['일','월','화','수','목','금','토'];
+let calValue = '';
+let calOpen = false;
+let calViewY, calViewM;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toggleCalendar(e) {
+  e.stopPropagation();
+  calOpen = !calOpen;
+  if (calOpen) {
+    const parts = (calValue || todayStr()).split('-');
+    calViewY = parseInt(parts[0]);
+    calViewM = parseInt(parts[1]) - 1;
+    renderCalendar();
+  }
+  document.getElementById('calPopup').style.display = calOpen ? '' : 'none';
+  document.getElementById('dateTrigger').classList.toggle('open', calOpen);
+}
+
+function closeCalendar() {
+  calOpen = false;
+  document.getElementById('calPopup').style.display = 'none';
+  document.getElementById('dateTrigger').classList.remove('open');
+}
+
+function renderCalendar() {
+  const firstDow = new Date(calViewY, calViewM, 1).getDay();
+  const daysInMonth = new Date(calViewY, calViewM + 1, 0).getDate();
+  const today = todayStr();
+  let html = `
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <button type="button" class="cal-nav-btn" onclick="calPrevMonth(event)">‹</button>
+      <span style="font-size:12px;font-weight:700;">${calViewY}년 ${MONTHS[calViewM]}</span>
+      <button type="button" class="cal-nav-btn" onclick="calNextMonth(event)">›</button>
+    </div>
+    <div class="cal-grid mb-1">${DOW.map(d => `<span class="cal-dow">${d}</span>`).join('')}</div>
+    <div class="cal-grid">`;
+  for (let i = 0; i < firstDow; i++) html += '<span></span>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calViewY}-${pad2(calViewM + 1)}-${pad2(day)}`;
+    const isPast = dateStr < today;
+    const cls = ['cal-day'];
+    if (dateStr === calValue) cls.push('selected');
+    else if (dateStr === today) cls.push('today');
+    html += `<button type="button" class="${cls.join(' ')}" ${isPast ? 'disabled' : ''} onclick="selectDate(event, '${dateStr}')">${day}</button>`;
+  }
+  html += '</div>';
+  document.getElementById('calPopup').innerHTML = html;
+}
+
+function calPrevMonth(e) {
+  e.stopPropagation();
+  if (calViewM === 0) { calViewY -= 1; calViewM = 11; } else { calViewM -= 1; }
+  renderCalendar();
+}
+function calNextMonth(e) {
+  e.stopPropagation();
+  if (calViewM === 11) { calViewY += 1; calViewM = 0; } else { calViewM += 1; }
+  renderCalendar();
+}
+
+function selectDate(e, dateStr) {
+  e.stopPropagation();
+  calValue = dateStr;
+  document.getElementById('deadlineInput').value = dateStr;
+  document.getElementById('dateLabel').textContent = dateStr;
+  document.getElementById('dateLabel').style.color = 'var(--bs-body-color)';
+  document.getElementById('dateClearBtn').style.display = '';
+  closeCalendar();
+}
+
+function clearDate(e) {
+  e.stopPropagation();
+  calValue = '';
+  document.getElementById('deadlineInput').value = '';
+  document.getElementById('dateLabel').textContent = '날짜를 선택하세요';
+  document.getElementById('dateLabel').style.color = 'var(--bs-secondary-color)';
+  document.getElementById('dateClearBtn').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('calendarWrap');
+  if (calOpen && wrap && !wrap.contains(e.target)) closeCalendar();
+});
 
 showStep('type');
   </script>
